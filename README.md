@@ -1,7 +1,7 @@
-# AIRS Code Collection (ACO2)
+# AIRS Code Collection
 
 This repository provides a collection of codes for the analysis of
-NASA's Atmospheric InfraRed Sounder (AIRS) observations.
+observations of NASA's Atmospheric InfraRed Sounder (AIRS).
 
 ## Installation
 

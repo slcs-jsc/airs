@@ -63,7 +63,10 @@ jurassic.o: jurassic.c jurassic.h Makefile
 	$(CC) $(CFLAGS) -c -o jurassic.o jurassic.c
 
 bak:
-	tar chzf airs_`date +"%y%m%d%H%M"`.tgz Makefile *.c *.h
+	tar chzf airs_`date +"%y%m%d%H%M"`.tgz Doxyfile Makefile *.c *.h
+
+doc:
+	mkdir -p ../doc && doxygen && cd ../doc/latex && make && mv refman.pdf ..
 
 clean:
 	rm -f $(EXC) *.o *~

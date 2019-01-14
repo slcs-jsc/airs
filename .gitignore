@@ -1,4 +1,5 @@
-lib/build
+doc/latex/
+lib/build/
 projects/
 src/arpp
 src/autocorr
