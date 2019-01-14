@@ -1,0 +1,225 @@
+#include "libairs.h"
+
+/* ------------------------------------------------------------
+   Functions...
+   ------------------------------------------------------------ */
+
+/* Fill data gaps in perturbation data. */
+double fill_array(
+  double var[PERT_NTRACK][PERT_NXTRACK],
+  int ntrack,
+  int itrack,
+  int ixtrack);
+
+/* ------------------------------------------------------------
+   Main...
+   ------------------------------------------------------------ */
+
+int main(
+  int argc,
+  char *argv[]) {
+
+  static pert_t *pert, *pert2;
+  static wave_t wave;
+
+  char set[LEN], pertname[LEN];
+
+  double orblat, nu, t230 = 230.0, dt230, tbg, nesr, nedt = 0,
+    var_dh, gauss_fwhm, t0, t1;
+
+  int asc, bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y, ham_iter,
+    itrack, ixtrack, ix, iy, med_dx, orb = 0, orbit, fill;
+
+  FILE *out;
+
+  /* Check arguments... */
+  if (argc < 4)
+    ERRMSG("Give parameters: <ctl> <pert.nc> <map.tab>");
+
+  /* Get control parameters... */
+  scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
+  bg_poly_x = (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "0", NULL);
+  bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
+  bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
+  bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  gauss_fwhm = scan_ctl(argc, argv, "GAUSS_FWHM", -1, "0", NULL);
+  ham_iter = (int) scan_ctl(argc, argv, "HAM_ITER", -1, "0", NULL);
+  med_dx = (int) scan_ctl(argc, argv, "MED_DX", -1, "0", NULL);
+  var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "0", NULL);
+  scan_ctl(argc, argv, "SET", -1, "full", set);
+  orbit = (int) scan_ctl(argc, argv, "ORBIT", -1, "-999", NULL);
+  orblat = scan_ctl(argc, argv, "ORBLAT", -1, "0", NULL);
+  t0 = scan_ctl(argc, argv, "T0", -1, "-1e100", NULL);
+  t1 = scan_ctl(argc, argv, "T1", -1, "1e100", NULL);
+  dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
+  nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
+  fill = (int) scan_ctl(argc, argv, "FILL", -1, "0", NULL);
+
+  /* Allocate... */
+  ALLOC(pert, pert_t, 1);
+  ALLOC(pert2, pert_t, 1);
+
+  /* Read perturbation data... */
+  read_pert(argv[2], pertname, pert);
+
+  /* Recalculate background and perturbations... */
+  if (bg_poly_x > 0 || bg_poly_y > 0 ||
+      bg_smooth_x > 0 || bg_smooth_y > 0 ||
+      gauss_fwhm > 0 || ham_iter > 0 || med_dx > 0 || var_dh > 0) {
+
+    /* Convert to wave analysis struct... */
+    pert2wave(pert, &wave, 0, pert->ntrack - 1, 0, pert->nxtrack - 1);
+
+    /* Estimate background... */
+    background_poly(&wave, bg_poly_x, bg_poly_y);
+    background_smooth(&wave, bg_smooth_x, bg_smooth_y);
+
+    /* Gaussian filter... */
+    gauss(&wave, gauss_fwhm);
+
+    /* Hamming filter... */
+    hamming(&wave, ham_iter);
+
+    /* Median filter... */
+    median(&wave, med_dx);
+
+    /* Compute variance... */
+    variance(&wave, var_dh);
+
+    /* Copy data... */
+    for (ix = 0; ix < wave.nx; ix++)
+      for (iy = 0; iy < wave.ny; iy++) {
+	pert->pt[iy][ix] = wave.pt[ix][iy];
+	pert->var[iy][ix] = wave.var[ix][iy];
+      }
+  }
+
+  /* Fill data gaps... */
+  if (fill)
+    for (itrack = 0; itrack < pert->ntrack; itrack++)
+      for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
+	if (!gsl_finite(pert->dc[itrack][ixtrack]))
+	  pert->dc[itrack][ixtrack]
+	    = fill_array(pert->dc, pert->ntrack, itrack, ixtrack);
+	if (!gsl_finite(pert->bt[itrack][ixtrack]))
+	  pert->bt[itrack][ixtrack]
+	    = fill_array(pert->bt, pert->ntrack, itrack, ixtrack);
+	if (!gsl_finite(pert->pt[itrack][ixtrack]))
+	  pert->pt[itrack][ixtrack]
+	    = fill_array(pert->pt, pert->ntrack, itrack, ixtrack);
+	if (!gsl_finite(pert->var[itrack][ixtrack]))
+	  pert->var[itrack][ixtrack]
+	    = fill_array(pert->var, pert->ntrack, itrack, ixtrack);
+      }
+
+  /* Interpolate to fine grid... */
+  memcpy(pert2, pert, sizeof(pert_t));
+
+  /* Create output file... */
+  printf("Write perturbation data: %s\n", argv[3]);
+  if (!(out = fopen(argv[3], "w")))
+    ERRMSG("Cannot create file!");
+
+  /* Write header... */
+  fprintf(out,
+	  "# $1 = time (seconds since 01-JAN-2000, 00:00 UTC)\n"
+	  "# $2 = along-track index\n"
+	  "# $3 = longitude [deg]\n"
+	  "# $4 = latitude [deg]\n"
+	  "# $5 = 8mu brightness temperature [K]\n"
+	  "# $6 = %s brightness temperature [K]\n"
+	  "# $7 = %s brightness temperature perturbation [K]\n"
+	  "# $8 = %s brightness temperature variance [K^2]\n",
+	  pertname, pertname, pertname);
+
+  /* Write data... */
+  for (itrack = 0; itrack < pert->ntrack; itrack++) {
+
+    /* Count orbits... */
+    if (itrack > 0)
+      if (pert->lat[itrack - 1][pert->nxtrack / 2] <= orblat
+	  && pert->lat[itrack][pert->nxtrack / 2] >= orblat)
+	orb++;
+
+    /* Write output... */
+    fprintf(out, "\n");
+
+    /* Loop over scan... */
+    for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
+
+      /* Check data... */
+      if (pert->lon[itrack][ixtrack] < -180
+	  || pert->lon[itrack][ixtrack] > 180
+	  || pert->lat[itrack][ixtrack] < -90
+	  || pert->lat[itrack][ixtrack] > 90)
+	continue;
+
+      /* Get ascending/descending flag... */
+      asc = (pert->lat[itrack > 0 ? itrack : itrack + 1][pert->nxtrack / 2]
+	     > pert->lat[itrack >
+			 0 ? itrack - 1 : itrack][pert->nxtrack / 2]);
+
+      /* Estimate noise... */
+      if (dt230 > 0) {
+	nesr = planck(t230 + dt230, nu) - planck(t230, nu);
+	tbg = pert->bt[itrack][ixtrack] - pert->pt[itrack][ixtrack];
+	nedt = brightness(planck(tbg, nu) + nesr, nu) - tbg;
+      }
+
+      /* Write data... */
+      if (orbit < 0 || orb == orbit)
+	if (set[0] == 'f' || (set[0] == 'a' && asc)
+	    || (set[0] == 'd' && !asc))
+	  if (pert->time[itrack][ixtrack] >= t0
+	      && pert->time[itrack][ixtrack] <= t1)
+	    fprintf(out, "%.2f %d %g %g %g %g %g %g\n",
+		    pert->time[itrack][ixtrack], itrack,
+		    pert->lon[itrack][ixtrack], pert->lat[itrack][ixtrack],
+		    pert->dc[itrack][ixtrack], pert->bt[itrack][ixtrack],
+		    pert->pt[itrack][ixtrack],
+		    pert->var[itrack][ixtrack] - gsl_pow_2(nedt));
+    }
+  }
+
+  /* Close file... */
+  fclose(out);
+
+  /* Free... */
+  free(pert);
+  free(pert2);
+
+  return EXIT_SUCCESS;
+}
+
+/************************************************************************/
+
+double fill_array(
+  double var[PERT_NTRACK][PERT_NXTRACK],
+  int ntrack,
+  int itrack,
+  int ixtrack) {
+
+  double d1 = 0, d2 = 0, v1 = 0, v2 = 0;
+
+  int i;
+
+  /* Find nearest neighbours... */
+  for (i = itrack + 1; i < ntrack; i++)
+    if (gsl_finite(var[i][ixtrack])) {
+      d1 = fabs(i - itrack);
+      v1 = var[i][ixtrack];
+      break;
+    }
+  for (i = itrack - 1; i >= 0; i--)
+    if (gsl_finite(var[i][ixtrack])) {
+      d2 = fabs(i - itrack);
+      v2 = var[i][ixtrack];
+      break;
+    }
+
+  /* Interpolate... */
+  if (d1 + d2 > 0)
+    return (d2 * v1 + d1 * v2) / (d1 + d2);
+  else
+    return GSL_NAN;
+}
