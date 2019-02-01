@@ -7,11 +7,14 @@ src/bands
 src/cfc
 src/collect
 src/day2doy
+src/diff_apr
+src/diff_ret
 src/distance
 src/doy2day
 src/erafm
 src/events
 src/extract
+src/extract2
 src/get_wave_pert
 src/get_wave_synth
 src/hurricane
