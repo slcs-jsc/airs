@@ -16,13 +16,13 @@ int airs_chan[L1_NCHAN] = { 54, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82,
    ------------------------------------------------------------ */
 
 /* Maximum number of pressure levels for meteorological data. */
-#define EP 111
+#define EP 72
 
 /* Maximum number of longitudes for meteorological data. */
-#define EX 1201
+#define EX 362
 
 /* Maximum number of latitudes for meteorological data. */
-#define EY 601
+#define EY 182
 
 /* ------------------------------------------------------------
    Structs...
@@ -33,12 +33,6 @@ typedef struct {
 
   /* Time step of meteorological data [s]. */
   double dt_met;
-
-  /* Number of target pressure levels. */
-  int met_np;
-
-  /* Target pressure levels [hPa]. */
-  double met_p[EP];
 
   /* Surface geopotential data file. */
   char met_geopot[LEN];
@@ -209,12 +203,6 @@ void read_met_help(
   met_t * met,
   float dest[EX][EY][EP],
   float scl);
-
-/* Convert meteorological data from model levels to pressure levels. */
-void read_met_ml2pl(
-  ctl2_t * ctl2,
-  met_t * met,
-  float var[EX][EY][EP]);
 
 /* Create meteorological data with periodic boundary conditions. */
 void read_met_periodic(
@@ -578,15 +566,8 @@ void read_ctl2(
   char *argv[],
   ctl2_t * ctl2) {
 
-  int ip;
-
   /* Meteorological data... */
   ctl2->dt_met = scan_ctl(argc, argv, "DT_MET", -1, "21600", NULL);
-  ctl2->met_np = (int) scan_ctl(argc, argv, "MET_NP", -1, "0", NULL);
-  if (ctl2->met_np > EP)
-    ERRMSG("Too many levels!");
-  for (ip = 0; ip < ctl2->met_np; ip++)
-    ctl2->met_p[ip] = scan_ctl(argc, argv, "MET_P", ip, "", NULL);
   scan_ctl(argc, argv, "MET_GEOPOT", -1, "", ctl2->met_geopot);
 }
 
@@ -663,38 +644,14 @@ void read_met(
   read_met_help(ncid, "q", "Q", met, met->h2o, 1.608f);
   read_met_help(ncid, "o3", "O3", met, met->o3, 0.602f);
 
-  /* Meteo data on pressure levels... */
-  if (ctl2->met_np <= 0) {
+  /* Read pressure levels from file... */
+  NC(nc_inq_varid(ncid, levname, &varid));
+  NC(nc_get_var_double(ncid, varid, met->p));
+  for (ip = 0; ip < met->np; ip++)
+    met->p[ip] /= 100.;
 
-    /* Read pressure levels from file... */
-    NC(nc_inq_varid(ncid, levname, &varid));
-    NC(nc_get_var_double(ncid, varid, met->p));
-    for (ip = 0; ip < met->np; ip++)
-      met->p[ip] /= 100.;
-
-    /* Extrapolate data for lower boundary... */
-    read_met_extrapolate(met);
-  }
-
-  /* Meteo data on model levels... */
-  else {
-
-    /* Read pressure data from file... */
-    read_met_help(ncid, "pl", "PL", met, met->pl, 0.01f);
-
-    /* Interpolate from model levels to pressure levels... */
-    read_met_ml2pl(ctl2, met, met->t);
-    read_met_ml2pl(ctl2, met, met->u);
-    read_met_ml2pl(ctl2, met, met->v);
-    read_met_ml2pl(ctl2, met, met->w);
-    read_met_ml2pl(ctl2, met, met->h2o);
-    read_met_ml2pl(ctl2, met, met->o3);
-
-    /* Set pressure levels... */
-    met->np = ctl2->met_np;
-    for (ip = 0; ip < met->np; ip++)
-      met->p[ip] = ctl2->met_p[ip];
-  }
+  /* Extrapolate data for lower boundary... */
+  read_met_extrapolate(met);
 
   /* Check ordering of pressure levels... */
   for (ip = 1; ip < met->np; ip++)
@@ -935,44 +892,6 @@ void read_met_help(
 	else
 	  dest[ix][iy][ip] = GSL_NAN;
       }
-}
-
-/*****************************************************************************/
-
-void read_met_ml2pl(
-  ctl2_t * ctl2,
-  met_t * met,
-  float var[EX][EY][EP]) {
-
-  double aux[EP], p[EP], pt;
-
-  int ip, ip2, ix, iy;
-
-  /* Loop over columns... */
-  for (ix = 0; ix < met->nx; ix++)
-    for (iy = 0; iy < met->ny; iy++) {
-
-      /* Copy pressure profile... */
-      for (ip = 0; ip < met->np; ip++)
-	p[ip] = met->pl[ix][iy][ip];
-
-      /* Interpolate... */
-      for (ip = 0; ip < ctl2->met_np; ip++) {
-	pt = ctl2->met_p[ip];
-	if ((pt > p[0] && p[0] > p[1]) || (pt < p[0] && p[0] < p[1]))
-	  pt = p[0];
-	else if ((pt > p[met->np - 1] && p[1] > p[0])
-		 || (pt < p[met->np - 1] && p[1] < p[0]))
-	  pt = p[met->np - 1];
-	ip2 = locate(p, met->np, pt);
-	aux[ip] = LIN(p[ip2], var[ix][iy][ip2],
-		      p[ip2 + 1], var[ix][iy][ip2 + 1], pt);
-      }
-
-      /* Copy data... */
-      for (ip = 0; ip < ctl2->met_np; ip++)
-	var[ix][iy][ip] = (float) aux[ip];
-    }
 }
 
 /*****************************************************************************/
