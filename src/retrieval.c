@@ -7,7 +7,7 @@
    Macros...
    ------------------------------------------------------------ */
 
-/* Execute netCDF library command and check result. */
+/*! Execute netCDF library command and check result. */
 #define NC(cmd) {                                    \
     if((cmd)!=NC_NOERR)                              \
       ERRMSG(nc_strerror(cmd));                      \
@@ -17,133 +17,133 @@
    Dimensions...
    ------------------------------------------------------------ */
 
-/* Number of AIRS radiance channels (don't change). */
+/*! Number of AIRS radiance channels (don't change). */
 #define L1_NCHAN 34
 
-/* Along-track size of AIRS radiance granule (don't change). */
+/*! Along-track size of AIRS radiance granule (don't change). */
 #define L1_NTRACK 135
 
-/* Across-track size of AIRS radiance granule (don't change). */
+/*! Across-track size of AIRS radiance granule (don't change). */
 #define L1_NXTRACK 90
 
-/* Number of AIRS pressure layers (don't change). */
+/*! Number of AIRS pressure layers (don't change). */
 #define L2_NLAY 27
 
-/* Along-track size of AIRS retrieval granule (don't change). */
+/*! Along-track size of AIRS retrieval granule (don't change). */
 #define L2_NTRACK 45
 
-/* Across-track size of AIRS retrieval granule (don't change). */
+/*! Across-track size of AIRS retrieval granule (don't change). */
 #define L2_NXTRACK 30
 
 /* ------------------------------------------------------------
    Structs...
    ------------------------------------------------------------ */
 
-/* Buffer for netCDF data. */
+/*! Buffer for netCDF data. */
 typedef struct {
 
-  /* NetCDF file ID. */
+  /*! NetCDF file ID. */
   int ncid;
 
-  /* Number of retrieval altitudes. */
+  /*! Number of retrieval altitudes. */
   int np;
 
-  /* Time (seconds since 2000-01-01T00:00Z). */
+  /*! Time (seconds since 2000-01-01T00:00Z). */
   double l1_time[L1_NTRACK][L1_NXTRACK];
 
-  /* Footprint longitude [deg]. */
+  /*! Footprint longitude [deg]. */
   double l1_lon[L1_NTRACK][L1_NXTRACK];
 
-  /* Footprint latitude [deg]. */
+  /*! Footprint latitude [deg]. */
   double l1_lat[L1_NTRACK][L1_NXTRACK];
 
-  /* Satellite altitude [km]. */
+  /*! Satellite altitude [km]. */
   double l1_sat_z[L1_NTRACK];
 
-  /* Satellite longitude [deg]. */
+  /*! Satellite longitude [deg]. */
   double l1_sat_lon[L1_NTRACK];
 
-  /* Satellite latitude [deg]. */
+  /*! Satellite latitude [deg]. */
   double l1_sat_lat[L1_NTRACK];
 
-  /* Channel frequencies [cm^-1]. */
+  /*! Channel frequencies [cm^-1]. */
   double l1_nu[L1_NCHAN];
 
-  /* Radiance [W/(m^2 sr cm^-1)]. */
+  /*! Radiance [W/(m^2 sr cm^-1)]. */
   float l1_rad[L1_NTRACK][L1_NXTRACK][L1_NCHAN];
 
-  /* Altitude [km]. */
+  /*! Altitude [km]. */
   double l2_z[L2_NTRACK][L2_NXTRACK][L2_NLAY];
 
-  /* Pressure [hPa]. */
+  /*! Pressure [hPa]. */
   double l2_p[L2_NLAY];
 
-  /* Temperature [K]. */
+  /*! Temperature [K]. */
   double l2_t[L2_NTRACK][L2_NXTRACK][L2_NLAY];
 
-  /* Altitude [km]. */
+  /*! Altitude [km]. */
   float ret_z[NP];
 
-  /* Pressure [hPa]. */
+  /*! Pressure [hPa]. */
   float ret_p[L1_NTRACK * L1_NXTRACK];
 
-  /* Temperature [K]. */
+  /*! Temperature [K]. */
   float ret_t[L1_NTRACK * L1_NXTRACK * NP];
 
 } ncd_t;
 
-/* Retrieval control parameters. */
+/*! Retrieval control parameters. */
 typedef struct {
 
-  /* Recomputation of kernel matrix (number of iterations). */
+  /*! Recomputation of kernel matrix (number of iterations). */
   int kernel_recomp;
 
-  /* Maximum number of iterations. */
+  /*! Maximum number of iterations. */
   int conv_itmax;
 
-  /* Minimum normalized step size in state space. */
+  /*! Minimum normalized step size in state space. */
   double conv_dmin;
 
-  /* Forward model error [%]. */
+  /*! Forward model error [%]. */
   double err_formod[ND];
 
-  /* Noise error [W/(m^2 sr cm^-1)]. */
+  /*! Noise error [W/(m^2 sr cm^-1)]. */
   double err_noise[ND];
 
-  /* Pressure error [%]. */
+  /*! Pressure error [%]. */
   double err_press;
 
-  /* Vertical correlation length for pressure error [km]. */
+  /*! Vertical correlation length for pressure error [km]. */
   double err_press_cz;
 
-  /* Horizontal correlation length for pressure error [km]. */
+  /*! Horizontal correlation length for pressure error [km]. */
   double err_press_ch;
 
-  /* Temperature error [K]. */
+  /*! Temperature error [K]. */
   double err_temp;
 
-  /* Vertical correlation length for temperature error [km]. */
+  /*! Vertical correlation length for temperature error [km]. */
   double err_temp_cz;
 
-  /* Horizontal correlation length for temperature error [km]. */
+  /*! Horizontal correlation length for temperature error [km]. */
   double err_temp_ch;
 
-  /* Volume mixing ratio error [%]. */
+  /*! Volume mixing ratio error [%]. */
   double err_q[NG];
 
-  /* Vertical correlation length for volume mixing ratio error [km]. */
+  /*! Vertical correlation length for volume mixing ratio error [km]. */
   double err_q_cz[NG];
 
-  /* Horizontal correlation length for volume mixing ratio error [km]. */
+  /*! Horizontal correlation length for volume mixing ratio error [km]. */
   double err_q_ch[NG];
 
-  /* Extinction error [1/km]. */
+  /*! Extinction error [1/km]. */
   double err_k[NW];
 
-  /* Vertical correlation length for extinction error [km]. */
+  /*! Vertical correlation length for extinction error [km]. */
   double err_k_cz[NW];
 
-  /* Horizontal correlation length for extinction error [km]. */
+  /*! Horizontal correlation length for extinction error [km]. */
   double err_k_ch[NW];
 
 } ret_t;
@@ -152,7 +152,7 @@ typedef struct {
    Functions...
    ------------------------------------------------------------ */
 
-/* Create variable in netCDF file. */
+/*! Create variable in netCDF file. */
 void add_var(
   int ncid,
   const char *varname,
@@ -163,7 +163,7 @@ void add_var(
   int *varid,
   int ndims);
 
-/* Buffer netCDF data. */
+/*! Buffer netCDF data. */
 void buffer_nc(
   atm_t * atm,
   double chisq,
@@ -173,20 +173,20 @@ void buffer_nc(
   int np0,
   int np1);
 
-/* Compute cost function. */
+/*! Compute cost function. */
 double cost_function(
   gsl_vector * dx,
   gsl_vector * dy,
   gsl_matrix * s_a_inv,
   gsl_vector * sig_eps_inv);
 
-/* Fill data gaps in L2 data. */
+/*! Fill data gaps in L2 data. */
 void fill_gaps(
   double x[L2_NTRACK][L2_NXTRACK][L2_NLAY],
   double cx,
   double cy);
 
-/* Initialize with AIRS Level-2 data. */
+/*! Initialize with AIRS Level-2 data. */
 void init_l2(
   ncd_t * ncd,
   int track,
@@ -194,18 +194,18 @@ void init_l2(
   ctl_t * ctl,
   atm_t * atm);
 
-/* Invert symmetric matrix. */
+/*! Invert symmetric matrix. */
 void matrix_invert(
   gsl_matrix * a);
 
-/* Compute matrix product A^TBA or ABA^T for diagonal matrix B. */
+/*! Compute matrix product A^TBA or ABA^T for diagonal matrix B. */
 void matrix_product(
   gsl_matrix * a,
   gsl_vector * b,
   int transpose,
   gsl_matrix * c);
 
-/* Carry out optimal estimation retrieval. */
+/*! Carry out optimal estimation retrieval. */
 void optimal_estimation(
   ret_t * ret,
   ctl_t * ctl,
@@ -215,19 +215,19 @@ void optimal_estimation(
   atm_t * atm_i,
   double *chisq);
 
-/* Read netCDF file. */
+/*! Read netCDF file. */
 void read_nc(
   char *filename,
   ncd_t * ncd);
 
-/* Read retrieval control parameters. */
+/*! Read retrieval control parameters. */
 void read_ret_ctl(
   int argc,
   char *argv[],
   ctl_t * ctl,
   ret_t * ret);
 
-/* Set a priori covariance. */
+/*! Set a priori covariance. */
 void set_cov_apr(
   ret_t * ret,
   ctl_t * ctl,
@@ -236,7 +236,7 @@ void set_cov_apr(
   int *ipa,
   gsl_matrix * s_a);
 
-/* Set measurement errors. */
+/*! Set measurement errors. */
 void set_cov_meas(
   ret_t * ret,
   ctl_t * ctl,
@@ -245,13 +245,13 @@ void set_cov_meas(
   gsl_vector * sig_formod,
   gsl_vector * sig_eps_inv);
 
-/* Calculate solar zenith angle. */
+/*! Calculate solar zenith angle. */
 double sza(
   double sec,
   double lon,
   double lat);
 
-/* Write to netCDF file... */
+/*! Write to netCDF file... */
 void write_nc(
   char *filename,
   ncd_t * ncd);
