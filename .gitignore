@@ -1,7 +1,6 @@
 doc/latex/
 lib/build/
 projects/
-src/autocorr
 src/bands
 src/cfc
 src/collect
@@ -36,7 +35,6 @@ src/retrieval
 src/sampling
 src/so2
 src/spec2tab
-src/statistics
 src/sza
 src/umfm
 src/var1d
