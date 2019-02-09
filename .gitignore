@@ -3,7 +3,6 @@ lib/build/
 projects/
 src/bands
 src/cfc
-src/collect
 src/day2doy
 src/diff_apr
 src/diff_ret
