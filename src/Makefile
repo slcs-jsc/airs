@@ -23,7 +23,7 @@ CC = gcc
 MPICC = mpicc
 
 # CFLAGS...
-CFLAGS = $(INCDIR) -DHAVE_INLINE -DGSL_DISABLE_DEPRACTED $(DEFS) -pedantic -Werror -Wall -W -Wmissing-prototypes -Wstrict-prototypes -Wconversion -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs -Wno-long-long -Wmissing-declarations -Wredundant-decls -Winline -fno-common -fshort-enums -fopenmp
+CFLAGS = $(INCDIR) -DHAVE_INLINE -DGSL_DISABLE_DEPRACTED $(DEFS) -pedantic -Werror -Wall -W -Wmissing-prototypes -Wstrict-prototypes -Wconversion -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs -Wno-long-long -Wmissing-declarations -Wredundant-decls -Winline -fno-common -fshort-enums -fopenmp -g
 
 # LDFLAGS...
 LDFLAGS = $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lGctp -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm
@@ -33,7 +33,7 @@ LDFLAGS_RET = $(LIBDIR) -lgsl -lgslcblas -lm -lnetcdf -lm
 
 # Profiling...
 ifdef PROF
-  CFLAGS += -O2 -g -pg 
+  CFLAGS += -O2 -pg 
 else
   CFLAGS += -O3
 endif
@@ -54,11 +54,14 @@ libairs.o: libairs.c libairs.h Makefile
 jurassic.o: jurassic.c jurassic.h Makefile
 	$(CC) $(CFLAGS) -c -o jurassic.o jurassic.c
 
-bak:
-	tar chzf airs_`date +"%y%m%d%H%M"`.tgz Doxyfile Makefile *.c *.h
+retrieval: retrieval.c jurassic.o
+	$(MPICC) $(CFLAGS) -o retrieval retrieval.c jurassic.o $(LDFLAGS_RET)
 
 clean:
 	rm -f $(EXC) retrieval *.o *~
+
+dist:
+	zip airs_`date +"%y%m%d%H%M"`.zip Doxyfile Makefile *.c *.h
 
 doc:
 	mkdir -p ../doc && doxygen && cd ../doc/latex && make && mv refman.pdf ..
@@ -66,5 +69,5 @@ doc:
 indent:
 	indent -br -brf -brs -bfda -ce -cdw -lp -npcs -npsl *.c *.h
 
-retrieval: retrieval.c jurassic.o
-	$(MPICC) $(CFLAGS) -o retrieval retrieval.c jurassic.o $(LDFLAGS_RET)
+strip:
+	strip $(EXC) retrieval
