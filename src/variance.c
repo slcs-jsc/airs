@@ -274,7 +274,7 @@ int main(
     bt_8mu_max[NX][NY], dt[NX][NY], mtime[NX][NY], glat[NY], glon[NX],
     fdc[NX][NY], fwg[NX][NY], fgw[NX][NY], fcw[NX][NY],
     mean[NX][NY], min[NX][NY], max[NX][NY], var[NX][NY],
-    t_dc, t_gw, dt_trop = 0, dc_hlat = 25, dc_tlim = 250, dt230,
+    t_dc, t_gw, dt_trop, dc_hlat = 25, dc_tlim = 250, dt230,
     nesr, gauss_fwhm, var_dh, nu, lon0, lon1, lat0, lat1,
     thresh_dc, thresh_gw, lt;
 
@@ -305,9 +305,10 @@ int main(
   var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "0", NULL);
   thresh_gw = scan_ctl(argc, argv, "THRESH_GW", -1, "-999", NULL);
   thresh_dc = scan_ctl(argc, argv, "THRESH_DC", -1, "-999", NULL);
+  dt_trop = scan_ctl(argc, argv, "DT_TROP", -1, "0", NULL);
   dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
   nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
-
+  
   /* Allocate... */
   ALLOC(pert, pert_t, 1);
 
@@ -429,7 +430,7 @@ int main(
 		     t_trop_lat[ilat + 1], t_trop[imon][ilat + 1],
 		     pert->lat[itrack][ixtrack]) + dt_trop;
 	} else
-	  t_dc = thresh_dc;
+	  t_dc = thresh_dc + dt_trop;
 
 	/* Detection of gravity waves... */
 	det_gw = (pert->var[itrack][ixtrack] >= t_gw);
