@@ -144,6 +144,11 @@ int main(
     /* Write output... */
     fprintf(out, "\n");
 
+    /* Check for data gaps... */
+    if (itrack > 0 && pert->time[itrack][pert->nxtrack / 2]
+	- pert->time[itrack - 1][pert->nxtrack / 2] >= 10)
+      fprintf(out, "\n");
+
     /* Loop over scan... */
     for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
 

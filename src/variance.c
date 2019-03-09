@@ -308,7 +308,7 @@ int main(
   dt_trop = scan_ctl(argc, argv, "DT_TROP", -1, "0", NULL);
   dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
   nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
-  
+
   /* Allocate... */
   ALLOC(pert, pert_t, 1);
 
