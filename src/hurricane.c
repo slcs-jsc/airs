@@ -363,7 +363,7 @@ int get_storm_pos(
     return 0;
 
   /* Interpolate position... */
-  i = locate(time_wmo, nobs, t);
+  i = locate_irr(time_wmo, nobs, t);
   w = (t - time_wmo[i]) / (time_wmo[i + 1] - time_wmo[i]);
   geo2cart(0, lon_wmo[i], lat_wmo[i], x0);
   geo2cart(0, lon_wmo[i + 1], lat_wmo[i + 1], x1);

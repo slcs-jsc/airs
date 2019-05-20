@@ -17,8 +17,7 @@ int airs_chan[L1_NCHAN] = { 54, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82,
 
 /* Convert geopotential height to geometric altitude. */
 double gph2z(
-  double gph,
-  double lat);
+  double gph);
 
 /* ------------------------------------------------------------
    Main...
@@ -127,7 +126,7 @@ int main(
       for (xtrack = 0; xtrack < L2_NXTRACK; xtrack++)
 	for (lay = 0; lay < L2_NLAY; lay++)
 	  l2.z[track][xtrack][lay]
-	    = gph2z(l2.z[track][xtrack][lay], l2.lat[track][xtrack]);
+	    = gph2z(l2.z[track][xtrack][lay]);
 
     /* Write netCDF file... */
     write_l2(argv[3], &l2);
@@ -139,10 +138,9 @@ int main(
 /*****************************************************************************/
 
 double gph2z(
-  double gph,
-  double lat) {
+  double gph) {
 
-  double a = 3.086e-3, g0 = gravity(0.0, 45.0), glat = gravity(0.0, lat);
+  double a = 3.086e-3;
 
-  return glat / a - sqrt(gsl_pow_2(glat / a) - 2 * g0 * gph / a);
+  return G0 / a - sqrt(gsl_pow_2(G0 / a) - 2 * G0 * gph / a);
 }

@@ -255,6 +255,17 @@ static double t_trop[NMON][NLAT_TROP]
 };
 
 /* ------------------------------------------------------------
+   Functions...
+   ------------------------------------------------------------ */
+
+/* Add variable defintions to netCDF file. */
+void addatt(
+  int ncid,
+  int varid,
+  const char *unit,
+  const char *long_name);
+
+/* ------------------------------------------------------------
    Main...
    ------------------------------------------------------------ */
 
@@ -276,13 +287,14 @@ int main(
     mean[NX][NY], min[NX][NY], max[NX][NY], var[NX][NY],
     t_dc, t_gw, dt_trop, dc_hlat = 25, dc_tlim = 250, dt230,
     nesr, gauss_fwhm, var_dh, nu, lon0, lon1, lat0, lat1,
-    thresh_dc, thresh_gw, lt;
+    thresh_dc, thresh_gw, lt, help[NX * NY];
 
   static int asc, ix, iy, nx, ny, iarg, n[NX][NY],
     ndc[NX][NY], ngw[NX][NY], ncw[NX][NY], nwg[NX][NY],
     det_gw, det_cw, det_dc, det_wg, ilat, imon, nmin = 10,
     bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y,
-    itrack, itrack2, ixtrack, ixtrack2, iradius = 30;
+    itrack, itrack2, ixtrack, ixtrack2, iradius = 30, output, ncid, varid,
+    lonid, latid, npid, dimid[10], help2[NX * NY];
 
   /* Check arguments... */
   if (argc < 4)
@@ -308,6 +320,7 @@ int main(
   dt_trop = scan_ctl(argc, argv, "DT_TROP", -1, "0", NULL);
   dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
   nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
+  output = (int) scan_ctl(argc, argv, "OUTPUT", -1, "1", NULL);
 
   /* Allocate... */
   ALLOC(pert, pert_t, 1);
@@ -411,7 +424,7 @@ int main(
 
 	/* Get gravity wave detection threshold... */
 	if (thresh_gw <= 0.0) {
-	  ilat = locate(t_gw_lat, NLAT_GW, pert->lat[itrack][ixtrack]);
+	  ilat = locate_irr(t_gw_lat, NLAT_GW, pert->lat[itrack][ixtrack]);
 	  if (asc)
 	    t_gw = LIN(t_gw_lat[ilat], t_gw_asc[imon][ilat],
 		       t_gw_lat[ilat + 1], t_gw_asc[imon][ilat + 1],
@@ -425,10 +438,11 @@ int main(
 
 	/* Get deep convection detection threshold... */
 	if (thresh_dc <= 0.0) {
-	  ilat = locate(t_trop_lat, NLAT_TROP, pert->lat[itrack][ixtrack]);
-	  t_dc = LIN(t_trop_lat[ilat], t_trop[imon][ilat],
-		     t_trop_lat[ilat + 1], t_trop[imon][ilat + 1],
-		     pert->lat[itrack][ixtrack]) + dt_trop;
+	  ilat =
+	    locate_irr(t_trop_lat, NLAT_TROP, pert->lat[itrack][ixtrack]);
+	  t_dc =
+	    LIN(t_trop_lat[ilat], t_trop[imon][ilat], t_trop_lat[ilat + 1],
+		t_trop[imon][ilat + 1], pert->lat[itrack][ixtrack]) + dt_trop;
 	} else
 	  t_dc = thresh_dc + dt_trop;
 
@@ -507,11 +521,11 @@ int main(
 
       /* Get geolocation... */
       mtime[ix][iy] /= (double) n[ix][iy];
-      glon[ix] = lon0 + (ix + 0.5) / (double) nx *(
-  lon1 - lon0);
-      glat[iy] = lat0 + (iy + 0.5) / (double) ny *(
-  lat1 - lat0);
-
+      glon[ix]
+	= lon0 + (ix + 0.5) / (double) nx * (lon1 - lon0);
+      glat[iy]
+	= lat0 + (iy + 0.5) / (double) ny * (lat1 - lat0);
+      
       /* Normalize brightness temperatures... */
       bt[ix][iy] /= (double) n[ix][iy];
       bt_8mu[ix][iy] /= (double) n[ix][iy];
@@ -553,50 +567,112 @@ int main(
 	var[ix][iy] / (double) n[ix][iy] - gsl_pow_2(mean[ix][iy]);
     }
 
-  /* Create file... */
-  printf("Write variance statistics: %s\n", argv[2]);
-  if (!(out = fopen(argv[2], "w")))
-    ERRMSG("Cannot create file!");
+  /* Write ASCII file... */
+  if (output == 1) {
 
-  /* Write header... */
-  fprintf(out,
-	  "# $1 = time [s]\n"
-	  "# $2 = longitude [deg]\n"
-	  "# $3 = latitude [deg]\n"
-	  "# $4 = number of footprints\n"
-	  "# $5 = fraction of convection events [%%]\n"
-	  "# $6 = fraction of wave generating events [%%]\n"
-	  "# $7 = fraction of gravity wave events [%%]\n"
-	  "# $8 = fraction of convective wave events [%%]\n"
-	  "# $9 = mean perturbation [K]\n"
-	  "# $10 = minimum perturbation [K]\n");
-  fprintf(out,
-	  "# $11 = maximum perturbation [K]\n"
-	  "# $12 = variance [K^2]\n"
-	  "# $13 = mean surface temperature [K]\n"
-	  "# $14 = minimum surface temperature [K]\n"
-	  "# $15 = maximum surface temperature [K]\n"
-	  "# $16 = mean background temperature [K]\n"
-	  "# $17 = noise estimate [K]\n");
+    /* Create file... */
+    printf("Write variance statistics: %s\n", argv[2]);
+    if (!(out = fopen(argv[2], "w")))
+      ERRMSG("Cannot create file!");
 
-  /* Write results... */
-  for (iy = 0; iy < ny; iy++) {
-    if (iy == 0 || nx > 1)
-      fprintf(out, "\n");
-    for (ix = 0; ix < nx; ix++)
-      fprintf(out, "%.2f %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",
-	      mtime[ix][iy], glon[ix], glat[iy], n[ix][iy],
-	      fdc[ix][iy], fwg[ix][iy], fgw[ix][iy], fcw[ix][iy],
-	      mean[ix][iy], min[ix][iy], max[ix][iy], var[ix][iy],
-	      bt_8mu[ix][iy], bt_8mu_min[ix][iy], bt_8mu_max[ix][iy],
-	      bt[ix][iy], dt[ix][iy]);
+    /* Write header... */
+    fprintf(out,
+	    "# $1 = time [s]\n"
+	    "# $2 = longitude [deg]\n"
+	    "# $3 = latitude [deg]\n"
+	    "# $4 = number of footprints\n"
+	    "# $5 = fraction of convection events [%%]\n"
+	    "# $6 = fraction of wave generating events [%%]\n"
+	    "# $7 = fraction of gravity wave events [%%]\n"
+	    "# $8 = fraction of convective wave events [%%]\n"
+	    "# $9 = mean perturbation [K]\n"
+	    "# $10 = minimum perturbation [K]\n");
+    fprintf(out,
+	    "# $11 = maximum perturbation [K]\n"
+	    "# $12 = variance [K^2]\n"
+	    "# $13 = mean surface temperature [K]\n"
+	    "# $14 = minimum surface temperature [K]\n"
+	    "# $15 = maximum surface temperature [K]\n"
+	    "# $16 = mean background temperature [K]\n"
+	    "# $17 = noise estimate [K]\n");
+
+    /* Write results... */
+    for (iy = 0; iy < ny; iy++) {
+      if (iy == 0 || nx > 1)
+	fprintf(out, "\n");
+      for (ix = 0; ix < nx; ix++)
+	fprintf(out, "%.2f %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",
+		mtime[ix][iy], glon[ix], glat[iy], n[ix][iy],
+		fdc[ix][iy], fwg[ix][iy], fgw[ix][iy], fcw[ix][iy],
+		mean[ix][iy], min[ix][iy], max[ix][iy], var[ix][iy],
+		bt_8mu[ix][iy], bt_8mu_min[ix][iy], bt_8mu_max[ix][iy],
+		bt[ix][iy], dt[ix][iy]);
+    }
+
+    /* Close file... */
+    fclose(out);
   }
 
-  /* Close file... */
-  fclose(out);
+  /* Write netCDF file... */
+  else if (output == 2) {
+
+    /* Create netCDF file... */
+    printf("Write variance statistics: %s\n", argv[2]);
+    NC(nc_create(argv[2], NC_CLOBBER, &ncid));
+
+    /* Set dimensions... */
+    NC(nc_def_dim(ncid, "lat", (size_t) ny, &dimid[0]));
+    NC(nc_def_dim(ncid, "lon", (size_t) nx, &dimid[1]));
+
+    /* Add variables... */
+    NC(nc_def_var(ncid, "lat", NC_DOUBLE, 1, &dimid[0], &latid));
+    addatt(ncid, latid, "deg", "latitude");
+    NC(nc_def_var(ncid, "lon", NC_DOUBLE, 1, &dimid[1], &lonid));
+    addatt(ncid, lonid, "deg", "longitude");
+    NC(nc_def_var(ncid, "var", NC_FLOAT, 2, dimid, &varid));
+    addatt(ncid, varid, "K^2", "brightness temperature variance");
+    NC(nc_def_var(ncid, "np", NC_INT, 2, dimid, &npid));
+    addatt(ncid, npid, "1", "number of footprints");
+
+    /* Leave define mode... */
+    NC(nc_enddef(ncid));
+
+    /* Write data... */
+    NC(nc_put_var_double(ncid, latid, glat));
+    NC(nc_put_var_double(ncid, lonid, glon));
+    for (ix = 0; ix < nx; ix++)
+      for (iy = 0; iy < ny; iy++)
+	help[iy * nx + ix] = var[ix][iy] - POW2(dt[ix][iy]);
+    NC(nc_put_var_double(ncid, varid, help));
+    for (ix = 0; ix < nx; ix++)
+      for (iy = 0; iy < ny; iy++)
+	help2[iy * nx + ix] = n[ix][iy];
+    NC(nc_put_var_int(ncid, npid, help2));
+
+    /* Close file... */
+    NC(nc_close(ncid));
+  }
+
+  else
+    ERRMSG("Unknown output format!");
 
   /* Free... */
   free(pert);
 
   return EXIT_SUCCESS;
+}
+
+/*****************************************************************************/
+
+void addatt(
+  int ncid,
+  int varid,
+  const char *unit,
+  const char *long_name) {
+
+  /* Set long name... */
+  NC(nc_put_att_text(ncid, varid, "long_name", strlen(long_name), long_name));
+
+  /* Set units... */
+  NC(nc_put_att_text(ncid, varid, "units", strlen(unit), unit));
 }

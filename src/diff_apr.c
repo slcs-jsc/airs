@@ -149,8 +149,8 @@ int main(
 	press[ip] += ncd.l2_p[ip];
 	temp[ip] += ncd.l2_t[itrack][ixtrack][ip];
 	idx =
-	  locate(ncd2.l2_z[itrack][ixtrack], L2_NLAY,
-		 ncd.l2_z[itrack][ixtrack][ip]);
+	  locate_irr(ncd2.l2_z[itrack][ixtrack], L2_NLAY,
+		     ncd.l2_z[itrack][ixtrack][ip]);
 	tip =
 	  LIN(ncd2.l2_z[itrack][ixtrack][idx],
 	      ncd2.l2_t[itrack][ixtrack][idx],

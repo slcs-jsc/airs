@@ -347,9 +347,9 @@ void intpol_met_space(
     lon += 360;
 
   /* Get indices... */
-  ip = locate(met->p, met->np, p);
-  ix = locate(met->lon, met->nx, lon);
-  iy = locate(met->lat, met->ny, lat);
+  ip = locate_irr(met->p, met->np, p);
+  ix = locate_reg(met->lon, met->nx, lon);
+  iy = locate_reg(met->lat, met->ny, lat);
 
   /* Get weights... */
   wp = (met->p[ip + 1] - p) / (met->p[ip + 1] - met->p[ip]);

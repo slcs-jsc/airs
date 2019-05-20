@@ -325,13 +325,13 @@ void get_so2_column(
     *scd = GSL_POSINF;
     *err = GSL_POSINF;
   } else {
-    i = locate(sia, *n, si);
+    i = locate_irr(sia, *n, si);
     *scd = LIN(sia[i], scda[i], sia[i + 1], scda[i + 1], si);
 
-    i = locate(sia, *n, si + dsi + 1.0);
+    i = locate_irr(sia, *n, si + dsi + 1.0);
     scdp = LIN(sia[i], scda[i], sia[i + 1], scda[i + 1], si + dsi + 1.0);
 
-    i = locate(sia, *n, si - dsi - 1.0);
+    i = locate_irr(sia, *n, si - dsi - 1.0);
     scdm = LIN(sia[i], scda[i], sia[i + 1], scda[i + 1], si - dsi - 1.0);
 
     *err = GSL_MAX(fabs(scdm - *scd), fabs(scdp - *scd));
