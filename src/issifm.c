@@ -45,7 +45,7 @@ int main(
 
   static float p[NLON][NLAT][NZ], t[NLON][NLAT][NZ], help[NLON * NLAT * NZ];
 
-  static int id, itrack, ixtrack, ncid, dimid, varid,
+  static int id, itrack, ixtrack, ncid, dimid, varid, slant,
     ilon, ilat, iz, nlon, nlat, nz, ip, track0, track1;
 
   static size_t rs;
@@ -67,6 +67,7 @@ int main(
   read_ctl(argc, argv, &ctl);
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
   t_ovp = scan_ctl(argc, argv, "T_OVP", -1, "", NULL);
+  slant = (int) scan_ctl(argc, argv, "SLANT", -1, "1", NULL);
 
   /* Set control parameters... */
   ctl.write_bbt = 1;
@@ -200,20 +201,32 @@ int main(
       geo2cart(obs.obsz[0], obs.obslon[0], obs.obslat[0], xo);
       geo2cart(0, pert->lon[itrack][ixtrack], pert->lat[itrack][ixtrack], xs);
 
-      /* Set atmospheric data... */
-      atm.np = 0;
-      for (f = 0.0; f <= 1.0; f += 0.0002) {
-	xm[0] = f * xo[0] + (1 - f) * xs[0];
-	xm[1] = f * xo[1] + (1 - f) * xs[1];
-	xm[2] = f * xo[2] + (1 - f) * xs[2];
-	cart2geo(xm, &atm.z[atm.np], &atm.lon[atm.np], &atm.lat[atm.np]);
-	atm.time[atm.np] = pert->time[itrack][ixtrack];
-	if (atm.z[atm.np] < 10)
-	  continue;
-	else if (atm.z[atm.np] > 90)
-	  break;
-	else if ((++atm.np) >= NP)
-	  ERRMSG("Too many altitudes!");
+      /* Set profile for atmospheric data... */
+      if (slant) {
+	atm.np = 0;
+	for (f = 0.0; f <= 1.0; f += 0.0002) {
+	  xm[0] = f * xo[0] + (1 - f) * xs[0];
+	  xm[1] = f * xo[1] + (1 - f) * xs[1];
+	  xm[2] = f * xo[2] + (1 - f) * xs[2];
+	  cart2geo(xm, &atm.z[atm.np], &atm.lon[atm.np], &atm.lat[atm.np]);
+	  atm.time[atm.np] = pert->time[itrack][ixtrack];
+	  if (atm.z[atm.np] < 10)
+	    continue;
+	  else if (atm.z[atm.np] > 90)
+	    break;
+	  else if ((++atm.np) >= NP)
+	    ERRMSG("Too many altitudes!");
+	}
+      } else {
+	atm.np = 0;
+	for (f = 10.0; f <= 90.0; f += 0.2) {
+	  atm.time[atm.np] = pert->time[itrack][ixtrack];
+	  atm.z[atm.np] = f;
+	  atm.lon[atm.np] = pert->lon[itrack][ixtrack];
+	  atm.lat[atm.np] = pert->lat[itrack][ixtrack];
+	  if ((++atm.np) >= NP)
+	    ERRMSG("Too many altitudes!");
+	}
       }
 
       /* Initialize with climatological data... */
