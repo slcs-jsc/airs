@@ -10,6 +10,23 @@
 #define NZ 138
 
 /* ------------------------------------------------------------
+   Functions...
+   ------------------------------------------------------------ */
+
+void intpol(
+  float xs[NLON][NLAT][NZ],
+  double zs[NLON][NLAT][NZ],
+  double lons[NLON],
+  double lats[NLAT],
+  int nz,
+  int nlon,
+  int nlat,
+  double z,
+  double lon,
+  double lat,
+  double *x);
+
+/* ------------------------------------------------------------
    Main...
    ------------------------------------------------------------ */
 
@@ -23,15 +40,13 @@ int main(
 
   static char pertname[LEN];
 
-  static double lon[NLON], lat[NLAT], temp[NLAT][NLON], x0[3],
-    x1[NLAT][NLON][3], w, wsum, rmax2 = 50. * 50., fwhm = 20., var_dh = 100.,
-    btmean;
+  static double lon[NLON], lat[NLAT], xo[3], xs[3], xm[3], var_dh = 100.,
+    f, z[NLON][NLAT][NZ], t_ovp, hyam[NZ], hybm[NZ], ps[NLON][NLAT];
 
-  static float z[NZ][NLAT][NLON], p[NZ][NLAT][NLON], t[NZ][NLAT][NLON],
-    help[NZ * NLAT * NLON];
+  static float p[NLON][NLAT][NZ], t[NLON][NLAT][NZ], help[NLON * NLAT * NZ];
 
   static int id, itrack, ixtrack, ncid, dimid, varid,
-    ilon, ilat, iz, nlon, nlat, nz;
+    ilon, ilat, iz, nlon, nlat, nz, ip, track0, track1;
 
   static size_t rs;
 
@@ -39,20 +54,19 @@ int main(
 
   wave_t *wave;
 
-  FILE *out;
-
   /* ------------------------------------------------------------
      Get control parameters...
      ------------------------------------------------------------ */
 
   /* Check arguments... */
-  if (argc < 8)
-    ERRMSG("Give parameters: <ctl> <model.nc> <prof.tab> <map.tab> "
-	   "<rad.tab> <pert.nc> <wave_airs.tab> <wave_model.tab>");
+  if (argc < 5)
+    ERRMSG("Give parameters: <ctl> <model.nc> <pert.nc>"
+	   " <wave_airs.tab> <wave_model.tab>");
 
   /* Read control parameters... */
   read_ctl(argc, argv, &ctl);
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
+  t_ovp = scan_ctl(argc, argv, "T_OVP", -1, "", NULL);
 
   /* Set control parameters... */
   ctl.write_bbt = 1;
@@ -99,251 +113,207 @@ int main(
   /* Read temperature... */
   NC(nc_inq_varid(ncid, "t", &varid));
   NC(nc_get_var_float(ncid, varid, help));
-  for (iz = 0; iz < nz; iz++)
+  for (ilon = 0; ilon < nlon; ilon++)
     for (ilat = 0; ilat < nlat; ilat++)
-      for (ilon = 0; ilon < nlon; ilon++)
-	t[iz][ilat][ilon] = help[(iz * nlat + ilat) * nlon + ilon];
+      for (iz = 0; iz < nz; iz++)
+	t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
 
   /* Read geopotential heights... */
   NC(nc_inq_varid(ncid, "gh", &varid));
   NC(nc_get_var_float(ncid, varid, help));
-  for (iz = 0; iz < nz; iz++)
+  for (ilon = 0; ilon < nlon; ilon++)
     for (ilat = 0; ilat < nlat; ilat++)
-      for (ilon = 0; ilon < nlon; ilon++)
-	z[iz][ilat][ilon] =
-	  (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+      for (iz = 0; iz < nz; iz++)
+	z[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon] / 1e3;
+
+  /* Read surface pressure... */
+  NC(nc_inq_varid(ncid, "lnsp", &varid));
+  NC(nc_get_var_float(ncid, varid, help));
+  for (ilon = 0; ilon < nlon; ilon++)
+    for (ilat = 0; ilat < nlat; ilat++)
+      ps[ilon][ilat] = exp(help[ilat * nlon + ilon]);
+
+  /* Read grid coefficients... */
+  NC(nc_inq_varid(ncid, "hyam", &varid));
+  NC(nc_get_var_double(ncid, varid, hyam));
+  NC(nc_inq_varid(ncid, "hybm", &varid));
+  NC(nc_get_var_double(ncid, varid, hybm));
 
   /* Calculate pressure... */
-  for (iz = 0; iz < nz; iz++)
+  for (ilon = 0; ilon < nlon; ilon++)
     for (ilat = 0; ilat < nlat; ilat++)
-      for (ilon = 0; ilon < nlon; ilon++)
-	p[iz][ilat][ilon] = (float) (1013.25 * exp(-z[iz][ilat][ilon] / 7.0));
+      for (iz = 0; iz < nz; iz++)
+	p[ilon][ilat][iz]
+	  = (float) ((hyam[iz] + hybm[iz] * ps[ilon][ilat]) / 100.);
 
   /* Close file... */
   NC(nc_close(ncid));
 
   /* ------------------------------------------------------------
-     Write model data to ASCII...
+     Read AIRS perturbation data...
      ------------------------------------------------------------ */
 
-  /* Write profile... */
-  if (argv[3][0] != '-') {
+  /* Read perturbation data... */
+  read_pert(argv[3], pertname, pert);
 
-    /* Create file... */
-    printf("Write profile data: %s\n", argv[3]);
-    if (!(out = fopen(argv[3], "w")))
-      ERRMSG("Cannot create file!");
-
-    /* Write header... */
-    fprintf(out,
-	    "# $1 = altitude index\n"
-	    "# $2 = altitude [km]\n"
-	    "# $3 = longitude [deg]\n"
-	    "# $4 = latitude [deg]\n"
-	    "# $5 = pressure [hPa]\n" "# $6 = temperature [K]\n\n");
-
-    /* Write output... */
-    for (iz = 0; iz < nz; iz++)
-      fprintf(out, "%d %g %g %g %g %g\n", iz, z[iz][nlat / 2][nlon / 2],
-	      lon[nlon / 2], lat[nlat / 2],
-	      p[iz][nlat / 2][nlon / 2], t[iz][nlat / 2][nlon / 2]);
-
-    /* Close file... */
-    fclose(out);
+  /* Find track range... */
+  for (itrack = 0; itrack < pert->ntrack; itrack++) {
+    if (pert->time[itrack][44] < t_ovp - 720 || itrack == 0)
+      track0 = itrack;
+    track1 = itrack;
+    if (pert->time[itrack][44] > t_ovp + 720)
+      break;
   }
 
-  /* Write map data... */
-  if (argv[4][0] != '-') {
+  /* Convert to wave analysis struct... */
+  pert2wave(pert, wave, track0, track1, 0, pert->nxtrack - 1);
 
-    /* Create file... */
-    printf("Write map data: %s\n", argv[4]);
-    if (!(out = fopen(argv[4], "w")))
-      ERRMSG("Cannot create file!");
+  /* Estimate background... */
+  background_poly(wave, 5, 0);
 
-    /* Write header... */
-    fprintf(out,
-	    "# $1 = altitude index\n"
-	    "# $2 = altitude [km]\n"
-	    "# $3 = longitude [deg]\n"
-	    "# $4 = latitude [deg]\n"
-	    "# $5 = pressure [hPa]\n" "# $6 = temperature [K]\n");
+  /* Compute variance... */
+  variance(wave, var_dh);
 
-    /* Write output... */
-    for (ilon = 0; ilon < nlon; ilon++) {
-      fprintf(out, "\n");
-      for (ilat = 0; ilat < nlat; ilat++)
-	fprintf(out, "%d %g %g %g %g %g\n", nz / 2, z[nz / 2][ilat][ilon],
-		lon[ilon], lat[ilat],
-		p[nz / 2][ilat][ilon], t[nz / 2][ilat][ilon]);
-    }
-
-    /* Close file... */
-    fclose(out);
-  }
+  /* Write observation wave struct... */
+  write_wave(argv[4], wave);
 
   /* ------------------------------------------------------------
      Run forward model...
      ------------------------------------------------------------ */
 
-  /* Set observation data... */
-  obs.nr = 1;
-  obs.obsz[0] = 700;
+  /* Loop over AIRS geolocations... */
+  for (itrack = track0; itrack <= track1; itrack++)
+    for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
 
-  /* Loop over latitudes... */
-  for (ilat = 0; ilat < nlat; ilat++) {
+      /* Write info... */
+      if (ixtrack == 0)
+	printf("Compute track %d / %d ...\n", itrack - track0 + 1,
+	       track1 - track0 + 1);
 
-    /* Write info... */
-    printf("  Compute latitude %d / %d ...\n", ilat + 1, nlat);
+      /* Set observation data... */
+      obs.nr = 1;
+      obs.obsz[0] = 705;
+      obs.obslon[0] = pert->lon[itrack][44];
+      obs.obslat[0] = pert->lat[itrack][44];
 
-    /* Loop over longitudes... */
-    for (ilon = 0; ilon < nlon; ilon++) {
+      /* Get Cartesian coordinates... */
+      geo2cart(obs.obsz[0], obs.obslon[0], obs.obslat[0], xo);
+      geo2cart(0, pert->lon[itrack][ixtrack], pert->lat[itrack][ixtrack], xs);
 
-      /* Set altitude levels... */
+      /* Set atmospheric data... */
       atm.np = 0;
-      for (iz = 0; iz < nz; iz++)
-	if (gsl_finite(gsl_finite(t[iz][ilat][ilon]))
-	    && t[iz][ilat][ilon] > 100 && t[iz][ilat][ilon] < 400
-	    && z[iz][ilat][ilon] > 10 && z[iz][ilat][ilon] < 90) {
-	  atm.z[atm.np] = z[iz][ilat][ilon];
-	  if ((++atm.np) >= NP)
-	    ERRMSG("Too many altitudes!");
-	}
-
-      /* Add top level... */
-      atm.z[atm.np] = 90.;
-      if ((++atm.np) >= NP)
-	ERRMSG("Too many altitudes!");
+      for (f = 0.0; f <= 1.0; f += 0.0002) {
+	xm[0] = f * xo[0] + (1 - f) * xs[0];
+	xm[1] = f * xo[1] + (1 - f) * xs[1];
+	xm[2] = f * xo[2] + (1 - f) * xs[2];
+	cart2geo(xm, &atm.z[atm.np], &atm.lon[atm.np], &atm.lat[atm.np]);
+	atm.time[atm.np] = pert->time[itrack][ixtrack];
+	if (atm.z[atm.np] < 10)
+	  continue;
+	else if (atm.z[atm.np] > 90)
+	  break;
+	else if ((++atm.np) >= NP)
+	  ERRMSG("Too many altitudes!");
+      }
 
       /* Initialize with climatological data... */
       climatology(&ctl, &atm);
 
-      /* Set temperature and pressure... */
-      atm.np = 0;
-      for (iz = 0; iz < nz; iz++)
-	if (gsl_finite(t[iz][ilat][ilon])
-	    && t[iz][ilat][ilon] > 100 && t[iz][ilat][ilon] < 400
-	    && z[iz][ilat][ilon] > 10 && z[iz][ilat][ilon] < 90) {
-	  atm.p[atm.np] = p[iz][ilat][ilon];
-	  atm.t[atm.np] = t[iz][ilat][ilon];
-	  atm.np++;
-	}
-
-      /* Add top level... */
-      atm.np++;
+      /* Interpolate model data... */
+      for (ip = 0; ip < atm.np; ip++) {
+	intpol(t, z, lon, lat, nz, nlon, nlat,
+	       atm.z[ip], atm.lon[ip], atm.lat[ip], &atm.t[ip]);
+	intpol(p, z, lon, lat, nz, nlon, nlat,
+	       atm.z[ip], atm.lon[ip], atm.lat[ip], &atm.p[ip]);
+      }
 
       /* Run forward model... */
       formod(&ctl, &atm, &obs);
 
       /* Get mean brightness temperature... */
-      temp[ilat][ilon] = 0;
+      pert->bt[itrack][ixtrack] = 0;
       for (id = 0; id < ctl.nd; id++)
-	temp[ilat][ilon] += obs.rad[id][0] / ctl.nd;
-    }
-  }
-
-  /* ------------------------------------------------------------
-     Save forward model output...
-     ------------------------------------------------------------ */
-
-  /* Check filename... */
-  if (argv[5][0] != '-') {
-
-    /* Create file... */
-    printf("Write radiance data: %s\n", argv[5]);
-    if (!(out = fopen(argv[5], "w")))
-      ERRMSG("Cannot create file!");
-
-    /* Write header... */
-    fprintf(out,
-	    "# $1 = longitude [deg]\n"
-	    "# $2 = latitude [deg]\n" "# $3 = brightness temperature [K]\n");
-
-    /* Write output... */
-    for (ilat = 0; ilat < nlat; ilat++) {
-      fprintf(out, "\n");
-      for (ilon = 0; ilon < nlon; ilon++)
-	fprintf(out, "%g %g %g\n", lon[ilon], lat[ilat], temp[ilat][ilon]);
+	pert->bt[itrack][ixtrack] += obs.rad[id][0] / ctl.nd;
     }
 
-    /* Close file... */
-    fclose(out);
-  }
-
   /* ------------------------------------------------------------
-     Read AIRS radiance map and resample model data...
+     Write model perturbations...
      ------------------------------------------------------------ */
 
-  /* Check filename... */
-  if (argv[6][0] != '-' && argv[7][0] != '-' && argv[8][0] != '-') {
+  /* Convert to wave analysis struct... */
+  pert2wave(pert, wave, track0, track1, 0, pert->nxtrack - 1);
 
-    /* Read perturbation data... */
-    read_pert(argv[6], pertname, pert);
+  /* Estimate background... */
+  background_poly(wave, 5, 0);
 
-    /* Convert to wave analysis struct... */
-    pert2wave(pert, wave, 0, pert->ntrack - 1, 0, pert->nxtrack - 1);
+  /* Compute variance... */
+  variance(wave, var_dh);
 
-    /* Estimate background... */
-    background_poly(wave, 5, 0);
-
-    /* Compute variance... */
-    variance(wave, var_dh);
-
-    /* Write observation wave struct... */
-    write_wave(argv[7], wave);
-
-    /* Get Cartesian coordinates for model grid... */
-    for (ilat = 0; ilat < nlat; ilat++)
-      for (ilon = 0; ilon < nlon; ilon++)
-	geo2cart(0, lon[ilon], lat[ilat], x1[ilat][ilon]);
-
-    /* Loop over AIRS geolocations... */
-    for (itrack = 0; itrack < pert->ntrack; itrack++)
-      for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
-
-	/* Write info... */
-	if (ixtrack == 0)
-	  printf("  Average for track %d / %d ...\n",
-		 itrack + 1, pert->ntrack);
-
-	/* Init... */
-	wsum = 0;
-	btmean = 0;
-
-	/* Average... */
-	geo2cart(0, pert->lon[itrack][ixtrack],
-		 pert->lat[itrack][ixtrack], x0);
-	for (ilat = 0; ilat < nlat; ilat++)
-	  for (ilon = 0; ilon < nlon; ilon++)
-	    if (DIST2(x0, x1[ilat][ilon]) <= rmax2) {
-	      w = exp(-DIST2(x0, x1[ilat][ilon]) /
-		      (2. * gsl_pow_2(fwhm / 2.3548)));
-	      btmean += w * temp[ilat][ilon];
-	      wsum += w;
-	    }
-
-	/* Normalize... */
-	if (wsum > 0)
-	  pert->bt[itrack][ixtrack] = btmean / wsum;
-	else
-	  pert->bt[itrack][ixtrack] = GSL_NAN;
-      }
-
-    /* Convert to wave analysis struct... */
-    pert2wave(pert, wave, 0, pert->ntrack - 1, 0, pert->nxtrack - 1);
-
-    /* Estimate background... */
-    background_poly(wave, 5, 0);
-
-    /* Compute variance... */
-    variance(wave, var_dh);
-
-    /* Write model wave struct... */
-    write_wave(argv[8], wave);
-  }
+  /* Write observation wave struct... */
+  write_wave(argv[5], wave);
 
   /* Free... */
   free(pert);
   free(wave);
 
   return EXIT_SUCCESS;
+}
+
+/************************************************************************/
+
+void intpol(
+  float xs[NLON][NLAT][NZ],
+  double zs[NLON][NLAT][NZ],
+  double lons[NLON],
+  double lats[NLAT],
+  int nz,
+  int nlon,
+  int nlat,
+  double z,
+  double lon,
+  double lat,
+  double *x) {
+
+  double x00, x01, x10, x11;
+
+  int iz, ilon, ilat;
+
+  /* Adjust longitude... */
+  if (lons[nlon - 1] > 180)
+    if (lon < 0)
+      lon += 360;
+
+  /* Get indices... */
+  ilon = locate_reg(lons, nlon, lon);
+  ilat = locate_reg(lats, nlat, lat);
+
+  /* Check vertical range... */
+  if (z > zs[ilon][ilat][0] || z < zs[ilon][ilat][nz - 1] ||
+      z > zs[ilon][ilat + 1][0] || z < zs[ilon][ilat + 1][nz - 1] ||
+      z > zs[ilon + 1][ilat][0] || z < zs[ilon + 1][ilat][nz - 1] ||
+      z > zs[ilon + 1][ilat + 1][0] || z < zs[ilon + 1][ilat + 1][nz - 1])
+    return;
+
+  /* Interpolate vertically... */
+  iz = locate_irr(zs[ilon][ilat], nz, z);
+  x00 = LIN(zs[ilon][ilat][iz], xs[ilon][ilat][iz],
+	    zs[ilon][ilat][iz + 1], xs[ilon][ilat][iz + 1], z);
+
+  iz = locate_irr(zs[ilon][ilat + 1], nz, z);
+  x01 = LIN(zs[ilon][ilat + 1][iz], xs[ilon][ilat + 1][iz],
+	    zs[ilon][ilat + 1][iz + 1], xs[ilon][ilat + 1][iz + 1], z);
+
+  iz = locate_irr(zs[ilon + 1][ilat], nz, z);
+  x10 = LIN(zs[ilon + 1][ilat][iz], xs[ilon + 1][ilat][iz],
+	    zs[ilon + 1][ilat][iz + 1], xs[ilon + 1][ilat][iz + 1], z);
+
+  iz = locate_irr(zs[ilon + 1][ilat + 1], nz, z);
+  x11 = LIN(zs[ilon + 1][ilat + 1][iz], xs[ilon + 1][ilat + 1][iz],
+	    zs[ilon + 1][ilat + 1][iz + 1], xs[ilon + 1][ilat + 1][iz + 1],
+	    z);
+
+  /* Interpolate horizontally... */
+  x00 = LIN(lons[ilon], x00, lons[ilon + 1], x10, lon);
+  x11 = LIN(lons[ilon], x01, lons[ilon + 1], x11, lon);
+  *x = LIN(lats[ilat], x00, lats[ilat + 1], x11, lat);
 }
