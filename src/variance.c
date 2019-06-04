@@ -522,10 +522,12 @@ int main(
       /* Get geolocation... */
       mtime[ix][iy] /= (double) n[ix][iy];
       glon[ix]
-	= lon0 + (ix + 0.5) / (double) nx * (lon1 - lon0);
+      = lon0 + (ix + 0.5) / (double) nx *(
+  lon1 - lon0);
       glat[iy]
-	= lat0 + (iy + 0.5) / (double) ny * (lat1 - lat0);
-      
+      = lat0 + (iy + 0.5) / (double) ny *(
+  lat1 - lat0);
+
       /* Normalize brightness temperatures... */
       bt[ix][iy] /= (double) n[ix][iy];
       bt_8mu[ix][iy] /= (double) n[ix][iy];

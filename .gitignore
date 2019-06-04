@@ -15,6 +15,7 @@ src/get_wave_pert
 src/get_wave_synth
 src/hurricane
 src/island
+src/issifm
 src/jurassic.o
 src/libairs.o
 src/map_pert

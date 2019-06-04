@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 
 # Executables...
-EXC = bands cfc day2doy diff_apr diff_ret distance doy2day erafm events extract get_wave_pert get_wave_synth hurricane island map_pert map_rad map_ret noise_pert noise_ret optimize_si orbit overpass pca perturbation rayt ret2tab sampling so2 spec2tab sza umfm var1d var3d variance volcano wrffm zm_ret
+EXC = bands cfc day2doy diff_apr diff_ret distance doy2day erafm events extract get_wave_pert get_wave_synth hurricane island issifm map_pert map_rad map_ret noise_pert noise_ret optimize_si orbit overpass pca perturbation rayt ret2tab sampling so2 spec2tab sza umfm var1d var3d variance volcano wrffm zm_ret
 
 # Library directories...
 LIBDIR = -L ../lib/build/lib
@@ -23,7 +23,7 @@ CC = gcc
 MPICC = mpicc
 
 # CFLAGS...
-CFLAGS = $(INCDIR) -DHAVE_INLINE -DGSL_DISABLE_DEPRACTED $(DEFS) -pedantic -Werror -Wall -W -Wmissing-prototypes -Wstrict-prototypes -Wconversion -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs -Wno-long-long -Wmissing-declarations -Wredundant-decls -Winline -fno-common -fshort-enums -fopenmp -g
+CFLAGS = $(INCDIR) -DHAVE_INLINE -DGSL_DISABLE_DEPRACTED $(DEFS) -pedantic -Werror -Wall -W -Wmissing-prototypes -Wstrict-prototypes -Wconversion -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs -Wno-long-long -Wmissing-declarations -Wredundant-decls -Winline -fno-common -fshort-enums -fopenmp -g -mcmodel=medium
 
 # LDFLAGS...
 LDFLAGS = $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lGctp -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm
