@@ -4,15 +4,22 @@
    Dimensions...
    ------------------------------------------------------------ */
 
-/* Maximum model dimensions. */
-#define NLON 1441
-#define NLAT 721
-#define NZ 138
-#if 0
-#define NLON 1751
-#define NLAT 1201
-#define NZ 242
-#endif
+/* Maximum model dimensions (ICON).
+   #define NLON 1751
+   #define NLAT 1201
+   #define NZ 242
+*/
+
+/* Maximum model dimensions (IFS).
+   #define NLON 1441
+   #define NLAT 721
+   #define NZ 138
+*/
+
+/* Maximum model dimensions (UM). */
+#define NLON 2988
+#define NLAT 904
+#define NZ 162
 
 /* ------------------------------------------------------------
    Functions...
@@ -240,15 +247,77 @@ int main(
     NC(nc_close(ncid));
   }
 
+  /* Read UM data... */
+  else if (strcasecmp(argv[2], "um") == 0) {
+    
+    /* Open file... */
+    printf("Read UM data: %s\n", argv[3]);
+    NC(nc_open(argv[3], NC_NOWRITE, &ncid));
+    
+    /* Get dimensions... */
+    NC(nc_inq_dimid(ncid, "RHO_TOP_eta_rho", &dimid));
+    NC(nc_inq_dimlen(ncid, dimid, &rs));
+    nz = (int) rs;
+    if (nz > NZ)
+      ERRMSG("Too many altitudes!");
+    
+    NC(nc_inq_dimid(ncid, "latitude", &dimid));
+    NC(nc_inq_dimlen(ncid, dimid, &rs));
+    nlat = (int) rs;
+    if (nlat > NLAT)
+      ERRMSG("Too many latitudes!");
+    
+    NC(nc_inq_dimid(ncid, "longitude", &dimid));
+    NC(nc_inq_dimlen(ncid, dimid, &rs));
+    nlon = (int) rs;
+    if (nlon > NLON)
+      ERRMSG("Too many longitudes!");
+    
+    /* Read latitudes... */
+    NC(nc_inq_varid(ncid, "latitude", &varid));
+    NC(nc_get_var_double(ncid, varid, lat));
+    
+    /* Read longitudes... */
+    NC(nc_inq_varid(ncid, "longitude", &varid));
+    NC(nc_get_var_double(ncid, varid, lon));
+    
+    /* Read temperature... */
+    NC(nc_inq_varid(ncid, "STASH_m01s30i004", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
+    
+    /* Read heights... */
+    NC(nc_inq_varid(ncid, "RHO_TOP_zsea_rho", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  z[ilon][ilat][iz] =
+	    (float) (help[iz] / 1e3);
+    
+    /* Calculate pressure... */
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  p[ilon][ilat][iz]
+	    = (float) (1013.25 * exp(-z[ilon][ilat][iz] / 7.0));
+    
+    /* Close file... */
+    NC(nc_close(ncid));
+  }
+
   else
     ERRMSG("Model type not supported!");
 
   /* Free... */
   free(help);
-
+  
   /* Smoothing of model data... */
   smooth(p, t, z, lon, lat, nz, nlon, nlat);
-
+  
   /* ------------------------------------------------------------
      Read AIRS perturbation data...
      ------------------------------------------------------------ */
