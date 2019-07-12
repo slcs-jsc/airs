@@ -294,7 +294,7 @@ int main(
     det_gw, det_cw, det_dc, det_wg, ilat, imon, nmin = 10,
     bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y,
     itrack, itrack2, ixtrack, ixtrack2, iradius = 30, output, ncid, varid,
-    lonid, latid, npid, dimid[10], help2[NX * NY];
+    minid, maxid, lonid, latid, npid, dimid[10], help2[NX * NY];
 
   /* Check arguments... */
   if (argc < 4)
@@ -633,6 +633,10 @@ int main(
     addatt(ncid, lonid, "deg", "longitude");
     NC(nc_def_var(ncid, "var", NC_FLOAT, 2, dimid, &varid));
     addatt(ncid, varid, "K^2", "brightness temperature variance");
+    NC(nc_def_var(ncid, "min", NC_FLOAT, 2, dimid, &minid));
+    addatt(ncid, minid, "K", "brightness temperature minimum");
+    NC(nc_def_var(ncid, "max", NC_FLOAT, 2, dimid, &maxid));
+    addatt(ncid, maxid, "K", "brightness temperature maximum");
     NC(nc_def_var(ncid, "np", NC_INT, 2, dimid, &npid));
     addatt(ncid, npid, "1", "number of footprints");
 
@@ -646,6 +650,14 @@ int main(
       for (iy = 0; iy < ny; iy++)
 	help[iy * nx + ix] = var[ix][iy] - POW2(dt[ix][iy]);
     NC(nc_put_var_double(ncid, varid, help));
+    for (ix = 0; ix < nx; ix++)
+      for (iy = 0; iy < ny; iy++)
+	help[iy * nx + ix] = min[ix][iy];
+    NC(nc_put_var_double(ncid, minid, help));
+    for (ix = 0; ix < nx; ix++)
+      for (iy = 0; iy < ny; iy++)
+	help[iy * nx + ix] = max[ix][iy];
+    NC(nc_put_var_double(ncid, maxid, help));
     for (ix = 0; ix < nx; ix++)
       for (iy = 0; iy < ny; iy++)
 	help2[iy * nx + ix] = n[ix][iy];

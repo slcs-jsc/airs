@@ -249,38 +249,38 @@ int main(
 
   /* Read UM data... */
   else if (strcasecmp(argv[2], "um") == 0) {
-    
+
     /* Open file... */
     printf("Read UM data: %s\n", argv[3]);
     NC(nc_open(argv[3], NC_NOWRITE, &ncid));
-    
+
     /* Get dimensions... */
     NC(nc_inq_dimid(ncid, "RHO_TOP_eta_rho", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     nz = (int) rs;
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
-    
+
     NC(nc_inq_dimid(ncid, "latitude", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     nlat = (int) rs;
     if (nlat > NLAT)
       ERRMSG("Too many latitudes!");
-    
+
     NC(nc_inq_dimid(ncid, "longitude", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     nlon = (int) rs;
     if (nlon > NLON)
       ERRMSG("Too many longitudes!");
-    
+
     /* Read latitudes... */
     NC(nc_inq_varid(ncid, "latitude", &varid));
     NC(nc_get_var_double(ncid, varid, lat));
-    
+
     /* Read longitudes... */
     NC(nc_inq_varid(ncid, "longitude", &varid));
     NC(nc_get_var_double(ncid, varid, lon));
-    
+
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "STASH_m01s30i004", &varid));
     NC(nc_get_var_float(ncid, varid, help));
@@ -288,23 +288,22 @@ int main(
       for (ilat = 0; ilat < nlat; ilat++)
 	for (iz = 0; iz < nz; iz++)
 	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
-    
+
     /* Read heights... */
     NC(nc_inq_varid(ncid, "RHO_TOP_zsea_rho", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < nlon; ilon++)
       for (ilat = 0; ilat < nlat; ilat++)
 	for (iz = 0; iz < nz; iz++)
-	  z[ilon][ilat][iz] =
-	    (float) (help[iz] / 1e3);
-    
+	  z[ilon][ilat][iz] = (float) (help[iz] / 1e3);
+
     /* Calculate pressure... */
     for (ilon = 0; ilon < nlon; ilon++)
       for (ilat = 0; ilat < nlat; ilat++)
 	for (iz = 0; iz < nz; iz++)
 	  p[ilon][ilat][iz]
 	    = (float) (1013.25 * exp(-z[ilon][ilat][iz] / 7.0));
-    
+
     /* Close file... */
     NC(nc_close(ncid));
   }
@@ -314,10 +313,10 @@ int main(
 
   /* Free... */
   free(help);
-  
+
   /* Smoothing of model data... */
   smooth(p, t, z, lon, lat, nz, nlon, nlat);
-  
+
   /* ------------------------------------------------------------
      Read AIRS perturbation data...
      ------------------------------------------------------------ */
