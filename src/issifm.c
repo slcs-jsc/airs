@@ -4,10 +4,11 @@
    Dimensions...
    ------------------------------------------------------------ */
 
-/* Maximum model dimensions (ICON). */
-#define NLON 1751
-#define NLAT 1201
-#define NZ 242
+/* Maximum model dimensions (ICON).
+   #define NLON 1751
+   #define NLAT 1201
+   #define NZ 242
+*/
 
 /* Maximum model dimensions (IFS).
    #define NLON 1441
@@ -15,11 +16,10 @@
    #define NZ 138
 */
 
-/* Maximum model dimensions (UM).
-   #define NLON 2988
-   #define NLAT 904
-   #define NZ 162
-*/
+/* Maximum model dimensions (UM). */
+#define NLON 2988
+#define NLAT 904
+#define NZ 162
 
 /* ------------------------------------------------------------
    Functions...
@@ -152,7 +152,7 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
 
-    /* Read geometric heights... */
+    /* Read height... */
     NC(nc_inq_varid(ncid, "z_mc", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < nlon; ilon++)
@@ -216,7 +216,7 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
 
-    /* Read geopotential heights... */
+    /* Read height... */
     NC(nc_inq_varid(ncid, "gh", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < nlon; ilon++)
@@ -291,7 +291,7 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
 
-    /* Read heights... */
+    /* Read height... */
     NC(nc_inq_varid(ncid, "RHO_TOP_zsea_rho", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < nlon; ilon++)
@@ -306,6 +306,15 @@ int main(
 	  p[ilon][ilat][iz]
 	    = (float) (1013.25 * exp(-z[ilon][ilat][iz] / 7.0));
 
+    /* Check data... */
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  if(t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
+	    p[ilon][ilat][iz] = GSL_NAN;
+	    t[ilon][ilat][iz] = GSL_NAN;
+	  }
+    
     /* Close file... */
     NC(nc_close(ncid));
   }
@@ -410,9 +419,8 @@ int main(
 
       /* Interpolate model data... */
       for (ip = 0; ip < atm->np; ip++)
-	intpol(p, t, z, lon, lat, nz, nlon, nlat,
-	       atm->z[ip], atm->lon[ip], atm->lat[ip], &atm->p[ip],
-	       &atm->t[ip]);
+	intpol(p, t, z, lon, lat, nz, nlon, nlat, atm->z[ip],
+	       atm->lon[ip], atm->lat[ip], &atm->p[ip], &atm->t[ip]);
 
       /* Use kernel function... */
       if (kernel[0] != '-') {
@@ -506,10 +514,16 @@ void intpol(
   ilat = locate_reg(lats, nlat, lat);
 
   /* Check vertical range... */
-  if (z > zs[ilon][ilat][0] || z < zs[ilon][ilat][nz - 1] ||
-      z > zs[ilon][ilat + 1][0] || z < zs[ilon][ilat + 1][nz - 1] ||
-      z > zs[ilon + 1][ilat][0] || z < zs[ilon + 1][ilat][nz - 1] ||
-      z > zs[ilon + 1][ilat + 1][0] || z < zs[ilon + 1][ilat + 1][nz - 1])
+  if (z > GSL_MAX(zs[ilon][ilat][0], zs[ilon][ilat][nz - 1])
+      || z < GSL_MIN(zs[ilon][ilat][0], zs[ilon][ilat][nz - 1])
+      || z > GSL_MAX(zs[ilon][ilat + 1][0], zs[ilon][ilat + 1][nz - 1])
+      || z < GSL_MIN(zs[ilon][ilat + 1][0], zs[ilon][ilat + 1][nz - 1])
+      || z > GSL_MAX(zs[ilon + 1][ilat][0], zs[ilon + 1][ilat][nz - 1])
+      || z < GSL_MIN(zs[ilon + 1][ilat][0], zs[ilon + 1][ilat][nz - 1])
+      || z > GSL_MAX(zs[ilon + 1][ilat + 1][0],
+		     zs[ilon + 1][ilat + 1][nz - 1])
+      || z < GSL_MIN(zs[ilon + 1][ilat + 1][0],
+		     zs[ilon + 1][ilat + 1][nz - 1]))
     return;
 
   /* Interpolate vertically... */
@@ -550,11 +564,15 @@ void intpol(
   /* Interpolate horizontally... */
   p00 = LIN(lons[ilon], p00, lons[ilon + 1], p10, lon);
   p11 = LIN(lons[ilon], p01, lons[ilon + 1], p11, lon);
-  *p = LIN(lats[ilat], p00, lats[ilat + 1], p11, lat);
+  p00 = LIN(lats[ilat], p00, lats[ilat + 1], p11, lat);
+  if (gsl_finite(p00))
+    *p = p00;
 
   t00 = LIN(lons[ilon], t00, lons[ilon + 1], t10, lon);
   t11 = LIN(lons[ilon], t01, lons[ilon + 1], t11, lon);
-  *t = LIN(lats[ilat], t00, lats[ilat + 1], t11, lat);
+  t00 = LIN(lats[ilat], t00, lats[ilat + 1], t11, lat);
+  if (gsl_finite(t00))
+    *t = t00;
 }
 
 /************************************************************************/
@@ -569,20 +587,16 @@ void smooth(
   int nlon,
   int nlat) {
 
-  static double xc[NLON][NLAT][3], scal;
+  static float hp[NLON][NLAT], ht[NLON][NLAT], hz[NLON][NLAT], w, wsum;
 
-  static float helpp[NLON][NLAT], helpt[NLON][NLAT], helpz[NLON][NLAT],
-    w, wsum;
+  static double dx, dy, wx[10], wy[10];
 
   int iz, ilon, ilon2, ilat, ilat2, dlon = 3, dlat = 3;
 
-  /* Get Cartesian coordinates... */
-  for (ilon = 0; ilon < nlon; ilon++)
-    for (ilat = 0; ilat < nlat; ilat++)
-      geo2cart(0, lons[ilon], lats[ilat], xc[ilon][ilat]);
-
-  /* Set scaling factor... */
-  scal = 1. / (2. * POW2(20. / 2.35482));
+  /* Set weights... */
+  dy = RE * M_PI / 180. * fabs(lats[1] - lats[0]);
+  for (ilat = 0; ilat <= dlat; ilat++)
+    wy[ilat] = exp(-0.5 * POW2(ilat * dy * 2.35482 / 20.));
 
   /* Loop over height levels... */
   for (iz = 0; iz < nz; iz++) {
@@ -593,14 +607,22 @@ void smooth(
     /* Copy data... */
     for (ilon = 0; ilon < nlon; ilon++)
       for (ilat = 0; ilat < nlat; ilat++) {
-	helpp[ilon][ilat] = ps[ilon][ilat][iz];
-	helpt[ilon][ilat] = ts[ilon][ilat][iz];
-	helpz[ilon][ilat] = zs[ilon][ilat][iz];
+	hp[ilon][ilat] = ps[ilon][ilat][iz];
+	ht[ilon][ilat] = ts[ilon][ilat][iz];
+	hz[ilon][ilat] = zs[ilon][ilat][iz];
       }
 
-    /* Smoothing... */
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++) {
+    /* Loop over latitudes... */
+    for (ilat = 0; ilat < nlat; ilat++) {
+
+      /* Set weights... */
+      dx = RE * M_PI / 180. * cos(lats[ilat] * M_PI / 180.) *
+	fabs(lons[1] - lons[0]);
+      for (ilon = 0; ilon <= dlon; ilon++)
+	wx[ilon] = exp(-0.5 * POW2(ilon * dx * 2.35482 / 20.));
+
+      /* Loop over longitudes... */
+      for (ilon = 0; ilon < nlon; ilon++) {
 	wsum = 0;
 	ps[ilon][ilat][iz] = 0;
 	ts[ilon][ilat][iz] = 0;
@@ -609,15 +631,16 @@ void smooth(
 	     ilon2 <= GSL_MIN(ilon + dlon, nlon - 1); ilon2++)
 	  for (ilat2 = GSL_MAX(ilat - dlat, 0);
 	       ilat2 <= GSL_MIN(ilat + dlat, nlat - 1); ilat2++) {
-	    w = (float) exp(-scal * DIST2(xc[ilon][ilat], xc[ilon2][ilat2]));
-	    ps[ilon][ilat][iz] += w * helpp[ilon2][ilat2];
-	    ts[ilon][ilat][iz] += w * helpt[ilon2][ilat2];
-	    zs[ilon][ilat][iz] += w * helpz[ilon2][ilat2];
+	    w = (float) (wx[abs(ilon2 - ilon)] * wy[abs(ilat2 - ilat)]);
+	    ps[ilon][ilat][iz] += w * hp[ilon2][ilat2];
+	    ts[ilon][ilat][iz] += w * ht[ilon2][ilat2];
+	    zs[ilon][ilat][iz] += w * hz[ilon2][ilat2];
 	    wsum += w;
 	  }
 	ps[ilon][ilat][iz] /= wsum;
 	ts[ilon][ilat][iz] /= wsum;
 	zs[ilon][ilat][iz] /= wsum;
       }
+    }
   }
 }
