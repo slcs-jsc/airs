@@ -71,7 +71,7 @@ int main(
     z[NLON][NLAT][NZ];
 
   static int init, id, itrack, ixtrack, ncid, dimid, varid, slant,
-    ilon, ilat, iz, nlon, nlat, nz, ip, track0, track1, nk;
+    ilon, ilat, iz, nlon, nlat, nz, ip, track0, track1, nk, okay;
 
   static size_t rs;
 
@@ -310,11 +310,11 @@ int main(
     for (ilon = 0; ilon < nlon; ilon++)
       for (ilat = 0; ilat < nlat; ilat++)
 	for (iz = 0; iz < nz; iz++)
-	  if(t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
+	  if (t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
 	    p[ilon][ilat][iz] = GSL_NAN;
 	    t[ilon][ilat][iz] = GSL_NAN;
 	  }
-    
+
     /* Close file... */
     NC(nc_close(ncid));
   }
@@ -422,39 +422,49 @@ int main(
 	intpol(p, t, z, lon, lat, nz, nlon, nlat, atm->z[ip],
 	       atm->lon[ip], atm->lat[ip], &atm->p[ip], &atm->t[ip]);
 
-      /* Use kernel function... */
-      if (kernel[0] != '-') {
-
-	/* Read kernel function... */
-	if (!init) {
-	  init = 1;
-	  read_shape(kernel, kz, kw, &nk);
-	  if (kz[0] > kz[1])
-	    ERRMSG("Kernel function must be ascending!");
-	}
-
-	/* Calculate mean temperature... */
-	pert->bt[itrack][ixtrack] = wsum = 0;
-	for (ip = 0; ip < atm->np; ip++)
-	  if (atm->z[ip] >= kz[0] && atm->z[ip] <= kz[nk - 1]) {
-	    iz = locate_irr(kz, nk, atm->z[ip]);
-	    w = LIN(kz[iz], kw[iz], kz[iz + 1], kw[iz + 1], atm->z[ip]);
-	    pert->bt[itrack][ixtrack] += w * atm->t[ip];
-	    wsum += w;
-	  }
-	pert->bt[itrack][ixtrack] /= wsum;
-      }
-
-      /* Use radiative transfer model... */
+      /* Check profile... */
+      okay = 1;
+      for (ip = 0; ip < atm->np; ip++)
+	if (!gsl_finite(atm->p[ip]) || !gsl_finite(atm->t[ip]))
+	  okay = 0;
+      if (!okay)
+	pert->bt[itrack][ixtrack] = GSL_NAN;
       else {
 
-	/* Run forward model... */
-	formod(&ctl, atm, obs);
+	/* Use kernel function... */
+	if (kernel[0] != '-') {
 
-	/* Get mean brightness temperature... */
-	pert->bt[itrack][ixtrack] = 0;
-	for (id = 0; id < ctl.nd; id++)
-	  pert->bt[itrack][ixtrack] += obs->rad[id][0] / ctl.nd;
+	  /* Read kernel function... */
+	  if (!init) {
+	    init = 1;
+	    read_shape(kernel, kz, kw, &nk);
+	    if (kz[0] > kz[1])
+	      ERRMSG("Kernel function must be ascending!");
+	  }
+
+	  /* Calculate mean temperature... */
+	  pert->bt[itrack][ixtrack] = wsum = 0;
+	  for (ip = 0; ip < atm->np; ip++)
+	    if (atm->z[ip] >= kz[0] && atm->z[ip] <= kz[nk - 1]) {
+	      iz = locate_irr(kz, nk, atm->z[ip]);
+	      w = LIN(kz[iz], kw[iz], kz[iz + 1], kw[iz + 1], atm->z[ip]);
+	      pert->bt[itrack][ixtrack] += w * atm->t[ip];
+	      wsum += w;
+	    }
+	  pert->bt[itrack][ixtrack] /= wsum;
+	}
+
+	/* Use radiative transfer model... */
+	else {
+
+	  /* Run forward model... */
+	  formod(&ctl, atm, obs);
+
+	  /* Get mean brightness temperature... */
+	  pert->bt[itrack][ixtrack] = 0;
+	  for (id = 0; id < ctl.nd; id++)
+	    pert->bt[itrack][ixtrack] += obs->rad[id][0] / ctl.nd;
+	}
       }
     }
 
@@ -564,15 +574,11 @@ void intpol(
   /* Interpolate horizontally... */
   p00 = LIN(lons[ilon], p00, lons[ilon + 1], p10, lon);
   p11 = LIN(lons[ilon], p01, lons[ilon + 1], p11, lon);
-  p00 = LIN(lats[ilat], p00, lats[ilat + 1], p11, lat);
-  if (gsl_finite(p00))
-    *p = p00;
+  *p = LIN(lats[ilat], p00, lats[ilat + 1], p11, lat);
 
   t00 = LIN(lons[ilon], t00, lons[ilon + 1], t10, lon);
   t11 = LIN(lons[ilon], t01, lons[ilon + 1], t11, lon);
-  t00 = LIN(lats[ilat], t00, lats[ilat + 1], t11, lat);
-  if (gsl_finite(t00))
-    *t = t00;
+  *t = LIN(lats[ilat], t00, lats[ilat + 1], t11, lat);
 }
 
 /************************************************************************/
