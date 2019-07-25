@@ -4,11 +4,10 @@
    Dimensions...
    ------------------------------------------------------------ */
 
-/* Maximum model dimensions (ICON).
-   #define NLON 1751
-   #define NLAT 1201
-   #define NZ 242
-*/
+/* Maximum model dimensions (ICON). */
+#define NLON 1751
+#define NLAT 1201
+#define NZ 242
 
 /* Maximum model dimensions (IFS).
    #define NLON 1441
@@ -16,10 +15,11 @@
    #define NZ 138
 */
 
-/* Maximum model dimensions (UM). */
-#define NLON 2988
-#define NLAT 904
-#define NZ 162
+/* Maximum model dimensions (UM).
+   #define NLON 2988
+   #define NLAT 904
+   #define NZ 162
+*/
 
 /* ------------------------------------------------------------
    Functions...
@@ -161,15 +161,23 @@ int main(
 	  z[ilon][ilat][iz] =
 	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
 
-    /* Read pressure... */
-    NC(nc_inq_varid(ncid, "pres", &varid));
-    NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  p[ilon][ilat][iz] =
-	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
-
+    /* Read or calculate pressure... */
+    if(nc_inq_varid(ncid, "pres", &varid)==NC_NOERR) {
+      NC(nc_get_var_float(ncid, varid, help));
+      for (ilon = 0; ilon < nlon; ilon++)
+	for (ilat = 0; ilat < nlat; ilat++)
+	  for (iz = 0; iz < nz; iz++)
+	    p[ilon][ilat][iz] =
+	      (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
+    } else {
+      printf("Warning: Presure data is missing!\n");
+      for (ilon = 0; ilon < nlon; ilon++)
+	for (ilat = 0; ilat < nlat; ilat++)
+	  for (iz = 0; iz < nz; iz++)
+	    p[ilon][ilat][iz]
+	      = (float) (1013.25 * exp(-z[ilon][ilat][iz] / 7.0));
+    }
+    
     /* Close file... */
     NC(nc_close(ncid));
   }
