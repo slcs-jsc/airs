@@ -23,7 +23,7 @@ src/map_rad
 src/map_ret
 src/noise_pert
 src/noise_ret
-src/optimize_si
+src/optimize_btd
 src/orbit
 src/overpass
 src/pca

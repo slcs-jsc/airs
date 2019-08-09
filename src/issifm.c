@@ -162,7 +162,7 @@ int main(
 	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
 
     /* Read or calculate pressure... */
-    if(nc_inq_varid(ncid, "pres", &varid)==NC_NOERR) {
+    if (nc_inq_varid(ncid, "pres", &varid) == NC_NOERR) {
       NC(nc_get_var_float(ncid, varid, help));
       for (ilon = 0; ilon < nlon; ilon++)
 	for (ilat = 0; ilat < nlat; ilat++)
@@ -177,7 +177,7 @@ int main(
 	    p[ilon][ilat][iz]
 	      = (float) (1013.25 * exp(-z[ilon][ilat][iz] / 7.0));
     }
-    
+
     /* Close file... */
     NC(nc_close(ncid));
   }
