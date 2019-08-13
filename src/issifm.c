@@ -339,7 +339,7 @@ int main(
 	  z[ilon][ilat][iz] = (float) z_um[iz];
 
     /* Read low-level heights... */
-    NC(nc_inq_varid(ncid, "m01s15i102", &varid));
+    NC(nc_inq_varid(ncid, "STASH_m01s15i102", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < nlon; ilon++)
       for (ilat = 0; ilat < nlat; ilat++)
