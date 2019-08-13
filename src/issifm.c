@@ -4,10 +4,11 @@
    Dimensions...
    ------------------------------------------------------------ */
 
-/* Maximum model dimensions (ICON). */
-#define NLON 1751
-#define NLAT 1201
-#define NZ 242
+/* Maximum model dimensions (ICON).
+   #define NLON 1751
+   #define NLAT 1201
+   #define NZ 242
+*/
 
 /* Maximum model dimensions (IFS).
    #define NLON 1441
@@ -15,11 +16,10 @@
    #define NZ 138
 */
 
-/* Maximum model dimensions (UM).
-   #define NLON 2988
-   #define NLAT 904
-   #define NZ 162
-*/
+/* Maximum model dimensions (UM). */
+#define NLON 3000
+#define NLAT 910
+#define NZ 185
 
 /* ------------------------------------------------------------
    Functions...
@@ -64,6 +64,32 @@ int main(
 
   static char kernel[LEN], pertname[LEN];
 
+  static double z_um[182]
+    = { 5.52994, 5.70933, 5.89159, 6.07672, 6.2647, 6.45555, 6.64927, 6.84585,
+    7.04529, 7.2476, 7.45277, 7.6608, 7.8717, 8.08546, 8.30209, 8.52157,
+    8.74393, 8.96914, 9.19722, 9.42817, 9.66198, 9.89865, 10.1382, 10.3806,
+    10.6258, 10.874, 11.125, 11.3788, 11.6355, 11.8951, 12.1576, 12.4229,
+    12.691, 12.9621, 13.236, 13.5128, 13.7924, 14.0749, 14.3602, 14.6485,
+    14.9395, 15.2335, 15.5303, 15.83, 16.1325, 16.4379, 16.7462, 17.0573,
+    17.3713, 17.6882, 18.0079, 18.3305, 18.6559, 18.9842, 19.3154, 19.6494,
+    19.9864, 20.3261, 20.6688, 21.0143, 21.3626, 21.7138, 22.0679, 22.4249,
+    22.7847, 23.1474, 23.5129, 23.8813, 24.2526, 24.6267, 25.0037, 25.3836,
+    25.7663, 26.1519, 26.5403, 26.9317, 27.3258, 27.7229, 28.1228, 28.5256,
+    28.9312, 29.3397, 29.7511, 30.1653, 30.5824, 31.0023, 31.4252, 31.8508,
+    32.2794, 32.7108, 33.1451, 33.5822, 34.0222, 34.4651, 34.9108, 35.3594,
+    35.8109, 36.2652, 36.7224, 37.1824, 37.6453, 38.1111, 38.5797, 39.0512,
+    39.5256, 40.0028, 40.4829, 40.9659, 41.4517, 41.9404, 42.4319, 42.9264,
+    43.4236, 43.9238, 44.4268, 44.9327, 45.4414, 45.953, 46.4674, 46.9848,
+    47.505, 48.028, 48.5539, 49.0827, 49.6143, 50.1488, 50.6862, 51.2265,
+    51.7696, 52.3155, 52.8643, 53.416, 53.9706, 54.528, 55.0883, 55.6514,
+    56.2174, 56.7863, 57.358, 57.9326, 58.5101, 59.0904, 59.6736, 60.2597,
+    60.8486, 61.4404, 62.035, 62.6325, 63.2329, 63.8361, 64.4423, 65.0512,
+    65.663, 66.2777, 66.8953, 67.5157, 68.139, 68.7651, 69.3942, 70.026,
+    70.6608, 71.2984, 71.9388, 72.5822, 73.2284, 73.8774, 74.5294, 75.1841,
+    75.8418, 76.5023, 77.1657, 77.8319, 78.501, 79.173, 79.8478, 80.5255,
+    81.2061, 81.8895, 82.5758, 83.2649, 83.957, 84.6518
+  };
+
   static double lon[NLON], lat[NLAT], xo[3], xs[3], xm[3], var_dh = 100.,
     f, t_ovp, hyam[NZ], hybm[NZ], kz[NSHAPE], kw[NSHAPE], w, wsum;
 
@@ -71,7 +97,7 @@ int main(
     z[NLON][NLAT][NZ];
 
   static int init, id, itrack, ixtrack, ncid, dimid, varid, slant,
-    ilon, ilat, iz, nlon, nlat, nz, ip, track0, track1, nk, okay;
+    ilon, ilat, iz, nlon, nlat, nz, nz2, ip, track0, track1, nk, okay;
 
   static size_t rs;
 
@@ -161,22 +187,14 @@ int main(
 	  z[ilon][ilat][iz] =
 	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
 
-    /* Read or calculate pressure... */
-    if (nc_inq_varid(ncid, "pres", &varid) == NC_NOERR) {
-      NC(nc_get_var_float(ncid, varid, help));
-      for (ilon = 0; ilon < nlon; ilon++)
-	for (ilat = 0; ilat < nlat; ilat++)
-	  for (iz = 0; iz < nz; iz++)
-	    p[ilon][ilat][iz] =
-	      (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
-    } else {
-      printf("Warning: Presure data is missing!\n");
-      for (ilon = 0; ilon < nlon; ilon++)
-	for (ilat = 0; ilat < nlat; ilat++)
-	  for (iz = 0; iz < nz; iz++)
-	    p[ilon][ilat][iz]
-	      = (float) (1013.25 * exp(-z[ilon][ilat][iz] / 7.0));
-    }
+    /* Read pressure... */
+    NC(nc_inq_varid(ncid, "pres", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  p[ilon][ilat][iz] =
+	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
 
     /* Close file... */
     NC(nc_close(ncid));
@@ -270,6 +288,11 @@ int main(
     nz = (int) rs;
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
+    NC(nc_inq_dimid(ncid, "RHO_BOT_eta_rho", &dimid));
+    NC(nc_inq_dimlen(ncid, dimid, &rs));
+    nz2 = (int) rs;
+    if (nz2 > NZ)
+      ERRMSG("Too many altitudes!");
 
     NC(nc_inq_dimid(ncid, "latitude", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
@@ -299,20 +322,29 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
 
-    /* Read height... */
-    NC(nc_inq_varid(ncid, "RHO_TOP_zsea_rho", &varid));
+    /* Read pressure... */
+    NC(nc_inq_varid(ncid, "STASH_m01s00i407", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < nlon; ilon++)
       for (ilat = 0; ilat < nlat; ilat++)
 	for (iz = 0; iz < nz; iz++)
-	  z[ilon][ilat][iz] = (float) (help[iz] / 1e3);
+	  p[ilon][ilat][iz] = 0.01f * help[(iz * nlat + ilat) * nlon + ilon];
 
-    /* Calculate pressure... */
+    /* Set fixed height levels... */
+    if (nz != 182)
+      ERRMSG("Wrong number of height levels!");
     for (ilon = 0; ilon < nlon; ilon++)
       for (ilat = 0; ilat < nlat; ilat++)
 	for (iz = 0; iz < nz; iz++)
-	  p[ilon][ilat][iz]
-	    = (float) (1013.25 * exp(-z[ilon][ilat][iz] / 7.0));
+	  z[ilon][ilat][iz] = (float) z_um[iz];
+
+    /* Read low-level heights... */
+    NC(nc_inq_varid(ncid, "m01s15i102", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz2; iz++)
+	  z[ilon][ilat][iz] = (float) (help[iz] / 1e3);
 
     /* Check data... */
     for (ilon = 0; ilon < nlon; ilon++)
