@@ -380,10 +380,13 @@ int main(
       obs->obsz[0] = 705;
       obs->obslon[0] = pert->lon[itrack][44];
       obs->obslat[0] = pert->lat[itrack][44];
+      obs->vpz[0] = 0;
+      obs->vplon[0] = pert->lon[itrack][ixtrack];
+      obs->vplat[0] = pert->lat[itrack][ixtrack];
 
       /* Get Cartesian coordinates... */
       geo2cart(obs->obsz[0], obs->obslon[0], obs->obslat[0], xo);
-      geo2cart(0, pert->lon[itrack][ixtrack], pert->lat[itrack][ixtrack], xs);
+      geo2cart(obs->vpz[0], obs->vplon[0], obs->vplat[0], xs);
 
       /* Set profile for atmospheric data... */
       if (slant) {
@@ -518,6 +521,14 @@ void intpol(
   if (lons[nlon - 1] > 180)
     if (lon < 0)
       lon += 360;
+
+  /* Check horizontal range... */
+  if (lon < lons[0] || lon > lons[nlon - 1]
+      || lat < lats[0] || lat > lats[nlat - 1]) {
+    *p = GSL_NAN;
+    *t = GSL_NAN;
+    return;
+  }
 
   /* Get indices... */
   ilon = locate_reg(lons, nlon, lon);
