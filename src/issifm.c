@@ -4,22 +4,14 @@
    Dimensions...
    ------------------------------------------------------------ */
 
-/* Maximum model dimensions (ICON).
-   #define NLON 1751
-   #define NLAT 1201
-   #define NZ 242
-*/
+/*! Maximum number of model levels. */
+#define NZ 248
 
-/* Maximum model dimensions (IFS).
-   #define NLON 1441
-   #define NLAT 721
-   #define NZ 138
-*/
-
-/* Maximum model dimensions (UM). */
+/*! Maximum number of model longitudes. */
 #define NLON 3000
-#define NLAT 910
-#define NZ 185
+
+/*! Maximum number of model latitudes. */
+#define NLAT 1208
 
 /* ------------------------------------------------------------
    Functions...
@@ -328,6 +320,20 @@ int main(
   /* Smoothing of model data... */
   smooth(p, t, z, lon, lat, nz, nlon, nlat);
 
+  /* Write info... */
+  for (iz = 0; iz < nz; iz++)
+    printf("section_height: %d %g %g %g %g %g\n", iz,
+	   z[nlon / 2][nlat / 2][iz], lon[nlon / 2], lat[nlat / 2],
+	   p[nlon / 2][nlat / 2][iz], t[nlon / 2][nlat / 2][iz]);
+  for (ilon = 0; ilon < nlon; ilon++)
+    printf("section_west_east: %d %g %g %g %g %g\n", ilon,
+	   z[ilon][nlat / 2][nz / 2], lon[ilon], lat[nlat / 2],
+	   p[ilon][nlat / 2][nz / 2], t[ilon][nlat / 2][nz / 2]);
+  for (ilat = 0; ilat < nlat; ilat++)
+    printf("section_north_south: %d %g %g %g %g %g\n", ilat,
+	   z[nlon / 2][ilat][nz / 2], lon[nlon / 2], lat[ilat],
+	   p[nlon / 2][ilat][nz / 2], t[nlon / 2][ilat][nz / 2]);
+
   /* ------------------------------------------------------------
      Read AIRS perturbation data...
      ------------------------------------------------------------ */
@@ -523,16 +529,18 @@ void intpol(
       lon += 360;
 
   /* Check horizontal range... */
-  if (lon < lons[0] || lon > lons[nlon - 1]
-      || lat < lats[0] || lat > lats[nlat - 1]) {
+  if (lon < lons[0]
+      || lon > lons[nlon - 1]
+      || lat < GSL_MIN(lats[0], lats[nlat - 1])
+      || lat > GSL_MAX(lats[0], lats[nlat - 1])) {
     *p = GSL_NAN;
     *t = GSL_NAN;
     return;
   }
 
   /* Get indices... */
-  ilon = locate_reg(lons, nlon, lon);
-  ilat = locate_reg(lats, nlat, lat);
+  ilon = locate_irr(lons, nlon, lon);
+  ilat = locate_irr(lats, nlat, lat);
 
   /* Check data... */
   if (!gsl_finite(zs[ilon][ilat][0])
