@@ -312,6 +312,7 @@ int main(
 	  if (t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
 	    p[ilon][ilat][iz] = GSL_NAN;
 	    t[ilon][ilat][iz] = GSL_NAN;
+	    z[ilon][ilat][iz] = GSL_NAN;
 	  }
 
     /* Close file... */
@@ -324,20 +325,8 @@ int main(
   /* Free... */
   free(help);
 
-  /* Profile for center of model domain... */
-  for (iz = 0; iz < nz; iz++)
-    printf("profile_before_smoothing: %d %g %g %g %g %g\n", iz,
-	   z[nlon / 2][nlat / 2][iz], lon[nlon / 2], lat[nlat / 2],
-	   p[nlon / 2][nlat / 2][iz], t[nlon / 2][nlat / 2][iz]);
-
   /* Smoothing of model data... */
   smooth(p, t, z, lon, lat, nz, nlon, nlat);
-
-  /* Profile for center of model domain... */
-  for (iz = 0; iz < nz; iz++)
-    printf("profile_after_smoothing: %d %g %g %g %g %g\n", iz,
-	   z[nlon / 2][nlat / 2][iz], lon[nlon / 2], lat[nlat / 2],
-	   p[nlon / 2][nlat / 2][iz], t[nlon / 2][nlat / 2][iz]);
 
   /* ------------------------------------------------------------
      Read AIRS perturbation data...
@@ -533,6 +522,20 @@ void intpol(
   /* Get indices... */
   ilon = locate_reg(lons, nlon, lon);
   ilat = locate_reg(lats, nlat, lat);
+
+  /* Check data... */
+  if (!gsl_finite(zs[ilon][ilat][0])
+      || !gsl_finite(zs[ilon][ilat][nz - 1])
+      || !gsl_finite(zs[ilon][ilat + 1][nz - 1])
+      || !gsl_finite(zs[ilon][ilat + 1][nz - 1])
+      || !gsl_finite(zs[ilon + 1][ilat][nz - 1])
+      || !gsl_finite(zs[ilon + 1][ilat][nz - 1])
+      || !gsl_finite(zs[ilon + 1][ilat + 1][nz - 1])
+      || !gsl_finite(zs[ilon + 1][ilat + 1][nz - 1])) {
+    *p = GSL_NAN;
+    *t = GSL_NAN;
+    return;
+  }
 
   /* Check vertical range... */
   if (z > GSL_MAX(zs[ilon][ilat][0], zs[ilon][ilat][nz - 1])
