@@ -25,7 +25,7 @@ int main(
   char set[LEN], pertname[LEN];
 
   double orblat, nu, t230 = 230.0, dt230, tbg, nesr, nedt = 0,
-    var_dh, gauss_fwhm, t0, t1;
+    var_dh, gauss_fwhm, t0, t1, sza0, sza1, sza2 = 0;
 
   int asc, bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y, ham_iter,
     itrack, ixtrack, ix, iy, med_dx, orb = 0, orbit, fill;
@@ -51,6 +51,8 @@ int main(
   orblat = scan_ctl(argc, argv, "ORBLAT", -1, "0", NULL);
   t0 = scan_ctl(argc, argv, "T0", -1, "-1e100", NULL);
   t1 = scan_ctl(argc, argv, "T1", -1, "1e100", NULL);
+  sza0 = scan_ctl(argc, argv, "SZA0", -1, "-1e100", NULL);
+  sza1 = scan_ctl(argc, argv, "SZA1", -1, "1e100", NULL);
   dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
   nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
   fill = (int) scan_ctl(argc, argv, "FILL", -1, "0", NULL);
@@ -164,6 +166,11 @@ int main(
 	     > pert->lat[itrack >
 			 0 ? itrack - 1 : itrack][pert->nxtrack / 2]);
 
+      /* Calculate solar zenith angle... */
+      if (sza0 >= -1e10 && sza0 <= 1e10 && sza1 >= -1e10 && sza1 <= 1e10)
+	sza2 = sza(pert->time[itrack][ixtrack], pert->lon[itrack][ixtrack],
+		   pert->lat[itrack][ixtrack]);
+
       /* Estimate noise... */
       if (dt230 > 0) {
 	nesr = planck(t230 + dt230, nu) - planck(t230, nu);
@@ -176,7 +183,8 @@ int main(
 	if (set[0] == 'f' || (set[0] == 'a' && asc)
 	    || (set[0] == 'd' && !asc))
 	  if (pert->time[itrack][ixtrack] >= t0
-	      && pert->time[itrack][ixtrack] <= t1)
+	      && pert->time[itrack][ixtrack] <= t1
+	      && sza2 >= sza0 && sza2 <= sza1)
 	    fprintf(out, "%.2f %d %g %g %g %g %g %g\n",
 		    pert->time[itrack][ixtrack], itrack,
 		    pert->lon[itrack][ixtrack], pert->lat[itrack][ixtrack],
