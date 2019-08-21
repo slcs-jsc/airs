@@ -44,6 +44,11 @@ void smooth(
   int nlon,
   int nlat);
 
+/*! Write wave struct to netCDF file. */
+void write_nc(
+  char *filename,
+  wave_t * wave);
+
 /* ------------------------------------------------------------
    Main...
    ------------------------------------------------------------ */
@@ -80,9 +85,9 @@ int main(
      ------------------------------------------------------------ */
 
   /* Check arguments... */
-  if (argc < 6)
+  if (argc < 8)
     ERRMSG("Give parameters: <ctl> <model> <model.nc> <pert.nc>"
-	   " <wave_airs.tab> <wave_model.tab>");
+	   " <wave_airs.tab> <wave_model.tab> <wave_airs.nc> <wave_model.nc>");
 
   /* Read control parameters... */
   read_ctl(argc, argv, &ctl);
@@ -367,6 +372,7 @@ int main(
 
   /* Write observation wave struct... */
   write_wave(argv[5], wave);
+  write_nc(argv[7], wave);
 
   /* ------------------------------------------------------------
      Run forward model...
@@ -492,6 +498,7 @@ int main(
 
   /* Write observation wave struct... */
   write_wave(argv[6], wave);
+  write_nc(argv[8], wave);
 
   /* Free... */
   free(atm);
@@ -682,4 +689,75 @@ void smooth(
       }
     }
   }
+}
+
+/************************************************************************/
+
+void write_nc(
+  char *filename,
+  wave_t * wave) {
+
+  int ix, ncid, dimid[10], lon_id, lat_id, t_id, bg_id, pt_id, var_id,
+    x_id, y_id, z_id, time_id;
+
+  size_t start[10], count[10];
+
+  /* Create netCDF file... */
+  NC(nc_create(filename, NC_CLOBBER, &ncid));
+
+  /* Set dimensions... */
+  NC(nc_def_dim(ncid, "NX", (size_t) wave->nx, &dimid[0]));
+  NC(nc_def_dim(ncid, "NY", (size_t) wave->ny, &dimid[1]));
+
+  /* Add variables... */
+  NC(nc_def_var(ncid, "time", NC_DOUBLE, 0, &dimid[3], &time_id));
+  add_att(ncid, time_id, "s", "seconds since 2000-01-01, 00:00 UTC");
+  NC(nc_def_var(ncid, "z", NC_DOUBLE, 0, &dimid[2], &z_id));
+  add_att(ncid, z_id, "km", "distance along z-axis");
+  NC(nc_def_var(ncid, "x", NC_DOUBLE, 1, &dimid[0], &x_id));
+  add_att(ncid, x_id, "km", "distance along x-axis");
+  NC(nc_def_var(ncid, "y", NC_DOUBLE, 1, &dimid[1], &y_id));
+  add_att(ncid, y_id, "km", "distance along y-axis");
+  NC(nc_def_var(ncid, "lon", NC_DOUBLE, 2, dimid, &lon_id));
+  add_att(ncid, lon_id, "degrees_east", "longitude");
+  NC(nc_def_var(ncid, "lat", NC_DOUBLE, 2, dimid, &lat_id));
+  add_att(ncid, lat_id, "degrees_north", "latitude");
+  NC(nc_def_var(ncid, "t", NC_FLOAT, 2, dimid, &t_id));
+  add_att(ncid, t_id, "K", "temperature");
+  NC(nc_def_var(ncid, "bg", NC_FLOAT, 2, dimid, &bg_id));
+  add_att(ncid, bg_id, "K", "temperature background");
+  NC(nc_def_var(ncid, "pt", NC_FLOAT, 2, dimid, &pt_id));
+  add_att(ncid, pt_id, "K", "temperature perturbation");
+  NC(nc_def_var(ncid, "var", NC_FLOAT, 2, dimid, &var_id));
+  add_att(ncid, var_id, "K^2", "temperature variance");
+
+  /* Leave define mode... */
+  NC(nc_enddef(ncid));
+
+  /* Write distances... */
+  NC(nc_put_var_double(ncid, time_id, &wave->time));
+  NC(nc_put_var_double(ncid, z_id, &wave->z));
+  NC(nc_put_var_double(ncid, x_id, wave->x));
+  NC(nc_put_var_double(ncid, y_id, wave->y));
+
+  /* Loop along x-axis... */
+  for (ix = 0; ix < wave->nx; ix++) {
+
+    /* Set array sizes... */
+    start[0] = (size_t) ix;
+    count[0] = 1;
+    start[1] = 0;
+    count[1] = (size_t) wave->ny;
+
+    /* Write data... */
+    NC(nc_put_vara_double(ncid, lon_id, start, count, wave->lon[ix]));
+    NC(nc_put_vara_double(ncid, lat_id, start, count, wave->lat[ix]));
+    NC(nc_put_vara_double(ncid, t_id, start, count, wave->temp[ix]));
+    NC(nc_put_vara_double(ncid, bg_id, start, count, wave->bg[ix]));
+    NC(nc_put_vara_double(ncid, pt_id, start, count, wave->pt[ix]));
+    NC(nc_put_vara_double(ncid, var_id, start, count, wave->var[ix]));
+  }
+
+  /* Close file... */
+  NC(nc_close(ncid));
 }

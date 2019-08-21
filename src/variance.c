@@ -255,17 +255,6 @@ static double t_trop[NMON][NLAT_TROP]
 };
 
 /* ------------------------------------------------------------
-   Functions...
-   ------------------------------------------------------------ */
-
-/* Add variable defintions to netCDF file. */
-void addatt(
-  int ncid,
-  int varid,
-  const char *unit,
-  const char *long_name);
-
-/* ------------------------------------------------------------
    Main...
    ------------------------------------------------------------ */
 
@@ -628,17 +617,17 @@ int main(
 
     /* Add variables... */
     NC(nc_def_var(ncid, "lat", NC_DOUBLE, 1, &dimid[0], &latid));
-    addatt(ncid, latid, "deg", "latitude");
+    add_att(ncid, latid, "deg", "latitude");
     NC(nc_def_var(ncid, "lon", NC_DOUBLE, 1, &dimid[1], &lonid));
-    addatt(ncid, lonid, "deg", "longitude");
+    add_att(ncid, lonid, "deg", "longitude");
     NC(nc_def_var(ncid, "var", NC_FLOAT, 2, dimid, &varid));
-    addatt(ncid, varid, "K^2", "brightness temperature variance");
+    add_att(ncid, varid, "K^2", "brightness temperature variance");
     NC(nc_def_var(ncid, "min", NC_FLOAT, 2, dimid, &minid));
-    addatt(ncid, minid, "K", "brightness temperature minimum");
+    add_att(ncid, minid, "K", "brightness temperature minimum");
     NC(nc_def_var(ncid, "max", NC_FLOAT, 2, dimid, &maxid));
-    addatt(ncid, maxid, "K", "brightness temperature maximum");
+    add_att(ncid, maxid, "K", "brightness temperature maximum");
     NC(nc_def_var(ncid, "np", NC_INT, 2, dimid, &npid));
-    addatt(ncid, npid, "1", "number of footprints");
+    add_att(ncid, npid, "1", "number of footprints");
 
     /* Leave define mode... */
     NC(nc_enddef(ncid));
@@ -674,19 +663,4 @@ int main(
   free(pert);
 
   return EXIT_SUCCESS;
-}
-
-/*****************************************************************************/
-
-void addatt(
-  int ncid,
-  int varid,
-  const char *unit,
-  const char *long_name) {
-
-  /* Set long name... */
-  NC(nc_put_att_text(ncid, varid, "long_name", strlen(long_name), long_name));
-
-  /* Set units... */
-  NC(nc_put_att_text(ncid, varid, "units", strlen(unit), unit));
 }

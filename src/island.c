@@ -1,20 +1,5 @@
 #include "libairs.h"
 
-/* ------------------------------------------------------------
-   Functions...
-   ------------------------------------------------------------ */
-
-/* Add variable defintions to netCDF file. */
-void addatt(
-  int ncid,
-  int varid,
-  const char *unit,
-  const char *long_name);
-
-/* ------------------------------------------------------------
-   Main...
-   ------------------------------------------------------------ */
-
 int main(
   int argc,
   char *argv[]) {
@@ -112,21 +97,21 @@ int main(
 
     /* Add variables... */
     NC(nc_def_var(ncid, "time", NC_DOUBLE, 1, dimid, &time_varid));
-    addatt(ncid, time_varid, "s", "time (seconds since 2000-01-01T00:00Z)");
+    add_att(ncid, time_varid, "s", "time (seconds since 2000-01-01T00:00Z)");
     NC(nc_def_var(ncid, "year", NC_INT, 1, dimid, &year_varid));
-    addatt(ncid, year_varid, "1", "year");
+    add_att(ncid, year_varid, "1", "year");
     NC(nc_def_var(ncid, "doy", NC_INT, 1, dimid, &doy_varid));
-    addatt(ncid, doy_varid, "1", "day of year");
+    add_att(ncid, doy_varid, "1", "day of year");
     NC(nc_def_var(ncid, "track", NC_INT, 1, dimid, &track_varid));
-    addatt(ncid, track_varid, "1", "along-track index");
+    add_att(ncid, track_varid, "1", "along-track index");
     NC(nc_def_var(ncid, "var_east", NC_DOUBLE, 1, dimid, &var_east_varid));
-    addatt(ncid, var_east_varid, "K^2", "BT variance (east)");
+    add_att(ncid, var_east_varid, "K^2", "BT variance (east)");
     NC(nc_def_var(ncid, "var_west", NC_DOUBLE, 1, dimid, &var_west_varid));
-    addatt(ncid, var_west_varid, "K^2", "BT variance (west)");
+    add_att(ncid, var_west_varid, "K^2", "BT variance (west)");
     NC(nc_def_var(ncid, "np_east", NC_INT, 1, dimid, &np_east_varid));
-    addatt(ncid, np_east_varid, "1", "number of footprints (east)");
+    add_att(ncid, np_east_varid, "1", "number of footprints (east)");
     NC(nc_def_var(ncid, "np_west", NC_INT, 1, dimid, &np_west_varid));
-    addatt(ncid, np_west_varid, "1", "number of footprints (west)");
+    add_att(ncid, np_west_varid, "1", "number of footprints (west)");
 
     /* Leave define mode... */
     NC(nc_enddef(ncid));
@@ -353,19 +338,4 @@ int main(
   free(pert);
 
   return EXIT_SUCCESS;
-}
-
-/*****************************************************************************/
-
-void addatt(
-  int ncid,
-  int varid,
-  const char *unit,
-  const char *long_name) {
-
-  /* Set long name... */
-  NC(nc_put_att_text(ncid, varid, "long_name", strlen(long_name), long_name));
-
-  /* Set units... */
-  NC(nc_put_att_text(ncid, varid, "units", strlen(unit), unit));
 }

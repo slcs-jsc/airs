@@ -14,17 +14,6 @@
 #define N15_HIGH 2
 
 /* ------------------------------------------------------------
-   Functions...
-   ------------------------------------------------------------ */
-
-/* Add variable defintions to netCDF file. */
-void addatt(
-  int ncid,
-  int varid,
-  const char *unit,
-  const char *long_name);
-
-/* ------------------------------------------------------------
    Main...
    ------------------------------------------------------------ */
 
@@ -285,50 +274,50 @@ int main(
 
   /* Add variables... */
   NC(nc_def_var(ncid, "time", NC_DOUBLE, 2, dimid, &time_varid));
-  addatt(ncid, time_varid, "s", "time (seconds since 2000-01-01T00:00Z)");
+  add_att(ncid, time_varid, "s", "time (seconds since 2000-01-01T00:00Z)");
   NC(nc_def_var(ncid, "lon", NC_DOUBLE, 2, dimid, &lon_varid));
-  addatt(ncid, lon_varid, "deg", "footprint longitude");
+  add_att(ncid, lon_varid, "deg", "footprint longitude");
   NC(nc_def_var(ncid, "lat", NC_DOUBLE, 2, dimid, &lat_varid));
-  addatt(ncid, lat_varid, "deg", "footprint latitude");
+  add_att(ncid, lat_varid, "deg", "footprint latitude");
 
   NC(nc_def_var(ncid, "bt_8mu", NC_FLOAT, 2, dimid, &bt_8mu_varid));
-  addatt(ncid, bt_8mu_varid, "K", "brightness temperature at 8.1 micron");
+  add_att(ncid, bt_8mu_varid, "K", "brightness temperature at 8.1 micron");
 
   NC(nc_def_var(ncid, "bt_4mu", NC_FLOAT, 2, dimid, &bt_4mu_varid));
-  addatt(ncid, bt_4mu_varid, "K", "brightness temperature" " at 4.3 micron");
+  add_att(ncid, bt_4mu_varid, "K", "brightness temperature" " at 4.3 micron");
   NC(nc_def_var(ncid, "bt_4mu_pt", NC_FLOAT, 2, dimid, &bt_4mu_pt_varid));
-  addatt(ncid, bt_4mu_pt_varid, "K", "brightness temperature perturbation"
-	 " at 4.3 micron");
+  add_att(ncid, bt_4mu_pt_varid, "K", "brightness temperature perturbation"
+	  " at 4.3 micron");
   NC(nc_def_var(ncid, "bt_4mu_var", NC_FLOAT, 2, dimid, &bt_4mu_var_varid));
-  addatt(ncid, bt_4mu_var_varid, "K^2", "brightness temperature variance"
-	 " at 4.3 micron");
+  add_att(ncid, bt_4mu_var_varid, "K^2", "brightness temperature variance"
+	  " at 4.3 micron");
 
   NC(nc_def_var(ncid, "bt_15mu_low", NC_FLOAT, 2, dimid, &bt_15mu_low_varid));
-  addatt(ncid, bt_15mu_low_varid, "K", "brightness temperature"
-	 " at 15 micron (low altitudes)");
+  add_att(ncid, bt_15mu_low_varid, "K", "brightness temperature"
+	  " at 15 micron (low altitudes)");
   NC(nc_def_var(ncid, "bt_15mu_low_pt", NC_FLOAT, 2, dimid,
 		&bt_15mu_low_pt_varid));
-  addatt(ncid, bt_15mu_low_pt_varid, "K",
-	 "brightness temperature perturbation"
-	 " at 15 micron (low altitudes)");
+  add_att(ncid, bt_15mu_low_pt_varid, "K",
+	  "brightness temperature perturbation"
+	  " at 15 micron (low altitudes)");
   NC(nc_def_var
      (ncid, "bt_15mu_low_var", NC_FLOAT, 2, dimid, &bt_15mu_low_var_varid));
-  addatt(ncid, bt_15mu_low_var_varid, "K^2",
-	 "brightness temperature variance" " at 15 micron (low altitudes)");
+  add_att(ncid, bt_15mu_low_var_varid, "K^2",
+	  "brightness temperature variance" " at 15 micron (low altitudes)");
 
   NC(nc_def_var(ncid, "bt_15mu_high", NC_FLOAT, 2, dimid,
 		&bt_15mu_high_varid));
-  addatt(ncid, bt_15mu_high_varid, "K", "brightness temperature"
-	 " at 15 micron (high altitudes)");
+  add_att(ncid, bt_15mu_high_varid, "K", "brightness temperature"
+	  " at 15 micron (high altitudes)");
   NC(nc_def_var(ncid, "bt_15mu_high_pt", NC_FLOAT, 2, dimid,
 		&bt_15mu_high_pt_varid));
-  addatt(ncid, bt_15mu_high_pt_varid, "K",
-	 "brightness temperature perturbation"
-	 " at 15 micron (high altitudes)");
+  add_att(ncid, bt_15mu_high_pt_varid, "K",
+	  "brightness temperature perturbation"
+	  " at 15 micron (high altitudes)");
   NC(nc_def_var
      (ncid, "bt_15mu_high_var", NC_FLOAT, 2, dimid, &bt_15mu_high_var_varid));
-  addatt(ncid, bt_15mu_high_var_varid, "K^2",
-	 "brightness temperature variance" " at 15 micron (high altitudes)");
+  add_att(ncid, bt_15mu_high_var_varid, "K^2",
+	  "brightness temperature variance" " at 15 micron (high altitudes)");
 
   /* Leave define mode... */
   NC(nc_enddef(ncid));
@@ -384,19 +373,4 @@ int main(
   free(pert_15mu_high);
 
   return EXIT_SUCCESS;
-}
-
-/*****************************************************************************/
-
-void addatt(
-  int ncid,
-  int varid,
-  const char *unit,
-  const char *long_name) {
-
-  /* Set long name... */
-  NC(nc_put_att_text(ncid, varid, "long_name", strlen(long_name), long_name));
-
-  /* Set units... */
-  NC(nc_put_att_text(ncid, varid, "units", strlen(unit), unit));
 }

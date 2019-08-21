@@ -57,13 +57,6 @@ typedef struct {
    Functions...
    ------------------------------------------------------------ */
 
-/* Add variable defintions to netCDF file. */
-void addatt(
-  int ncid,
-  int varid,
-  const char *unit,
-  const char *long_name);
-
 /*! Auxilary function for interpolation of meteorological data. */
 void intpol_met_3d(
   float array[EX][EY][EP],
@@ -238,12 +231,13 @@ int main(
 
   /* Add variables... */
   NC(nc_def_var(ncid, "bt_sim", NC_FLOAT, 2, dimid, &bt_varid));
-  addatt(ncid, bt_varid, "K", "simulated brightness temperature");
+  add_att(ncid, bt_varid, "K", "simulated brightness temperature");
   NC(nc_def_var(ncid, "bt_sim_pt", NC_FLOAT, 2, dimid, &pt_varid));
-  addatt(ncid, pt_varid, "K",
-	 "simulated brightness temperature perturbation");
+  add_att(ncid, pt_varid, "K",
+	  "simulated brightness temperature perturbation");
   NC(nc_def_var(ncid, "bt_sim_var", NC_FLOAT, 2, dimid, &var_varid));
-  addatt(ncid, var_varid, "K^2", "simulated brightness temperature variance");
+  add_att(ncid, var_varid, "K^2",
+	  "simulated brightness temperature variance");
 
   /* Leave define mode... */
   NC(nc_enddef(ncid));
@@ -272,21 +266,6 @@ int main(
   free(pert2);
 
   return EXIT_SUCCESS;
-}
-
-/*****************************************************************************/
-
-void addatt(
-  int ncid,
-  int varid,
-  const char *unit,
-  const char *long_name) {
-
-  /* Set long name... */
-  NC(nc_put_att_text(ncid, varid, "long_name", strlen(long_name), long_name));
-
-  /* Set units... */
-  NC(nc_put_att_text(ncid, varid, "units", strlen(unit), unit));
 }
 
 /*****************************************************************************/

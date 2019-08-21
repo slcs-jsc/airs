@@ -2,6 +2,21 @@
 
 /*****************************************************************************/
 
+void add_att(
+  int ncid,
+  int varid,
+  const char *unit,
+  const char *long_name) {
+
+  /* Set long name... */
+  NC(nc_put_att_text(ncid, varid, "long_name", strlen(long_name), long_name));
+
+  /* Set units... */
+  NC(nc_put_att_text(ncid, varid, "units", strlen(unit), unit));
+}
+
+/*****************************************************************************/
+
 void add_var(
   int ncid,
   const char *varname,

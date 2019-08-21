@@ -247,6 +247,13 @@ typedef struct {
    Functions...
    ------------------------------------------------------------ */
 
+/*! Add variable attributes to netCDF file. */
+void add_att(
+  int ncid,
+  int varid,
+  const char *unit,
+  const char *long_name);
+
 /*! Add variable to netCDF file. */
 void add_var(
   int ncid,
