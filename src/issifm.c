@@ -316,6 +316,80 @@ int main(
     NC(nc_close(ncid));
   }
 
+  /* Read WRF data... */
+  else if (strcasecmp(argv[2], "wrf") == 0) {
+
+    /* Open file... */
+    printf("Read WRF data: %s\n", argv[3]);
+    NC(nc_open(argv[3], NC_NOWRITE, &ncid));
+
+    /* Get dimensions... */
+    NC(nc_inq_dimid(ncid, "bottom_top", &dimid));
+    NC(nc_inq_dimlen(ncid, dimid, &rs));
+    nz = (int) rs;
+    if (nz > NZ)
+      ERRMSG("Too many altitudes!");
+
+    NC(nc_inq_dimid(ncid, "latitude", &dimid));
+    NC(nc_inq_dimlen(ncid, dimid, &rs));
+    nlat = (int) rs;
+    if (nlat > NLAT)
+      ERRMSG("Too many latitudes!");
+
+    NC(nc_inq_dimid(ncid, "longitude", &dimid));
+    NC(nc_inq_dimlen(ncid, dimid, &rs));
+    nlon = (int) rs;
+    if (nlon > NLON)
+      ERRMSG("Too many longitudes!");
+
+    /* Read latitudes... */
+    NC(nc_inq_varid(ncid, "latitude", &varid));
+    NC(nc_get_var_double(ncid, varid, lat));
+
+    /* Read longitudes... */
+    NC(nc_inq_varid(ncid, "longitude", &varid));
+    NC(nc_get_var_double(ncid, varid, lon));
+
+    /* Read temperature... */
+    NC(nc_inq_varid(ncid, "tk", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
+
+    /* Read height... */
+    NC(nc_inq_varid(ncid, "z", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  z[ilon][ilat][iz] =
+	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+
+    /* Read pressure... */
+    NC(nc_inq_varid(ncid, "p", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  p[ilon][ilat][iz] =
+	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
+
+    /* Check data... */
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  if (t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
+	    p[ilon][ilat][iz] = GSL_NAN;
+	    t[ilon][ilat][iz] = GSL_NAN;
+	    z[ilon][ilat][iz] = GSL_NAN;
+	  }
+
+    /* Close file... */
+    NC(nc_close(ncid));
+  }
+
   else
     ERRMSG("Model type not supported!");
 
