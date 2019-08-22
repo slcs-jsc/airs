@@ -107,39 +107,41 @@ int main(
   ALLOC(help, float,
 	NLON * NLAT * NZ);
 
+  /* Open file... */
+  printf("Read %s data: %s\n", argv[2], argv[3]);
+  NC(nc_open(argv[3], NC_NOWRITE, &ncid));
+
+  /* Read latitudes... */
+  if (nc_inq_dimid(ncid, "lat", &dimid) != NC_NOERR)
+    NC(nc_inq_dimid(ncid, "latitude", &dimid));
+  NC(nc_inq_dimlen(ncid, dimid, &rs));
+  nlat = (int) rs;
+  if (nlat > NLAT)
+    ERRMSG("Too many latitudes!");
+  if (nc_inq_varid(ncid, "lat", &varid) != NC_NOERR)
+    NC(nc_inq_varid(ncid, "latitude", &varid));
+  NC(nc_get_var_double(ncid, varid, lat));
+
+  /* Read longitudes... */
+  if (nc_inq_dimid(ncid, "lon", &dimid) != NC_NOERR)
+    NC(nc_inq_dimid(ncid, "longitude", &dimid));
+  NC(nc_inq_dimlen(ncid, dimid, &rs));
+  nlon = (int) rs;
+  if (nlon > NLON)
+    ERRMSG("Too many longitudes!");
+  if (nc_inq_varid(ncid, "lon", &varid))
+    NC(nc_inq_varid(ncid, "longitude", &varid));
+  NC(nc_get_var_double(ncid, varid, lon));
+
   /* Read ICON data... */
   if (strcasecmp(argv[2], "icon") == 0) {
 
-    /* Open file... */
-    printf("Read ICON data: %s\n", argv[3]);
-    NC(nc_open(argv[3], NC_NOWRITE, &ncid));
-
-    /* Get dimensions... */
+    /* Get height levels... */
     NC(nc_inq_dimid(ncid, "height", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     nz = (int) rs;
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
-
-    NC(nc_inq_dimid(ncid, "lat", &dimid));
-    NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nlat = (int) rs;
-    if (nlat > NLAT)
-      ERRMSG("Too many latitudes!");
-
-    NC(nc_inq_dimid(ncid, "lon", &dimid));
-    NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nlon = (int) rs;
-    if (nlon > NLON)
-      ERRMSG("Too many longitudes!");
-
-    /* Read latitudes... */
-    NC(nc_inq_varid(ncid, "lat", &varid));
-    NC(nc_get_var_double(ncid, varid, lat));
-
-    /* Read longitudes... */
-    NC(nc_inq_varid(ncid, "lon", &varid));
-    NC(nc_get_var_double(ncid, varid, lon));
 
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "temp", &varid));
@@ -166,44 +168,17 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  p[ilon][ilat][iz] =
 	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
-
-    /* Close file... */
-    NC(nc_close(ncid));
   }
 
   /* Read IFS data... */
   else if (strcasecmp(argv[2], "ifs") == 0) {
 
-    /* Open file... */
-    printf("Read IFS data: %s\n", argv[3]);
-    NC(nc_open(argv[3], NC_NOWRITE, &ncid));
-
-    /* Get dimensions... */
+    /* Get height levels... */
     NC(nc_inq_dimid(ncid, "lev_2", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     nz = (int) rs;
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
-
-    NC(nc_inq_dimid(ncid, "lat", &dimid));
-    NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nlat = (int) rs;
-    if (nlat > NLAT)
-      ERRMSG("Too many latitudes!");
-
-    NC(nc_inq_dimid(ncid, "lon", &dimid));
-    NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nlon = (int) rs;
-    if (nlon > NLON)
-      ERRMSG("Too many longitudes!");
-
-    /* Read latitudes... */
-    NC(nc_inq_varid(ncid, "lat", &varid));
-    NC(nc_get_var_double(ncid, varid, lat));
-
-    /* Read longitudes... */
-    NC(nc_inq_varid(ncid, "lon", &varid));
-    NC(nc_get_var_double(ncid, varid, lon));
 
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "t", &varid));
@@ -241,44 +216,17 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  p[ilon][ilat][iz]
 	    = (float) ((hyam[iz] + hybm[iz] * ps[ilon][ilat]) / 100.);
-
-    /* Close file... */
-    NC(nc_close(ncid));
   }
 
   /* Read UM data... */
   else if (strcasecmp(argv[2], "um") == 0) {
 
-    /* Open file... */
-    printf("Read UM data: %s\n", argv[3]);
-    NC(nc_open(argv[3], NC_NOWRITE, &ncid));
-
-    /* Get dimensions... */
+    /* Get height levels... */
     NC(nc_inq_dimid(ncid, "RHO_TOP_eta_rho", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     nz = (int) rs;
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
-
-    NC(nc_inq_dimid(ncid, "latitude", &dimid));
-    NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nlat = (int) rs;
-    if (nlat > NLAT)
-      ERRMSG("Too many latitudes!");
-
-    NC(nc_inq_dimid(ncid, "longitude", &dimid));
-    NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nlon = (int) rs;
-    if (nlon > NLON)
-      ERRMSG("Too many longitudes!");
-
-    /* Read latitudes... */
-    NC(nc_inq_varid(ncid, "latitude", &varid));
-    NC(nc_get_var_double(ncid, varid, lat));
-
-    /* Read longitudes... */
-    NC(nc_inq_varid(ncid, "longitude", &varid));
-    NC(nc_get_var_double(ncid, varid, lon));
 
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "STASH_m01s30i004", &varid));
@@ -301,54 +249,17 @@ int main(
       for (ilat = 0; ilat < nlat; ilat++)
 	for (iz = 0; iz < nz; iz++)
 	  z[ilon][ilat][iz] = (float) (H0 * log(P0 / p[ilon][ilat][iz]));
-
-    /* Check data... */
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  if (t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
-	    p[ilon][ilat][iz] = GSL_NAN;
-	    t[ilon][ilat][iz] = GSL_NAN;
-	    z[ilon][ilat][iz] = GSL_NAN;
-	  }
-
-    /* Close file... */
-    NC(nc_close(ncid));
   }
 
   /* Read WRF data... */
   else if (strcasecmp(argv[2], "wrf") == 0) {
 
-    /* Open file... */
-    printf("Read WRF data: %s\n", argv[3]);
-    NC(nc_open(argv[3], NC_NOWRITE, &ncid));
-
-    /* Get dimensions... */
+    /* Get height levels... */
     NC(nc_inq_dimid(ncid, "bottom_top", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     nz = (int) rs;
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
-
-    NC(nc_inq_dimid(ncid, "latitude", &dimid));
-    NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nlat = (int) rs;
-    if (nlat > NLAT)
-      ERRMSG("Too many latitudes!");
-
-    NC(nc_inq_dimid(ncid, "longitude", &dimid));
-    NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nlon = (int) rs;
-    if (nlon > NLON)
-      ERRMSG("Too many longitudes!");
-
-    /* Read latitudes... */
-    NC(nc_inq_varid(ncid, "latitude", &varid));
-    NC(nc_get_var_double(ncid, varid, lat));
-
-    /* Read longitudes... */
-    NC(nc_inq_varid(ncid, "longitude", &varid));
-    NC(nc_get_var_double(ncid, varid, lon));
 
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "tk", &varid));
@@ -375,26 +286,26 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  p[ilon][ilat][iz] =
 	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
-
-    /* Check data... */
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  if (t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
-	    p[ilon][ilat][iz] = GSL_NAN;
-	    t[ilon][ilat][iz] = GSL_NAN;
-	    z[ilon][ilat][iz] = GSL_NAN;
-	  }
-
-    /* Close file... */
-    NC(nc_close(ncid));
   }
 
   else
     ERRMSG("Model type not supported!");
 
+  /* Close file... */
+  NC(nc_close(ncid));
+
   /* Free... */
   free(help);
+
+  /* Check data... */
+  for (ilon = 0; ilon < nlon; ilon++)
+    for (ilat = 0; ilat < nlat; ilat++)
+      for (iz = 0; iz < nz; iz++)
+	if (t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
+	  p[ilon][ilat][iz] = GSL_NAN;
+	  t[ilon][ilat][iz] = GSL_NAN;
+	  z[ilon][ilat][iz] = GSL_NAN;
+	}
 
   /* Smoothing of model data... */
   smooth(p, t, z, lon, lat, nz, nlon, nlat);
