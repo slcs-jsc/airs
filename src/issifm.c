@@ -143,14 +143,6 @@ int main(
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
 
-    /* Read temperature... */
-    NC(nc_inq_varid(ncid, "temp", &varid));
-    NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
-
     /* Read height... */
     NC(nc_inq_varid(ncid, "z_mc", &varid));
     NC(nc_get_var_float(ncid, varid, help));
@@ -159,6 +151,14 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  z[ilon][ilat][iz] =
 	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+
+    /* Read temperature... */
+    NC(nc_inq_varid(ncid, "temp", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
 
     /* Read pressure... */
     NC(nc_inq_varid(ncid, "pres", &varid));
@@ -180,14 +180,6 @@ int main(
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
 
-    /* Read temperature... */
-    NC(nc_inq_varid(ncid, "t", &varid));
-    NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
-
     /* Read height... */
     NC(nc_inq_varid(ncid, "gh", &varid));
     NC(nc_get_var_float(ncid, varid, help));
@@ -196,6 +188,14 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  z[ilon][ilat][iz] =
 	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+
+    /* Read temperature... */
+    NC(nc_inq_varid(ncid, "t", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
 
     /* Read surface pressure... */
     NC(nc_inq_varid(ncid, "lnsp", &varid));
@@ -228,6 +228,15 @@ int main(
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
 
+    /* Read height... */
+    NC(nc_inq_varid(ncid, "STASH_m01s15i102_2", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  z[ilon][ilat][iz] =
+	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "STASH_m01s30i004", &varid));
     NC(nc_get_var_float(ncid, varid, help));
@@ -243,12 +252,6 @@ int main(
       for (ilat = 0; ilat < nlat; ilat++)
 	for (iz = 0; iz < nz; iz++)
 	  p[ilon][ilat][iz] = 0.01f * help[(iz * nlat + ilat) * nlon + ilon];
-
-    /* Calculate height... */
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  z[ilon][ilat][iz] = (float) (H0 * log(P0 / p[ilon][ilat][iz]));
   }
 
   /* Read WRF data... */
@@ -261,14 +264,6 @@ int main(
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
 
-    /* Read temperature... */
-    NC(nc_inq_varid(ncid, "tk", &varid));
-    NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
-
     /* Read height... */
     NC(nc_inq_varid(ncid, "z", &varid));
     NC(nc_get_var_float(ncid, varid, help));
@@ -277,6 +272,14 @@ int main(
 	for (iz = 0; iz < nz; iz++)
 	  z[ilon][ilat][iz] =
 	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+
+    /* Read temperature... */
+    NC(nc_inq_varid(ncid, "tk", &varid));
+    NC(nc_get_var_float(ncid, varid, help));
+    for (ilon = 0; ilon < nlon; ilon++)
+      for (ilat = 0; ilat < nlat; ilat++)
+	for (iz = 0; iz < nz; iz++)
+	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
 
     /* Read pressure... */
     NC(nc_inq_varid(ncid, "p", &varid));
