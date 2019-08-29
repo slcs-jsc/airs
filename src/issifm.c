@@ -222,14 +222,16 @@ int main(
   else if (strcasecmp(argv[2], "um") == 0) {
 
     /* Get height levels... */
-    NC(nc_inq_dimid(ncid, "RHO_TOP_eta_rho", &dimid));
+    if (nc_inq_dimid(ncid, "RHO_TOP_eta_rho", &dimid) != NC_NOERR)
+      NC(nc_inq_dimid(ncid, "RHO_eta_rho", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     nz = (int) rs;
     if (nz > NZ)
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
-    NC(nc_inq_varid(ncid, "STASH_m01s15i102_2", &varid));
+    if (nc_inq_varid(ncid, "STASH_m01s15i102_2", &varid) != NC_NOERR)
+      NC(nc_inq_varid(ncid, "STASH_m01s15i102", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < nlon; ilon++)
       for (ilat = 0; ilat < nlat; ilat++)
