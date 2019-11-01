@@ -42,7 +42,7 @@ endif
 # Targets...
 # -----------------------------------------------------------------------------
 
-all: $(EXC) retrieval
+all: $(EXC) nlte retrieval
 	rm -f *~
 
 $(EXC): %: %.c libairs.o jurassic.o
@@ -54,11 +54,14 @@ libairs.o: libairs.c libairs.h Makefile
 jurassic.o: jurassic.c jurassic.h Makefile
 	$(CC) $(CFLAGS) -c -o jurassic.o jurassic.c
 
+nlte: nlte.c jurassic.o
+	$(MPICC) $(CFLAGS) -o nlte nlte.c jurassic.o $(LDFLAGS_RET)
+
 retrieval: retrieval.c jurassic.o
 	$(MPICC) $(CFLAGS) -o retrieval retrieval.c jurassic.o $(LDFLAGS_RET)
 
 clean:
-	rm -f $(EXC) retrieval *.o *~
+	rm -f $(EXC) nlte retrieval *.o *~
 
 dist:
 	zip airs_`date +"%y%m%d%H%M"`.zip Doxyfile Makefile *.c *.h
@@ -70,4 +73,4 @@ indent:
 	indent -br -brf -brs -bfda -ce -cdw -lp -npcs -npsl *.c *.h
 
 strip:
-	strip $(EXC) retrieval
+	strip $(EXC) nlte retrieval

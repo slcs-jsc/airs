@@ -1,0 +1,1200 @@
+#include <mpi.h>
+#include <omp.h>
+#include <netcdf.h>
+#include "jurassic.h"
+
+/* ------------------------------------------------------------
+   Macros...
+   ------------------------------------------------------------ */
+
+/*! Execute netCDF library command and check result. */
+#define NC(cmd) {                                    \
+    if((cmd)!=NC_NOERR)                              \
+      ERRMSG(nc_strerror(cmd));                      \
+  }
+
+/* ------------------------------------------------------------
+   Dimensions...
+   ------------------------------------------------------------ */
+
+/*! Number of AIRS radiance channels (don't change). */
+#define L1_NCHAN 34
+
+/*! Along-track size of AIRS radiance granule (don't change). */
+#define L1_NTRACK 135
+
+/*! Across-track size of AIRS radiance granule (don't change). */
+#define L1_NXTRACK 90
+
+/*! Number of AIRS pressure layers (don't change). */
+#define L2_NLAY 27
+
+/*! Along-track size of AIRS retrieval granule (don't change). */
+#define L2_NTRACK 45
+
+/*! Across-track size of AIRS retrieval granule (don't change). */
+#define L2_NXTRACK 30
+
+/* ------------------------------------------------------------
+   Structs...
+   ------------------------------------------------------------ */
+
+/*! Buffer for netCDF data. */
+typedef struct {
+
+  /*! NetCDF file ID. */
+  int ncid;
+
+  /*! Number of retrieval altitudes. */
+  int np;
+
+  /*! Time (seconds since 2000-01-01T00:00Z). */
+  double l1_time[L1_NTRACK][L1_NXTRACK];
+
+  /*! Footprint longitude [deg]. */
+  double l1_lon[L1_NTRACK][L1_NXTRACK];
+
+  /*! Footprint latitude [deg]. */
+  double l1_lat[L1_NTRACK][L1_NXTRACK];
+
+  /*! Satellite altitude [km]. */
+  double l1_sat_z[L1_NTRACK];
+
+  /*! Satellite longitude [deg]. */
+  double l1_sat_lon[L1_NTRACK];
+
+  /*! Satellite latitude [deg]. */
+  double l1_sat_lat[L1_NTRACK];
+
+  /*! Channel frequencies [cm^-1]. */
+  double l1_nu[L1_NCHAN];
+
+  /*! Radiance [W/(m^2 sr cm^-1)]. */
+  float l1_rad[L1_NTRACK][L1_NXTRACK][L1_NCHAN];
+
+  /*! Altitude [km]. */
+  double l2_z[L2_NTRACK][L2_NXTRACK][L2_NLAY];
+
+  /*! Pressure [hPa]. */
+  double l2_p[L2_NLAY];
+
+  /*! Temperature [K]. */
+  double l2_t[L2_NTRACK][L2_NXTRACK][L2_NLAY];
+
+  /*! Altitude [km]. */
+  float ret_z[NP];
+
+  /*! Pressure [hPa]. */
+  float ret_p[L1_NTRACK * L1_NXTRACK];
+
+  /*! Temperature [K]. */
+  float ret_t[L1_NTRACK * L1_NXTRACK * NP];
+
+} ncd_t;
+
+/*! Retrieval control parameters. */
+typedef struct {
+
+  /*! Recomputation of kernel matrix (number of iterations). */
+  int kernel_recomp;
+
+  /*! Maximum number of iterations. */
+  int conv_itmax;
+
+  /*! Minimum normalized step size in state space. */
+  double conv_dmin;
+
+  /*! Forward model error [%]. */
+  double err_formod[ND];
+
+  /*! Noise error [W/(m^2 sr cm^-1)]. */
+  double err_noise[ND];
+
+  /*! Pressure error [%]. */
+  double err_press;
+
+  /*! Vertical correlation length for pressure error [km]. */
+  double err_press_cz;
+
+  /*! Horizontal correlation length for pressure error [km]. */
+  double err_press_ch;
+
+  /*! Temperature error [K]. */
+  double err_temp;
+
+  /*! Vertical correlation length for temperature error [km]. */
+  double err_temp_cz;
+
+  /*! Horizontal correlation length for temperature error [km]. */
+  double err_temp_ch;
+
+  /*! Volume mixing ratio error [%]. */
+  double err_q[NG];
+
+  /*! Vertical correlation length for volume mixing ratio error [km]. */
+  double err_q_cz[NG];
+
+  /*! Horizontal correlation length for volume mixing ratio error [km]. */
+  double err_q_ch[NG];
+
+  /*! Extinction error [1/km]. */
+  double err_k[NW];
+
+  /*! Vertical correlation length for extinction error [km]. */
+  double err_k_cz[NW];
+
+  /*! Horizontal correlation length for extinction error [km]. */
+  double err_k_ch[NW];
+
+} ret_t;
+
+/* ------------------------------------------------------------
+   Functions...
+   ------------------------------------------------------------ */
+
+/*! Create variable in netCDF file. */
+void add_var(
+  int ncid,
+  const char *varname,
+  const char *unit,
+  const char *longname,
+  int type,
+  int dimid[],
+  int *varid,
+  int ndims);
+
+/*! Compute cost function. */
+double cost_function(
+  gsl_vector * dx,
+  gsl_vector * dy,
+  gsl_matrix * s_a_inv,
+  gsl_vector * sig_eps_inv);
+
+/*! Fill data gaps in L2 data. */
+void fill_gaps(
+  double x[L2_NTRACK][L2_NXTRACK][L2_NLAY],
+  double cx,
+  double cy);
+
+/*! Initialize with AIRS Level-2 data. */
+void init_l2(
+  ncd_t * ncd,
+  int track,
+  int xtrack,
+  ctl_t * ctl,
+  atm_t * atm);
+
+/*! Invert symmetric matrix. */
+void matrix_invert(
+  gsl_matrix * a);
+
+/*! Compute matrix product A^TBA or ABA^T for diagonal matrix B. */
+void matrix_product(
+  gsl_matrix * a,
+  gsl_vector * b,
+  int transpose,
+  gsl_matrix * c);
+
+/*! Carry out optimal estimation retrieval. */
+void optimal_estimation(
+  ret_t * ret,
+  ctl_t * ctl,
+  obs_t * obs_meas,
+  obs_t * obs_i,
+  atm_t * atm_apr,
+  atm_t * atm_i,
+  double *chisq);
+
+/*! Read netCDF file. */
+void read_nc(
+  char *filename,
+  ncd_t * ncd);
+
+/*! Read retrieval control parameters. */
+void read_ret_ctl(
+  int argc,
+  char *argv[],
+  ctl_t * ctl,
+  ret_t * ret);
+
+/*! Set a priori covariance. */
+void set_cov_apr(
+  ret_t * ret,
+  ctl_t * ctl,
+  atm_t * atm,
+  int *iqa,
+  int *ipa,
+  gsl_matrix * s_a);
+
+/*! Set measurement errors. */
+void set_cov_meas(
+  ret_t * ret,
+  ctl_t * ctl,
+  obs_t * obs,
+  gsl_vector * sig_noise,
+  gsl_vector * sig_formod,
+  gsl_vector * sig_eps_inv);
+
+/*! Calculate solar zenith angle. */
+double sza(
+  double sec,
+  double lon,
+  double lat);
+
+/* ------------------------------------------------------------
+   Main...
+   ------------------------------------------------------------ */
+
+int main(
+  int argc,
+  char *argv[]) {
+
+  static ctl_t ctl;
+  static atm_t atm_apr, atm_clim, atm_i;
+  static obs_t obs_i, obs_meas;
+  static ncd_t ncd;
+  static ret_t ret;
+
+  static FILE *in, *out;
+
+  static char filename[LEN], filename2[LEN];
+
+  static double chisq[L1_NTRACK][L1_NXTRACK], ni[L1_NTRACK][L1_NXTRACK], sx,
+    sy, z[NP];
+
+  static int channel[ND], i, id, ip, iz, n, nz, ntask = -1, rank, size,
+    track, track0, track1, xtrack, xtrack0, xtrack1;
+
+  /* ------------------------------------------------------------
+     Init...
+     ------------------------------------------------------------ */
+
+  /* MPI... */
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  /* Measure CPU time... */
+  TIMER("total", 1);
+
+  /* Check arguments... */
+  if (argc < 3)
+    ERRMSG("Give parameters: <ctl> <filelist>");
+
+  /* Read control parameters... */
+  read_ctl(argc, argv, &ctl);
+  read_ret_ctl(argc, argv, &ctl, &ret);
+
+  /* Read retrieval grid... */
+  nz = (int) scan_ctl(argc, argv, "NZ", -1, "", NULL);
+  if (nz > NP)
+    ERRMSG("Too many altitudes!");
+  for (iz = 0; iz < nz; iz++)
+    z[iz] = scan_ctl(argc, argv, "Z", iz, "", NULL);
+
+  /* Read track range... */
+  track0 = (int) scan_ctl(argc, argv, "TRACK_MIN", -1, "0", NULL);
+  track1 = (int) scan_ctl(argc, argv, "TRACK_MAX", -1, "134", NULL);
+
+  /* Read xtrack range... */
+  xtrack0 = (int) scan_ctl(argc, argv, "XTRACK_MIN", -1, "0", NULL);
+  xtrack1 = (int) scan_ctl(argc, argv, "XTRACK_MAX", -1, "89", NULL);
+
+  /* Background smoothing... */
+  sx = scan_ctl(argc, argv, "SX", -1, "8", NULL);
+  sy = scan_ctl(argc, argv, "SY", -1, "2", NULL);
+
+  /* ------------------------------------------------------------
+     Distribute granules...
+     ------------------------------------------------------------ */
+
+  /* Open filelist... */
+  printf("Read filelist: %s\n", argv[2]);
+  if (!(in = fopen(argv[2], "r")))
+    ERRMSG("Cannot open filelist!");
+
+  /* Loop over netCDF files... */
+  while (fscanf(in, "%s", filename) != EOF) {
+
+    /* Distribute files with MPI... */
+    if ((++ntask) % size != rank)
+      continue;
+
+    /* Write info... */
+    printf("Retrieve file %s on rank %d of %d (with %d threads)...\n",
+	   filename, rank + 1, size, omp_get_max_threads());
+
+    /* ------------------------------------------------------------
+       Initialize retrieval...
+       ------------------------------------------------------------ */
+
+    /* Read netCDF file... */
+    read_nc(filename, &ncd);
+
+    /* Identify radiance channels... */
+    for (id = 0; id < ctl.nd; id++) {
+      channel[id] = -999;
+      for (i = 0; i < L1_NCHAN; i++)
+	if (fabs(ctl.nu[id] - ncd.l1_nu[i]) < 0.1)
+	  channel[id] = i;
+      if (channel[id] < 0)
+	ERRMSG("Cannot identify radiance channel!");
+    }
+
+    /* Fill data gaps... */
+    fill_gaps(ncd.l2_t, sx, sy);
+    fill_gaps(ncd.l2_z, sx, sy);
+
+    /* Set climatological data for center of granule... */
+    atm_clim.np = nz;
+    for (iz = 0; iz < nz; iz++)
+      atm_clim.z[iz] = z[iz];
+    climatology(&ctl, &atm_clim);
+
+    /* ------------------------------------------------------------
+       Retrieval...
+       ------------------------------------------------------------ */
+
+    /* Loop over swaths... */
+    for (track = track0; track <= track1; track++) {
+
+      /* Measure CPU time... */
+      TIMER("retrieval", 1);
+
+      /* Loop over scan... */
+      for (xtrack = xtrack0; xtrack <= xtrack1; xtrack++) {
+
+	/* Store observation data... */
+	obs_meas.nr = 1;
+	obs_meas.time[0] = ncd.l1_time[track][xtrack];
+	obs_meas.obsz[0] = ncd.l1_sat_z[track];
+	obs_meas.obslon[0] = ncd.l1_sat_lon[track];
+	obs_meas.obslat[0] = ncd.l1_sat_lat[track];
+	obs_meas.vplon[0] = ncd.l1_lon[track][xtrack];
+	obs_meas.vplat[0] = ncd.l1_lat[track][xtrack];
+	for (id = 0; id < ctl.nd; id++)
+	  obs_meas.rad[id][0] = ncd.l1_rad[track][xtrack][channel[id]];
+
+	/* Flag out 4 micron channels... */
+	for (id = 0; id < ctl.nd; id++)
+	  if (ctl.nu[id] >= 2000)
+	    obs_meas.rad[id][0] = GSL_NAN;
+
+	/* Prepare atmospheric data... */
+	copy_atm(&ctl, &atm_apr, &atm_clim, 0);
+	for (ip = 0; ip < atm_apr.np; ip++) {
+	  atm_apr.time[ip] = obs_meas.time[0];
+	  atm_apr.lon[ip] = obs_meas.vplon[0];
+	  atm_apr.lat[ip] = obs_meas.vplat[0];
+	}
+
+	/* Merge Level-2 data... */
+	init_l2(&ncd, track, xtrack, &ctl, &atm_apr);
+
+	/* Retrieval... */
+	optimal_estimation(&ret, &ctl, &obs_meas, &obs_i,
+			   &atm_apr, &atm_i, &chisq[track][xtrack]);
+
+	/* Run forward model including 4 micron channels... */
+	for (id = 0; id < ctl.nd; id++)
+	  obs_meas.rad[id][0] = obs_i.rad[id][0]
+	    = ncd.l1_rad[track][xtrack][channel[id]];
+	formod(&ctl, &atm_i, &obs_i);
+
+	/* Calculate non-LTE index... */
+	n = 0;
+	ni[track][xtrack] = 0;
+	for (id = 0; id < ctl.nd; id++)
+	  if (ctl.nu[id] >= 2000 && gsl_finite(obs_meas.rad[id][0])) {
+	    ni[track][xtrack] += (obs_meas.rad[id][0] - obs_i.rad[id][0]);
+	    n++;
+	  }
+	ni[track][xtrack] /= n;
+      }
+
+      /* Measure CPU time... */
+      TIMER("retrieval", 3);
+    }
+
+    /* ------------------------------------------------------------
+       Write output...
+       ------------------------------------------------------------ */
+
+    /* Set filename... */
+    sprintf(filename2, "%s.nlte.tab", filename);
+
+    /* Create output file... */
+    printf("Write non-LTE data: %s\n", filename2);
+    if (!(out = fopen(filename2, "w")))
+      ERRMSG("Cannot create file!");
+
+    /* Write header... */
+    fprintf(out,
+	    "# $1 = time (seconds since 2000-01-01, 00:00 UTC)\n"
+	    "# $2 = longitude [deg]\n"
+	    "# $3 = latitude [deg]\n"
+	    "# $4 = solar zenith angle [deg]\n"
+	    "# $5 = non-LTE index[K]\n" "# $6 = chi^2 of retrieval fit\n");
+
+    /* Write data... */
+    for (track = track0; track <= track1; track++) {
+      fprintf(out, "\n");
+      for (xtrack = xtrack0; xtrack <= xtrack1; xtrack++)
+	fprintf(out, "%.2f %g %g %g %g %g\n",
+		ncd.l1_time[track][xtrack],
+		ncd.l1_lon[track][xtrack],
+		ncd.l1_lat[track][xtrack],
+		sza(ncd.l1_time[track][xtrack], ncd.l1_lon[track][xtrack],
+		    ncd.l1_lat[track][xtrack]), ni[track][xtrack],
+		chisq[track][xtrack]);
+    }
+
+    /* Close output file... */
+    fclose(out);
+
+    /* Write info... */
+    printf("Retrieval finished on rank %d of %d!\n", rank, size);
+  }
+
+  /* Close file list... */
+  fclose(in);
+
+  /* Measure CPU time... */
+  TIMER("total", 3);
+
+  /* Report memory usage... */
+  printf("MEMORY_ATM = %g MByte\n", 4. * sizeof(atm_t) / 1024. / 1024.);
+  printf("MEMORY_CTL = %g MByte\n", 1. * sizeof(ctl_t) / 1024. / 1024.);
+  printf("MEMORY_NCD = %g MByte\n", 1. * sizeof(ncd_t) / 1024. / 1024.);
+  printf("MEMORY_OBS = %g MByte\n", 3. * sizeof(atm_t) / 1024. / 1024.);
+  printf("MEMORY_RET = %g MByte\n", 1. * sizeof(ret_t) / 1024. / 1024.);
+  printf("MEMORY_TBL = %g MByte\n", 1. * sizeof(tbl_t) / 1024. / 1024.);
+
+  /* Report problem size... */
+  printf("SIZE_TASKS = %d\n", size);
+  printf("SIZE_THREADS = %d\n", omp_get_max_threads());
+
+  /* MPI... */
+  MPI_Finalize();
+
+  return EXIT_SUCCESS;
+}
+
+/*****************************************************************************/
+
+void add_var(
+  int ncid,
+  const char *varname,
+  const char *unit,
+  const char *longname,
+  int type,
+  int dimid[],
+  int *varid,
+  int ndims) {
+
+  /* Check if variable exists... */
+  if (nc_inq_varid(ncid, varname, varid) != NC_NOERR) {
+
+    /* Define variable... */
+    NC(nc_def_var(ncid, varname, type, ndims, dimid, varid));
+
+    /* Set long name... */
+    NC(nc_put_att_text
+       (ncid, *varid, "long_name", strlen(longname), longname));
+
+    /* Set units... */
+    NC(nc_put_att_text(ncid, *varid, "units", strlen(unit), unit));
+  }
+}
+
+/*****************************************************************************/
+
+double cost_function(
+  gsl_vector * dx,
+  gsl_vector * dy,
+  gsl_matrix * s_a_inv,
+  gsl_vector * sig_eps_inv) {
+
+  gsl_vector *x_aux, *y_aux;
+
+  double chisq_a, chisq_m = 0;
+
+  size_t i, m, n;
+
+  /* Get sizes... */
+  m = dy->size;
+  n = dx->size;
+
+  /* Allocate... */
+  x_aux = gsl_vector_alloc(n);
+  y_aux = gsl_vector_alloc(m);
+
+  /* Determine normalized cost function...
+     (chi^2 = 1/m * [dy^T * S_eps^{-1} * dy + dx^T * S_a^{-1} * dx]) */
+  for (i = 0; i < m; i++)
+    chisq_m +=
+      gsl_pow_2(gsl_vector_get(dy, i) * gsl_vector_get(sig_eps_inv, i));
+  gsl_blas_dgemv(CblasNoTrans, 1.0, s_a_inv, dx, 0.0, x_aux);
+  gsl_blas_ddot(dx, x_aux, &chisq_a);
+
+  /* Free... */
+  gsl_vector_free(x_aux);
+  gsl_vector_free(y_aux);
+
+  /* Return cost function value... */
+  return (chisq_m + chisq_a) / (double) m;
+}
+
+/************************************************************************/
+
+void fill_gaps(
+  double x[L2_NTRACK][L2_NXTRACK][L2_NLAY],
+  double cx,
+  double cy) {
+
+  double help[L2_NTRACK][L2_NXTRACK], w, wsum;
+
+  int lay, track, track2, xtrack, xtrack2;
+
+  /* Loop over layers... */
+  for (lay = 0; lay < L2_NLAY; lay++) {
+
+    /* Loop over grid points... */
+    for (track = 0; track < L2_NTRACK; track++)
+      for (xtrack = 0; xtrack < L2_NXTRACK; xtrack++) {
+
+	/* Init... */
+	help[track][xtrack] = 0;
+	wsum = 0;
+
+	/* Averrage data points... */
+	for (track2 = 0; track2 < L2_NTRACK; track2++)
+	  for (xtrack2 = 0; xtrack2 < L2_NXTRACK; xtrack2++)
+	    if (gsl_finite(x[track2][xtrack2][lay])
+		&& x[track2][xtrack2][lay] > 0) {
+	      w = exp(-gsl_pow_2((xtrack - xtrack2) / cx)
+		      - gsl_pow_2((track - track2) / cy));
+	      help[track][xtrack] += w * x[track2][xtrack2][lay];
+	      wsum += w;
+	    }
+
+	/* Normalize... */
+	if (wsum > 0)
+	  help[track][xtrack] /= wsum;
+	else
+	  help[track][xtrack] = GSL_NAN;
+      }
+
+    /* Copy grid points... */
+    for (track = 0; track < L2_NTRACK; track++)
+      for (xtrack = 0; xtrack < L2_NXTRACK; xtrack++)
+	x[track][xtrack][lay] = help[track][xtrack];
+  }
+}
+
+/************************************************************************/
+
+void init_l2(
+  ncd_t * ncd,
+  int track,
+  int xtrack,
+  ctl_t * ctl,
+  atm_t * atm) {
+
+  static atm_t atm_airs;
+
+  double k[NW], p, q[NG], t, w, zmax = 0, zmin = 1000;
+
+  int ip, lay;
+
+  /* Reset track- and xtrack-index to match Level-2 data... */
+  track /= 3;
+  xtrack /= 3;
+
+  /* Store AIRS data in atmospheric data struct... */
+  atm_airs.np = 0;
+  for (lay = 0; lay < L2_NLAY; lay++)
+    if (gsl_finite(ncd->l2_z[track][xtrack][lay])) {
+      atm_airs.z[atm_airs.np] = ncd->l2_z[track][xtrack][lay];
+      atm_airs.p[atm_airs.np] = ncd->l2_p[lay];
+      atm_airs.t[atm_airs.np] = ncd->l2_t[track][xtrack][lay];
+      if ((++atm_airs.np) > NP)
+	ERRMSG("Too many layers!");
+    }
+
+  /* Check number of levels... */
+  if (atm_airs.np <= 0)
+    return;
+
+  /* Get height range of AIRS data... */
+  for (ip = 0; ip < atm_airs.np; ip++) {
+    zmax = GSL_MAX(zmax, atm_airs.z[ip]);
+    zmin = GSL_MIN(zmin, atm_airs.z[ip]);
+  }
+
+  /* Merge AIRS data... */
+  for (ip = 0; ip < atm->np; ip++) {
+
+    /* Interpolate AIRS data... */
+    intpol_atm(ctl, &atm_airs, atm->z[ip], &p, &t, q, k);
+
+    /* Weighting factor... */
+    w = 1;
+    if (atm->z[ip] > zmax)
+      w = GSL_MAX(1 - (atm->z[ip] - zmax) / 50, 0);
+    if (atm->z[ip] < zmin)
+      w = GSL_MAX(1 - (zmin - atm->z[ip]) / 50, 0);
+
+    /* Merge... */
+    atm->t[ip] = w * t + (1 - w) * atm->t[ip];
+    atm->p[ip] = w * p + (1 - w) * atm->p[ip];
+  }
+}
+
+/*****************************************************************************/
+
+void matrix_invert(
+  gsl_matrix * a) {
+
+  size_t diag = 1, i, j, n;
+
+  /* Get size... */
+  n = a->size1;
+
+  /* Check if matrix is diagonal... */
+  for (i = 0; i < n && diag; i++)
+    for (j = i + 1; j < n; j++)
+      if (gsl_matrix_get(a, i, j) != 0) {
+	diag = 0;
+	break;
+      }
+
+  /* Quick inversion of diagonal matrix... */
+  if (diag)
+    for (i = 0; i < n; i++)
+      gsl_matrix_set(a, i, i, 1 / gsl_matrix_get(a, i, i));
+
+  /* Matrix inversion by means of Cholesky decomposition... */
+  else {
+    gsl_linalg_cholesky_decomp(a);
+    gsl_linalg_cholesky_invert(a);
+  }
+}
+
+/*****************************************************************************/
+
+void matrix_product(
+  gsl_matrix * a,
+  gsl_vector * b,
+  int transpose,
+  gsl_matrix * c) {
+
+  gsl_matrix *aux;
+
+  size_t i, j, m, n;
+
+  /* Set sizes... */
+  m = a->size1;
+  n = a->size2;
+
+  /* Allocate... */
+  aux = gsl_matrix_alloc(m, n);
+
+  /* Compute A^T B A... */
+  if (transpose == 1) {
+
+    /* Compute B^1/2 A... */
+    for (i = 0; i < m; i++)
+      for (j = 0; j < n; j++)
+	gsl_matrix_set(aux, i, j,
+		       gsl_vector_get(b, i) * gsl_matrix_get(a, i, j));
+
+    /* Compute A^T B A = (B^1/2 A)^T (B^1/2 A)... */
+    gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, aux, aux, 0.0, c);
+  }
+
+  /* Compute A B A^T... */
+  else if (transpose == 2) {
+
+    /* Compute A B^1/2... */
+    for (i = 0; i < m; i++)
+      for (j = 0; j < n; j++)
+	gsl_matrix_set(aux, i, j,
+		       gsl_matrix_get(a, i, j) * gsl_vector_get(b, j));
+
+    /* Compute A B A^T = (A B^1/2) (A B^1/2)^T... */
+    gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, aux, aux, 0.0, c);
+  }
+
+  /* Free... */
+  gsl_matrix_free(aux);
+}
+
+/*****************************************************************************/
+
+void optimal_estimation(
+  ret_t * ret,
+  ctl_t * ctl,
+  obs_t * obs_meas,
+  obs_t * obs_i,
+  atm_t * atm_apr,
+  atm_t * atm_i,
+  double *chisq) {
+
+  static int ipa[N], iqa[N];
+
+  gsl_matrix *a, *cov, *k_i, *s_a_inv;
+  gsl_vector *b, *dx, *dy, *sig_eps_inv, *sig_formod, *sig_noise,
+    *x_a, *x_i, *x_step, *y_aux, *y_i, *y_m;
+
+  double chisq_old, disq = 0, lmpar = 0.001;
+
+  int ig, ip, it = 0, it2, iw;
+
+  size_t i, m, n;
+
+  /* ------------------------------------------------------------
+     Initialize...
+     ------------------------------------------------------------ */
+
+  /* Get sizes... */
+  m = obs2y(ctl, obs_meas, NULL, NULL, NULL);
+  n = atm2x(ctl, atm_apr, NULL, iqa, ipa);
+  if (m <= 0 || n <= 0) {
+    *chisq = GSL_NAN;
+    return;
+  }
+
+  /* Allocate... */
+  a = gsl_matrix_alloc(n, n);
+  cov = gsl_matrix_alloc(n, n);
+  k_i = gsl_matrix_alloc(m, n);
+  s_a_inv = gsl_matrix_alloc(n, n);
+
+  b = gsl_vector_alloc(n);
+  dx = gsl_vector_alloc(n);
+  dy = gsl_vector_alloc(m);
+  sig_eps_inv = gsl_vector_alloc(m);
+  sig_formod = gsl_vector_alloc(m);
+  sig_noise = gsl_vector_alloc(m);
+  x_a = gsl_vector_alloc(n);
+  x_i = gsl_vector_alloc(n);
+  x_step = gsl_vector_alloc(n);
+  y_aux = gsl_vector_alloc(m);
+  y_i = gsl_vector_alloc(m);
+  y_m = gsl_vector_alloc(m);
+
+  /* Set initial state... */
+  copy_atm(ctl, atm_i, atm_apr, 0);
+  copy_obs(ctl, obs_i, obs_meas, 0);
+  formod(ctl, atm_i, obs_i);
+
+  /* Set state vectors and observation vectors... */
+  atm2x(ctl, atm_apr, x_a, NULL, NULL);
+  atm2x(ctl, atm_i, x_i, NULL, NULL);
+  obs2y(ctl, obs_meas, y_m, NULL, NULL);
+  obs2y(ctl, obs_i, y_i, NULL, NULL);
+
+  /* Set inverse a priori covariance S_a^-1... */
+  set_cov_apr(ret, ctl, atm_apr, iqa, ipa, s_a_inv);
+  matrix_invert(s_a_inv);
+
+  /* Get measurement errors... */
+  set_cov_meas(ret, ctl, obs_meas, sig_noise, sig_formod, sig_eps_inv);
+
+  /* Determine dx = x_i - x_a and dy = y - F(x_i) ... */
+  gsl_vector_memcpy(dx, x_i);
+  gsl_vector_sub(dx, x_a);
+  gsl_vector_memcpy(dy, y_m);
+  gsl_vector_sub(dy, y_i);
+
+  /* Compute cost function... */
+  *chisq = cost_function(dx, dy, s_a_inv, sig_eps_inv);
+
+  /* Compute initial kernel... */
+  kernel(ctl, atm_i, obs_i, k_i);
+
+  /* ------------------------------------------------------------
+     Levenberg-Marquardt minimization...
+     ------------------------------------------------------------ */
+
+  /* Outer loop... */
+  for (it = 1; it <= ret->conv_itmax; it++) {
+
+    /* Store current cost function value... */
+    chisq_old = *chisq;
+
+    /* Compute kernel matrix K_i... */
+    if (it > 1 && it % ret->kernel_recomp == 0)
+      kernel(ctl, atm_i, obs_i, k_i);
+
+    /* Compute K_i^T * S_eps^{-1} * K_i ... */
+    if (it == 1 || it % ret->kernel_recomp == 0)
+      matrix_product(k_i, sig_eps_inv, 1, cov);
+
+    /* Determine b = K_i^T * S_eps^{-1} * dy - S_a^{-1} * dx ... */
+    for (i = 0; i < m; i++)
+      gsl_vector_set(y_aux, i, gsl_vector_get(dy, i)
+		     * gsl_pow_2(gsl_vector_get(sig_eps_inv, i)));
+    gsl_blas_dgemv(CblasTrans, 1.0, k_i, y_aux, 0.0, b);
+    gsl_blas_dgemv(CblasNoTrans, -1.0, s_a_inv, dx, 1.0, b);
+
+    /* Inner loop... */
+    for (it2 = 0; it2 < 20; it2++) {
+
+      /* Compute A = (1 + lmpar) * S_a^{-1} + K_i^T * S_eps^{-1} * K_i ... */
+      gsl_matrix_memcpy(a, s_a_inv);
+      gsl_matrix_scale(a, 1 + lmpar);
+      gsl_matrix_add(a, cov);
+
+      /* Solve A * x_step = b by means of Cholesky decomposition... */
+      gsl_linalg_cholesky_decomp(a);
+      gsl_linalg_cholesky_solve(a, b, x_step);
+
+      /* Update atmospheric state... */
+      gsl_vector_add(x_i, x_step);
+      copy_atm(ctl, atm_i, atm_apr, 0);
+      copy_obs(ctl, obs_i, obs_meas, 0);
+      x2atm(ctl, x_i, atm_i);
+
+      /* Check atmospheric state... */
+      for (ip = 0; ip < atm_i->np; ip++) {
+	atm_i->p[ip] = GSL_MIN(GSL_MAX(atm_i->p[ip], 5e-7), 5e4);
+	atm_i->t[ip] = GSL_MIN(GSL_MAX(atm_i->t[ip], 100), 400);
+	for (ig = 0; ig < ctl->ng; ig++)
+	  atm_i->q[ig][ip] = GSL_MIN(GSL_MAX(atm_i->q[ig][ip], 0), 1);
+	for (iw = 0; iw < ctl->nw; iw++)
+	  atm_i->k[iw][ip] = GSL_MAX(atm_i->k[iw][ip], 0);
+      }
+
+      /* Forward calculation... */
+      formod(ctl, atm_i, obs_i);
+      obs2y(ctl, obs_i, y_i, NULL, NULL);
+
+      /* Determine dx = x_i - x_a and dy = y - F(x_i) ... */
+      gsl_vector_memcpy(dx, x_i);
+      gsl_vector_sub(dx, x_a);
+      gsl_vector_memcpy(dy, y_m);
+      gsl_vector_sub(dy, y_i);
+
+      /* Compute cost function... */
+      *chisq = cost_function(dx, dy, s_a_inv, sig_eps_inv);
+
+      /* Modify Levenberg-Marquardt parameter... */
+      if (*chisq > chisq_old) {
+	lmpar *= 10;
+	gsl_vector_sub(x_i, x_step);
+      } else {
+	lmpar /= 10;
+	break;
+      }
+    }
+
+    /* Get normalized step size in state space... */
+    gsl_blas_ddot(x_step, b, &disq);
+    disq /= (double) n;
+
+    /* Convergence test... */
+    if ((it == 1 || it % ret->kernel_recomp == 0) && disq < ret->conv_dmin)
+      break;
+  }
+
+  /* ------------------------------------------------------------
+     Finalize...
+     ------------------------------------------------------------ */
+
+  gsl_matrix_free(a);
+  gsl_matrix_free(cov);
+  gsl_matrix_free(k_i);
+  gsl_matrix_free(s_a_inv);
+
+  gsl_vector_free(b);
+  gsl_vector_free(dx);
+  gsl_vector_free(dy);
+  gsl_vector_free(sig_eps_inv);
+  gsl_vector_free(sig_formod);
+  gsl_vector_free(sig_noise);
+  gsl_vector_free(x_a);
+  gsl_vector_free(x_i);
+  gsl_vector_free(x_step);
+  gsl_vector_free(y_aux);
+  gsl_vector_free(y_i);
+  gsl_vector_free(y_m);
+}
+
+/*****************************************************************************/
+
+void read_nc(
+  char *filename,
+  ncd_t * ncd) {
+
+  int varid;
+
+  /* Open netCDF file... */
+  printf("Read netCDF file: %s\n", filename);
+  NC(nc_open(filename, NC_WRITE, &ncd->ncid));
+
+  /* Read Level-1 data... */
+  NC(nc_inq_varid(ncd->ncid, "l1_time", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l1_time[0]));
+  NC(nc_inq_varid(ncd->ncid, "l1_lon", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l1_lon[0]));
+  NC(nc_inq_varid(ncd->ncid, "l1_lat", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l1_lat[0]));
+  NC(nc_inq_varid(ncd->ncid, "l1_sat_z", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l1_sat_z));
+  NC(nc_inq_varid(ncd->ncid, "l1_sat_lon", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l1_sat_lon));
+  NC(nc_inq_varid(ncd->ncid, "l1_sat_lat", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l1_sat_lat));
+  NC(nc_inq_varid(ncd->ncid, "l1_nu", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l1_nu));
+  NC(nc_inq_varid(ncd->ncid, "l1_rad", &varid));
+  NC(nc_get_var_float(ncd->ncid, varid, ncd->l1_rad[0][0]));
+
+  /* Read Level-2 data... */
+  NC(nc_inq_varid(ncd->ncid, "l2_z", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l2_z[0][0]));
+  NC(nc_inq_varid(ncd->ncid, "l2_press", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l2_p));
+  NC(nc_inq_varid(ncd->ncid, "l2_temp", &varid));
+  NC(nc_get_var_double(ncd->ncid, varid, ncd->l2_t[0][0]));
+}
+
+/*****************************************************************************/
+
+void read_ret_ctl(
+  int argc,
+  char *argv[],
+  ctl_t * ctl,
+  ret_t * ret) {
+
+  int id, ig, iw;
+
+  /* Iteration control... */
+  ret->kernel_recomp =
+    (int) scan_ctl(argc, argv, "KERNEL_RECOMP", -1, "3", NULL);
+  ret->conv_itmax = (int) scan_ctl(argc, argv, "CONV_ITMAX", -1, "30", NULL);
+  ret->conv_dmin = scan_ctl(argc, argv, "CONV_DMIN", -1, "0.1", NULL);
+
+  for (id = 0; id < ctl->nd; id++)
+    ret->err_formod[id] = scan_ctl(argc, argv, "ERR_FORMOD", id, "0", NULL);
+
+  for (id = 0; id < ctl->nd; id++)
+    ret->err_noise[id] = scan_ctl(argc, argv, "ERR_NOISE", id, "0", NULL);
+
+  ret->err_press = scan_ctl(argc, argv, "ERR_PRESS", -1, "0", NULL);
+  ret->err_press_cz = scan_ctl(argc, argv, "ERR_PRESS_CZ", -1, "-999", NULL);
+  ret->err_press_ch = scan_ctl(argc, argv, "ERR_PRESS_CH", -1, "-999", NULL);
+
+  ret->err_temp = scan_ctl(argc, argv, "ERR_TEMP", -1, "0", NULL);
+  ret->err_temp_cz = scan_ctl(argc, argv, "ERR_TEMP_CZ", -1, "-999", NULL);
+  ret->err_temp_ch = scan_ctl(argc, argv, "ERR_TEMP_CH", -1, "-999", NULL);
+
+  for (ig = 0; ig < ctl->ng; ig++) {
+    ret->err_q[ig] = scan_ctl(argc, argv, "ERR_Q", ig, "0", NULL);
+    ret->err_q_cz[ig] = scan_ctl(argc, argv, "ERR_Q_CZ", ig, "-999", NULL);
+    ret->err_q_ch[ig] = scan_ctl(argc, argv, "ERR_Q_CH", ig, "-999", NULL);
+  }
+
+  for (iw = 0; iw < ctl->nw; iw++) {
+    ret->err_k[iw] = scan_ctl(argc, argv, "ERR_K", iw, "0", NULL);
+    ret->err_k_cz[iw] = scan_ctl(argc, argv, "ERR_K_CZ", iw, "-999", NULL);
+    ret->err_k_ch[iw] = scan_ctl(argc, argv, "ERR_K_CH", iw, "-999", NULL);
+  }
+}
+
+/*****************************************************************************/
+
+void set_cov_apr(
+  ret_t * ret,
+  ctl_t * ctl,
+  atm_t * atm,
+  int *iqa,
+  int *ipa,
+  gsl_matrix * s_a) {
+
+  gsl_vector *x_a;
+
+  double ch, cz, rho, x0[3], x1[3];
+
+  int ig, iw;
+
+  size_t i, j, n;
+
+  /* Get sizes... */
+  n = s_a->size1;
+
+  /* Allocate... */
+  x_a = gsl_vector_alloc(n);
+
+  /* Get sigma vector... */
+  atm2x(ctl, atm, x_a, NULL, NULL);
+  for (i = 0; i < n; i++) {
+    if (iqa[i] == IDXP)
+      gsl_vector_set(x_a, i, ret->err_press / 100 * gsl_vector_get(x_a, i));
+    if (iqa[i] == IDXT)
+      gsl_vector_set(x_a, i, ret->err_temp);
+    for (ig = 0; ig < ctl->ng; ig++)
+      if (iqa[i] == IDXQ(ig))
+	gsl_vector_set(x_a, i, ret->err_q[ig] / 100 * gsl_vector_get(x_a, i));
+    for (iw = 0; iw < ctl->nw; iw++)
+      if (iqa[i] == IDXK(iw))
+	gsl_vector_set(x_a, i, ret->err_k[iw]);
+  }
+
+  /* Check standard deviations... */
+  for (i = 0; i < n; i++)
+    if (gsl_pow_2(gsl_vector_get(x_a, i)) <= 0)
+      ERRMSG("Check a priori data (zero standard deviation)!");
+
+  /* Initialize diagonal covariance... */
+  gsl_matrix_set_zero(s_a);
+  for (i = 0; i < n; i++)
+    gsl_matrix_set(s_a, i, i, gsl_pow_2(gsl_vector_get(x_a, i)));
+
+  /* Loop over matrix elements... */
+  for (i = 0; i < n; i++)
+    for (j = 0; j < n; j++)
+      if (i != j && iqa[i] == iqa[j]) {
+
+	/* Initialize... */
+	cz = ch = 0;
+
+	/* Set correlation lengths for pressure... */
+	if (iqa[i] == IDXP) {
+	  cz = ret->err_press_cz;
+	  ch = ret->err_press_ch;
+	}
+
+	/* Set correlation lengths for temperature... */
+	if (iqa[i] == IDXT) {
+	  cz = ret->err_temp_cz;
+	  ch = ret->err_temp_ch;
+	}
+
+	/* Set correlation lengths for volume mixing ratios... */
+	for (ig = 0; ig < ctl->ng; ig++)
+	  if (iqa[i] == IDXQ(ig)) {
+	    cz = ret->err_q_cz[ig];
+	    ch = ret->err_q_ch[ig];
+	  }
+
+	/* Set correlation lengths for extinction... */
+	for (iw = 0; iw < ctl->nw; iw++)
+	  if (iqa[i] == IDXK(iw)) {
+	    cz = ret->err_k_cz[iw];
+	    ch = ret->err_k_ch[iw];
+	  }
+
+	/* Compute correlations... */
+	if (cz > 0 && ch > 0) {
+
+	  /* Get Cartesian coordinates... */
+	  geo2cart(0, atm->lon[ipa[i]], atm->lat[ipa[i]], x0);
+	  geo2cart(0, atm->lon[ipa[j]], atm->lat[ipa[j]], x1);
+
+	  /* Compute correlations... */
+	  rho =
+	    exp(-DIST(x0, x1) / ch -
+		fabs(atm->z[ipa[i]] - atm->z[ipa[j]]) / cz);
+
+	  /* Set covariance... */
+	  gsl_matrix_set(s_a, i, j, gsl_vector_get(x_a, i)
+			 * gsl_vector_get(x_a, j) * rho);
+	}
+      }
+
+  /* Free... */
+  gsl_vector_free(x_a);
+}
+
+/*****************************************************************************/
+
+void set_cov_meas(
+  ret_t * ret,
+  ctl_t * ctl,
+  obs_t * obs,
+  gsl_vector * sig_noise,
+  gsl_vector * sig_formod,
+  gsl_vector * sig_eps_inv) {
+
+  static obs_t obs_err;
+
+  int id, ir;
+
+  size_t i, m;
+
+  /* Get size... */
+  m = sig_eps_inv->size;
+
+  /* Noise error (always considered in retrieval fit)... */
+  copy_obs(ctl, &obs_err, obs, 1);
+  for (ir = 0; ir < obs_err.nr; ir++)
+    for (id = 0; id < ctl->nd; id++)
+      obs_err.rad[id][ir]
+	= (gsl_finite(obs->rad[id][ir]) ? ret->err_noise[id] : GSL_NAN);
+  obs2y(ctl, &obs_err, sig_noise, NULL, NULL);
+
+  /* Forward model error (always considered in retrieval fit)... */
+  copy_obs(ctl, &obs_err, obs, 1);
+  for (ir = 0; ir < obs_err.nr; ir++)
+    for (id = 0; id < ctl->nd; id++)
+      obs_err.rad[id][ir]
+	= fabs(ret->err_formod[id] / 100 * obs->rad[id][ir]);
+  obs2y(ctl, &obs_err, sig_formod, NULL, NULL);
+
+  /* Total error... */
+  for (i = 0; i < m; i++)
+    gsl_vector_set(sig_eps_inv, i,
+		   1 / sqrt(gsl_pow_2(gsl_vector_get(sig_noise, i))
+			    + gsl_pow_2(gsl_vector_get(sig_formod, i))));
+
+  /* Check standard deviations... */
+  for (i = 0; i < m; i++)
+    if (gsl_vector_get(sig_eps_inv, i) <= 0)
+      ERRMSG("Check measurement errors (zero standard deviation)!");
+}
+
+/*****************************************************************************/
+
+double sza(
+  double sec,
+  double lon,
+  double lat) {
+
+  double D, dec, e, g, GMST, h, L, LST, q, ra;
+
+  /* Number of days and fraction with respect to 2000-01-01T12:00Z... */
+  D = sec / 86400 - 0.5;
+
+  /* Geocentric apparent ecliptic longitude [rad]... */
+  g = (357.529 + 0.98560028 * D) * M_PI / 180;
+  q = 280.459 + 0.98564736 * D;
+  L = (q + 1.915 * sin(g) + 0.020 * sin(2 * g)) * M_PI / 180;
+
+  /* Mean obliquity of the ecliptic [rad]... */
+  e = (23.439 - 0.00000036 * D) * M_PI / 180;
+
+  /* Declination [rad]... */
+  dec = asin(sin(e) * sin(L));
+
+  /* Right ascension [rad]... */
+  ra = atan2(cos(e) * sin(L), cos(L));
+
+  /* Greenwich Mean Sidereal Time [h]... */
+  GMST = 18.697374558 + 24.06570982441908 * D;
+
+  /* Local Sidereal Time [h]... */
+  LST = GMST + lon / 15;
+
+  /* Hour angle [rad]... */
+  h = LST / 12 * M_PI - ra;
+
+  /* Convert latitude... */
+  lat *= M_PI / 180;
+
+  /* Return solar zenith angle [deg]... */
+  return acos(sin(lat) * sin(dec) +
+	      cos(lat) * cos(dec) * cos(h)) * 180 / M_PI;
+}

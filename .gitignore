@@ -16,6 +16,7 @@ src/libairs.o
 src/map_pert
 src/map_rad
 src/map_ret
+src/nlte
 src/noise_pert
 src/noise_ret
 src/optimize_btd
