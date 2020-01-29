@@ -68,7 +68,7 @@ int main(
     z[NLON][NLAT][NZ];
 
   static int init, id, itrack, ixtrack, ncid, dimid, varid, slant,
-    ilon, ilat, iz, nlon, nlat, nz, ip, track0, track1, nk, okay;
+    ilon, ilat, iz, nlon, nlat, nz, ip, track0, track1, nk, okay, extpol;
 
   static size_t rs;
 
@@ -93,6 +93,7 @@ int main(
   read_ctl(argc, argv, &ctl);
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
   scan_ctl(argc, argv, "KERNEL", -1, "-", kernel);
+  extpol = (int) scan_ctl(argc, argv, "EXTPOL", -1, "0", NULL);
   slant = (int) scan_ctl(argc, argv, "SLANT", -1, "1", NULL);
   t_ovp = scan_ctl(argc, argv, "T_OVP", -1, "", NULL);
 
@@ -471,6 +472,17 @@ int main(
 	    pert->bt[itrack][ixtrack] += obs->rad[id][0] / ctl.nd;
 	}
       }
+    }
+
+  /* Extrapolate... */
+  if (extpol)
+    for (itrack = track0; itrack <= track1; itrack++) {
+      for (ixtrack = 1; ixtrack < pert->nxtrack; ixtrack++)
+	if (!gsl_finite(pert->bt[itrack][ixtrack]))
+	  pert->bt[itrack][ixtrack] = pert->bt[itrack][ixtrack - 1];
+      for (ixtrack = pert->nxtrack - 2; ixtrack >= 0; ixtrack--)
+	if (!gsl_finite(pert->bt[itrack][ixtrack]))
+	  pert->bt[itrack][ixtrack] = pert->bt[itrack][ixtrack + 1];
     }
 
   /* ------------------------------------------------------------

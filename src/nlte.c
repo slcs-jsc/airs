@@ -257,7 +257,7 @@ int main(
 
   static FILE *in, *out;
 
-  static char filename[LEN], filename2[LEN];
+  static char filename[LEN], filename2[2 * LEN];
 
   static double chisq[L1_NTRACK][L1_NXTRACK], ni[L1_NTRACK][L1_NXTRACK], sx,
     sy, z[NP];
@@ -406,7 +406,9 @@ int main(
 	ni[track][xtrack] = 0;
 	for (id = 0; id < ctl.nd; id++)
 	  if (ctl.nu[id] >= 2000 && gsl_finite(obs_meas.rad[id][0])) {
-	    ni[track][xtrack] += (obs_meas.rad[id][0] - obs_i.rad[id][0]);
+	    ni[track][xtrack] +=
+	      (brightness(obs_meas.rad[id][0], ncd.l1_nu[channel[id]])
+	       - brightness(obs_i.rad[id][0], ncd.l1_nu[channel[id]]));
 	    n++;
 	  }
 	ni[track][xtrack] /= n;
