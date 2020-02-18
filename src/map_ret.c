@@ -13,7 +13,8 @@ int main(
 
   char set[LEN];
 
-  int asc, bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y, ids, ip, ix, iy;
+  int asc, bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y,
+    ids, ip, ix, iy, npscan;
 
   /* Check arguments... */
   if (argc < 4)
@@ -26,6 +27,7 @@ int main(
   bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
   bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
   bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  npscan = (int) scan_ctl(argc, argv, "NPSCAN", -1, "90", NULL);
 
   /* Read AIRS data... */
   read_retr(argv[2], &ret);
@@ -44,13 +46,13 @@ int main(
   background_smooth(&wave, bg_smooth_x, bg_smooth_y);
   for (ix = 0; ix < wave.nx; ix++)
     for (iy = 0; iy < wave.ny; iy++)
-      tbg[iy * 90 + ix] = wave.bg[ix][iy];
+      tbg[iy * npscan + ix] = wave.bg[ix][iy];
   ret2wave(&ret, &wave, 2, ip);
   background_poly(&wave, bg_poly_x, bg_poly_y);
   background_smooth(&wave, bg_smooth_x, bg_smooth_y);
   for (ix = 0; ix < wave.nx; ix++)
     for (iy = 0; iy < wave.ny; iy++)
-      tabg[iy * 90 + ix] = wave.bg[ix][iy];
+      tabg[iy * npscan + ix] = wave.bg[ix][iy];
 
   /* Create output file... */
   printf("Write AIRS map data: %s\n", argv[3]);
@@ -79,7 +81,7 @@ int main(
   for (ids = 0; ids < ret.nds; ids++) {
 
     /* Write new line... */
-    if (ids % 90 == 0)
+    if (ids % npscan == 0)
       fprintf(out, "\n");
 
     /* Check data... */
@@ -89,8 +91,8 @@ int main(
       continue;
 
     /* Get ascending/descending flag... */
-    asc = (ret.lat[ids > 90 ? ids : ids + 90][0]
-	   > ret.lat[ids > 90 ? ids - 90 : ids][0]);
+    asc = (ret.lat[ids > npscan ? ids : ids + npscan][0]
+	   > ret.lat[ids > npscan ? ids - npscan : ids][0]);
 
     /* Write data... */
     if (set[0] == 'f' || (set[0] == 'a' && asc) || (set[0] == 'd' && !asc))

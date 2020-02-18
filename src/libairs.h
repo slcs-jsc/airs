@@ -16,7 +16,7 @@
    ------------------------------------------------------------ */
 
 /*! Maximum number of data sets per granule. */
-#define NDS 13000
+#define NDS 200000
 
 /*! Maximum number of data points per granule. */
 #define NPG 30
