@@ -1127,7 +1127,8 @@ void read_pert(
   static int dimid[2], ncid, varid;
 
   static size_t itrack, ntrack, nxtrack, start[2] = { 0, 0 }, count[2] = {
-  1, 1};
+    1, 1
+  };
 
   /* Write info... */
   printf("Read perturbation data: %s\n", filename);

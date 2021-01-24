@@ -219,13 +219,13 @@ double fill_array(
   /* Find nearest neighbours... */
   for (i = itrack + 1; i < ntrack; i++)
     if (gsl_finite(var[i][ixtrack])) {
-      d1 = fabs(i - itrack);
+      d1 = fabs((double) i - (double) itrack);
       v1 = var[i][ixtrack];
       break;
     }
   for (i = itrack - 1; i >= 0; i--)
     if (gsl_finite(var[i][ixtrack])) {
-      d2 = fabs(i - itrack);
+      d2 = fabs((double) i - (double) itrack);
       v2 = var[i][ixtrack];
       break;
     }
