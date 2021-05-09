@@ -42,6 +42,9 @@ int main(
       }
     if (dmin > 2500)
       ERRMSG("Geolocation not covered by granule!");
+    printf("nearest footprint: lon= %g, lat= %g, track= %d, xtrack=%d\n",
+	   airs_rad_gran.Longitude[track][xtrack],
+	   airs_rad_gran.Latitude[track][xtrack], track, xtrack);
   }
 
   /* Check indices... */
