@@ -5,7 +5,8 @@ int main(
   char *argv[]) {
 
   static ret_t ret;
-  static wave_t wave, wave2;
+
+  wave_t *wave, *wave2;
 
   FILE *out;
 
@@ -16,6 +17,10 @@ int main(
   /* Check arguments... */
   if (argc < 4)
     ERRMSG("Give parameters: <ctl> <airs.nc> <noise.tab>");
+
+  /* Allocate... */
+  ALLOC(wave, wave_t, 1);
+  ALLOC(wave2, wave_t, 1);
 
   /* Read AIRS data... */
   read_retr(argv[2], &ret);
@@ -39,22 +44,26 @@ int main(
   for (ip = 0; ip < ret.np; ip++) {
 
     /* Convert retrieval data to wave struct... */
-    ret2wave(&ret, &wave, 1, ip);
-    ret2wave(&ret, &wave2, 2, ip);
+    ret2wave(&ret, wave, 1, ip);
+    ret2wave(&ret, wave2, 2, ip);
 
     /* Estimate noise... */
-    noise(&wave, &mu, &nedt);
-    noise(&wave2, &mu2, &nedt2);
+    noise(wave, &mu, &nedt);
+    noise(wave2, &mu2, &nedt2);
 
     /* Estimate noise... */
     fprintf(out, "%g %g %g %g %g %g %g\n",
-	    wave.z,
-	    wave.lon[wave.nx / 2][wave.ny / 2],
-	    wave.lat[wave.nx / 2][wave.ny / 2], mu, nedt, mu2, nedt2);
+	    wave->z,
+	    wave->lon[wave->nx / 2][wave->ny / 2],
+	    wave->lat[wave->nx / 2][wave->ny / 2], mu, nedt, mu2, nedt2);
   }
 
   /* Close file... */
   fclose(out);
+
+  /* Free... */
+  free(wave);
+  free(wave2);
 
   return EXIT_SUCCESS;
 }
