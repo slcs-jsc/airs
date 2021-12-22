@@ -5,13 +5,49 @@
    ------------------------------------------------------------ */
 
 /*! Maximum number of model levels. */
-#define NZ 248
+#define NZ 100
 
 /*! Maximum number of model longitudes. */
-#define NLON 3000
+#define NLON 2200
 
 /*! Maximum number of model latitudes. */
-#define NLAT 1208
+#define NLAT 1202
+
+/* ------------------------------------------------------------
+   Structs...
+   ------------------------------------------------------------ */
+
+/*! Model data. */
+typedef struct {
+
+  /*! Number of vertical levels. */
+  int nz;
+
+  /*! Number of longitudes. */
+  int nlon;
+
+  /*! Number of latitudes. */
+  int nlat;
+
+  /*! Longitude [deg]. */
+  double lon[NLON];
+
+  /*! Latitude [deg]. */
+  double lat[NLAT];
+
+  /*! Surface pressure [hPa]. */
+  float ps[NLON][NLAT];
+
+  /*! Pressure [hPa]. */
+  float p[NLON][NLAT][NZ];
+
+  /*! Temperature [K]. */
+  float t[NLON][NLAT][NZ];
+
+  /*! Height [km]. */
+  float z[NLON][NLAT][NZ];
+
+} model_t;
 
 /* ------------------------------------------------------------
    Functions...
@@ -19,14 +55,7 @@
 
 /*! Interpolation of model data. */
 void intpol(
-  float ps[NLON][NLAT][NZ],
-  float ts[NLON][NLAT][NZ],
-  float zs[NLON][NLAT][NZ],
-  double lons[NLON],
-  double lats[NLAT],
-  int nz,
-  int nlon,
-  int nlat,
+  model_t * model,
   double z,
   double lon,
   double lat,
@@ -35,14 +64,7 @@ void intpol(
 
 /*! Smoothing of model data. */
 void smooth(
-  float ps[NLON][NLAT][NZ],
-  float ts[NLON][NLAT][NZ],
-  float zs[NLON][NLAT][NZ],
-  double lons[NLON],
-  double lats[NLAT],
-  int nz,
-  int nlon,
-  int nlat);
+  model_t * model);
 
 /*! Write wave struct to netCDF file. */
 void write_nc(
@@ -61,14 +83,13 @@ int main(
 
   static char kernel[LEN], pertname[LEN];
 
-  static double lon[NLON], lat[NLAT], xo[3], xs[3], xm[3], var_dh = 100.,
+  static double xo[3], xs[3], xm[3], var_dh = 100.,
     f, t_ovp, hyam[NZ], hybm[NZ], kz[NSHAPE], kw[NSHAPE], w, wsum;
 
-  static float *help, ps[NLON][NLAT], p[NLON][NLAT][NZ], t[NLON][NLAT][NZ],
-    z[NLON][NLAT][NZ];
+  static float *help;
 
   static int init, id, itrack, ixtrack, ncid, dimid, varid, slant,
-    ilon, ilat, iz, nlon, nlat, nz, ip, track0, track1, nk, okay, extpol;
+    ilon, ilat, iz, ip, track0, track1, nk, okay, extpol;
 
   static size_t rs;
 
@@ -79,6 +100,8 @@ int main(
   pert_t *pert;
 
   wave_t *wave;
+
+  model_t *model;
 
   /* ------------------------------------------------------------
      Get control parameters...
@@ -105,6 +128,7 @@ int main(
      ------------------------------------------------------------ */
 
   /* Allocate... */
+  ALLOC(model, model_t, 1);
   ALLOC(help, float,
 	NLON * NLAT * NZ);
 
@@ -116,23 +140,23 @@ int main(
   if (nc_inq_dimid(ncid, "lat", &dimid) != NC_NOERR)
     NC(nc_inq_dimid(ncid, "latitude", &dimid));
   NC(nc_inq_dimlen(ncid, dimid, &rs));
-  nlat = (int) rs;
-  if (nlat > NLAT)
+  model->nlat = (int) rs;
+  if (model->nlat > NLAT)
     ERRMSG("Too many latitudes!");
   if (nc_inq_varid(ncid, "lat", &varid) != NC_NOERR)
     NC(nc_inq_varid(ncid, "latitude", &varid));
-  NC(nc_get_var_double(ncid, varid, lat));
+  NC(nc_get_var_double(ncid, varid, model->lat));
 
   /* Read longitudes... */
   if (nc_inq_dimid(ncid, "lon", &dimid) != NC_NOERR)
     NC(nc_inq_dimid(ncid, "longitude", &dimid));
   NC(nc_inq_dimlen(ncid, dimid, &rs));
-  nlon = (int) rs;
-  if (nlon > NLON)
+  model->nlon = (int) rs;
+  if (model->nlon > NLON)
     ERRMSG("Too many longitudes!");
   if (nc_inq_varid(ncid, "lon", &varid))
     NC(nc_inq_varid(ncid, "longitude", &varid));
-  NC(nc_get_var_double(ncid, varid, lon));
+  NC(nc_get_var_double(ncid, varid, model->lon));
 
   /* Read ICON data... */
   if (strcasecmp(argv[2], "icon") == 0) {
@@ -140,35 +164,38 @@ int main(
     /* Get height levels... */
     NC(nc_inq_dimid(ncid, "height", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nz = (int) rs;
-    if (nz > NZ)
+    model->nz = (int) rs;
+    if (model->nz > NZ)
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
     NC(nc_inq_varid(ncid, "z_mc", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  z[ilon][ilat][iz] =
-	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->z[ilon][ilat][iz] =
+	    (float) (help[(iz * model->nlat + ilat) * model->nlon + ilon] /
+		     1e3);
 
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "temp", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->t[ilon][ilat][iz] =
+	    help[(iz * model->nlat + ilat) * model->nlon + ilon];
 
     /* Read pressure... */
     NC(nc_inq_varid(ncid, "pres", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  p[ilon][ilat][iz] =
-	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->p[ilon][ilat][iz] =
+	    (float) (help[(iz * model->nlat + ilat) * model->nlon + ilon] /
+		     1e2);
   }
 
   /* Read IFS data... */
@@ -177,33 +204,35 @@ int main(
     /* Get height levels... */
     NC(nc_inq_dimid(ncid, "lev_2", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nz = (int) rs;
-    if (nz > NZ)
+    model->nz = (int) rs;
+    if (model->nz > NZ)
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
     NC(nc_inq_varid(ncid, "gh", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  z[ilon][ilat][iz] =
-	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->z[ilon][ilat][iz] =
+	    (float) (help[(iz * model->nlat + ilat) * model->nlon + ilon] /
+		     1e3);
 
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "t", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->t[ilon][ilat][iz] =
+	    help[(iz * model->nlat + ilat) * model->nlon + ilon];
 
     /* Read surface pressure... */
     NC(nc_inq_varid(ncid, "lnsp", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	ps[ilon][ilat] = (float) exp(help[ilat * nlon + ilon]);
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	model->ps[ilon][ilat] = (float) exp(help[ilat * model->nlon + ilon]);
 
     /* Read grid coefficients... */
     NC(nc_inq_varid(ncid, "hyam", &varid));
@@ -212,11 +241,11 @@ int main(
     NC(nc_get_var_double(ncid, varid, hybm));
 
     /* Calculate pressure... */
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  p[ilon][ilat][iz]
-	    = (float) ((hyam[iz] + hybm[iz] * ps[ilon][ilat]) / 100.);
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->p[ilon][ilat][iz]
+	    = (float) ((hyam[iz] + hybm[iz] * model->ps[ilon][ilat]) / 100.);
   }
 
   /* Read UM data... */
@@ -226,35 +255,38 @@ int main(
     if (nc_inq_dimid(ncid, "RHO_TOP_eta_rho", &dimid) != NC_NOERR)
       NC(nc_inq_dimid(ncid, "RHO_eta_rho", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nz = (int) rs;
-    if (nz > NZ)
+    model->nz = (int) rs;
+    if (model->nz > NZ)
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
     if (nc_inq_varid(ncid, "STASH_m01s15i102_2", &varid) != NC_NOERR)
       NC(nc_inq_varid(ncid, "STASH_m01s15i102", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  z[ilon][ilat][iz] =
-	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->z[ilon][ilat][iz] =
+	    (float) (help[(iz * model->nlat + ilat) * model->nlon + ilon] /
+		     1e3);
 
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "STASH_m01s30i004", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->t[ilon][ilat][iz] =
+	    help[(iz * model->nlat + ilat) * model->nlon + ilon];
 
     /* Read pressure... */
     NC(nc_inq_varid(ncid, "STASH_m01s00i407", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  p[ilon][ilat][iz] = 0.01f * help[(iz * nlat + ilat) * nlon + ilon];
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->p[ilon][ilat][iz] =
+	    0.01f * help[(iz * model->nlat + ilat) * model->nlon + ilon];
   }
 
   /* Read WRF data... */
@@ -263,35 +295,38 @@ int main(
     /* Get height levels... */
     NC(nc_inq_dimid(ncid, "bottom_top", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
-    nz = (int) rs;
-    if (nz > NZ)
+    model->nz = (int) rs;
+    if (model->nz > NZ)
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
     NC(nc_inq_varid(ncid, "z", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  z[ilon][ilat][iz] =
-	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e3);
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->z[ilon][ilat][iz] =
+	    (float) (help[(iz * model->nlat + ilat) * model->nlon + ilon] /
+		     1e3);
 
     /* Read temperature... */
     NC(nc_inq_varid(ncid, "tk", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  t[ilon][ilat][iz] = help[(iz * nlat + ilat) * nlon + ilon];
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->t[ilon][ilat][iz] =
+	    help[(iz * model->nlat + ilat) * model->nlon + ilon];
 
     /* Read pressure... */
     NC(nc_inq_varid(ncid, "p", &varid));
     NC(nc_get_var_float(ncid, varid, help));
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++)
-	for (iz = 0; iz < nz; iz++)
-	  p[ilon][ilat][iz] =
-	    (float) (help[(iz * nlat + ilat) * nlon + ilon] / 1e2);
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++)
+	for (iz = 0; iz < model->nz; iz++)
+	  model->p[ilon][ilat][iz] =
+	    (float) (help[(iz * model->nlat + ilat) * model->nlon + ilon] /
+		     1e2);
   }
 
   else
@@ -304,31 +339,38 @@ int main(
   free(help);
 
   /* Check data... */
-  for (ilon = 0; ilon < nlon; ilon++)
-    for (ilat = 0; ilat < nlat; ilat++)
-      for (iz = 0; iz < nz; iz++)
-	if (t[ilon][ilat][iz] <= 100 || t[ilon][ilat][iz] >= 400) {
-	  p[ilon][ilat][iz] = GSL_NAN;
-	  t[ilon][ilat][iz] = GSL_NAN;
-	  z[ilon][ilat][iz] = GSL_NAN;
+  for (ilon = 0; ilon < model->nlon; ilon++)
+    for (ilat = 0; ilat < model->nlat; ilat++)
+      for (iz = 0; iz < model->nz; iz++)
+	if (model->t[ilon][ilat][iz] <= 100
+	    || model->t[ilon][ilat][iz] >= 400) {
+	  model->p[ilon][ilat][iz] = GSL_NAN;
+	  model->t[ilon][ilat][iz] = GSL_NAN;
+	  model->z[ilon][ilat][iz] = GSL_NAN;
 	}
 
   /* Smoothing of model data... */
-  smooth(p, t, z, lon, lat, nz, nlon, nlat);
+  smooth(model);
 
   /* Write info... */
-  for (iz = 0; iz < nz; iz++)
+  for (iz = 0; iz < model->nz; iz++)
     printf("section_height: %d %g %g %g %g %g\n", iz,
-	   z[nlon / 2][nlat / 2][iz], lon[nlon / 2], lat[nlat / 2],
-	   p[nlon / 2][nlat / 2][iz], t[nlon / 2][nlat / 2][iz]);
-  for (ilon = 0; ilon < nlon; ilon++)
+	   model->z[model->nlon / 2][model->nlat / 2][iz],
+	   model->lon[model->nlon / 2], model->lat[model->nlat / 2],
+	   model->p[model->nlon / 2][model->nlat / 2][iz],
+	   model->t[model->nlon / 2][model->nlat / 2][iz]);
+  for (ilon = 0; ilon < model->nlon; ilon++)
     printf("section_west_east: %d %g %g %g %g %g\n", ilon,
-	   z[ilon][nlat / 2][nz / 2], lon[ilon], lat[nlat / 2],
-	   p[ilon][nlat / 2][nz / 2], t[ilon][nlat / 2][nz / 2]);
-  for (ilat = 0; ilat < nlat; ilat++)
+	   model->z[ilon][model->nlat / 2][model->nz / 2],
+	   model->lon[ilon], model->lat[model->nlat / 2],
+	   model->p[ilon][model->nlat / 2][model->nz / 2],
+	   model->t[ilon][model->nlat / 2][model->nz / 2]);
+  for (ilat = 0; ilat < model->nlat; ilat++)
     printf("section_north_south: %d %g %g %g %g %g\n", ilat,
-	   z[nlon / 2][ilat][nz / 2], lon[nlon / 2], lat[ilat],
-	   p[nlon / 2][ilat][nz / 2], t[nlon / 2][ilat][nz / 2]);
+	   model->z[model->nlon / 2][ilat][model->nz / 2],
+	   model->lon[model->nlon / 2], model->lat[ilat],
+	   model->p[model->nlon / 2][ilat][model->nz / 2],
+	   model->t[model->nlon / 2][ilat][model->nz / 2]);
 
   /* ------------------------------------------------------------
      Read AIRS perturbation data...
@@ -425,8 +467,8 @@ int main(
 
       /* Interpolate model data... */
       for (ip = 0; ip < atm->np; ip++)
-	intpol(p, t, z, lon, lat, nz, nlon, nlat, atm->z[ip],
-	       atm->lon[ip], atm->lat[ip], &atm->p[ip], &atm->t[ip]);
+	intpol(model, atm->z[ip], atm->lon[ip], atm->lat[ip],
+	       &atm->p[ip], &atm->t[ip]);
 
       /* Check profile... */
       okay = 1;
@@ -514,14 +556,7 @@ int main(
 /************************************************************************/
 
 void intpol(
-  float ps[NLON][NLAT][NZ],
-  float ts[NLON][NLAT][NZ],
-  float zs[NLON][NLAT][NZ],
-  double lons[NLON],
-  double lats[NLAT],
-  int nz,
-  int nlon,
-  int nlat,
+  model_t * model,
   double z,
   double lon,
   double lat,
@@ -533,107 +568,114 @@ void intpol(
   int iz, ilon, ilat;
 
   /* Adjust longitude... */
-  if (lons[nlon - 1] > 180)
+  if (model->lon[model->nlon - 1] > 180)
     if (lon < 0)
       lon += 360;
 
   /* Check horizontal range... */
-  if (lon < lons[0]
-      || lon > lons[nlon - 1]
-      || lat < GSL_MIN(lats[0], lats[nlat - 1])
-      || lat > GSL_MAX(lats[0], lats[nlat - 1])) {
+  if (lon < model->lon[0]
+      || lon > model->lon[model->nlon - 1]
+      || lat < GSL_MIN(model->lat[0], model->lat[model->nlat - 1])
+      || lat > GSL_MAX(model->lat[0], model->lat[model->nlat - 1])) {
     *p = GSL_NAN;
     *t = GSL_NAN;
     return;
   }
 
   /* Get indices... */
-  ilon = locate_irr(lons, nlon, lon);
-  ilat = locate_irr(lats, nlat, lat);
+  ilon = locate_irr(model->lon, model->nlon, lon);
+  ilat = locate_irr(model->lat, model->nlat, lat);
 
   /* Check data... */
-  if (!gsl_finite(zs[ilon][ilat][0])
-      || !gsl_finite(zs[ilon][ilat][nz - 1])
-      || !gsl_finite(zs[ilon][ilat + 1][nz - 1])
-      || !gsl_finite(zs[ilon][ilat + 1][nz - 1])
-      || !gsl_finite(zs[ilon + 1][ilat][nz - 1])
-      || !gsl_finite(zs[ilon + 1][ilat][nz - 1])
-      || !gsl_finite(zs[ilon + 1][ilat + 1][nz - 1])
-      || !gsl_finite(zs[ilon + 1][ilat + 1][nz - 1])) {
+  if (!gsl_finite(model->z[ilon][ilat][0])
+      || !gsl_finite(model->z[ilon][ilat][model->nz - 1])
+      || !gsl_finite(model->z[ilon][ilat + 1][model->nz - 1])
+      || !gsl_finite(model->z[ilon][ilat + 1][model->nz - 1])
+      || !gsl_finite(model->z[ilon + 1][ilat][model->nz - 1])
+      || !gsl_finite(model->z[ilon + 1][ilat][model->nz - 1])
+      || !gsl_finite(model->z[ilon + 1][ilat + 1][model->nz - 1])
+      || !gsl_finite(model->z[ilon + 1][ilat + 1][model->nz - 1])) {
     *p = GSL_NAN;
     *t = GSL_NAN;
     return;
   }
 
   /* Check vertical range... */
-  if (z > GSL_MAX(zs[ilon][ilat][0], zs[ilon][ilat][nz - 1])
-      || z < GSL_MIN(zs[ilon][ilat][0], zs[ilon][ilat][nz - 1])
-      || z > GSL_MAX(zs[ilon][ilat + 1][0], zs[ilon][ilat + 1][nz - 1])
-      || z < GSL_MIN(zs[ilon][ilat + 1][0], zs[ilon][ilat + 1][nz - 1])
-      || z > GSL_MAX(zs[ilon + 1][ilat][0], zs[ilon + 1][ilat][nz - 1])
-      || z < GSL_MIN(zs[ilon + 1][ilat][0], zs[ilon + 1][ilat][nz - 1])
-      || z > GSL_MAX(zs[ilon + 1][ilat + 1][0],
-		     zs[ilon + 1][ilat + 1][nz - 1])
-      || z < GSL_MIN(zs[ilon + 1][ilat + 1][0],
-		     zs[ilon + 1][ilat + 1][nz - 1]))
+  if (z >
+      GSL_MAX(model->z[ilon][ilat][0], model->z[ilon][ilat][model->nz - 1])
+      || z < GSL_MIN(model->z[ilon][ilat][0],
+		     model->z[ilon][ilat][model->nz - 1])
+      || z > GSL_MAX(model->z[ilon][ilat + 1][0],
+		     model->z[ilon][ilat + 1][model->nz - 1])
+      || z < GSL_MIN(model->z[ilon][ilat + 1][0],
+		     model->z[ilon][ilat + 1][model->nz - 1])
+      || z > GSL_MAX(model->z[ilon + 1][ilat][0],
+		     model->z[ilon + 1][ilat][model->nz - 1])
+      || z < GSL_MIN(model->z[ilon + 1][ilat][0],
+		     model->z[ilon + 1][ilat][model->nz - 1])
+      || z > GSL_MAX(model->z[ilon + 1][ilat + 1][0],
+		     model->z[ilon + 1][ilat + 1][model->nz - 1])
+      || z < GSL_MIN(model->z[ilon + 1][ilat + 1][0],
+		     model->z[ilon + 1][ilat + 1][model->nz - 1]))
     return;
 
   /* Interpolate vertically... */
-  for (iz = 0; iz < nz; iz++)
-    zd[iz] = zs[ilon][ilat][iz];
-  iz = locate_irr(zd, nz, z);
-  p00 = LIN(zs[ilon][ilat][iz], ps[ilon][ilat][iz],
-	    zs[ilon][ilat][iz + 1], ps[ilon][ilat][iz + 1], z);
-  t00 = LIN(zs[ilon][ilat][iz], ts[ilon][ilat][iz],
-	    zs[ilon][ilat][iz + 1], ts[ilon][ilat][iz + 1], z);
+  for (iz = 0; iz < model->nz; iz++)
+    zd[iz] = model->z[ilon][ilat][iz];
+  iz = locate_irr(zd, model->nz, z);
+  p00 = LIN(model->z[ilon][ilat][iz], model->p[ilon][ilat][iz],
+	    model->z[ilon][ilat][iz + 1], model->p[ilon][ilat][iz + 1], z);
+  t00 = LIN(model->z[ilon][ilat][iz], model->t[ilon][ilat][iz],
+	    model->z[ilon][ilat][iz + 1], model->t[ilon][ilat][iz + 1], z);
 
-  for (iz = 0; iz < nz; iz++)
-    zd[iz] = zs[ilon][ilat + 1][iz];
-  iz = locate_irr(zd, nz, z);
-  p01 = LIN(zs[ilon][ilat + 1][iz], ps[ilon][ilat + 1][iz],
-	    zs[ilon][ilat + 1][iz + 1], ps[ilon][ilat + 1][iz + 1], z);
-  t01 = LIN(zs[ilon][ilat + 1][iz], ts[ilon][ilat + 1][iz],
-	    zs[ilon][ilat + 1][iz + 1], ts[ilon][ilat + 1][iz + 1], z);
+  for (iz = 0; iz < model->nz; iz++)
+    zd[iz] = model->z[ilon][ilat + 1][iz];
+  iz = locate_irr(zd, model->nz, z);
+  p01 = LIN(model->z[ilon][ilat + 1][iz], model->p[ilon][ilat + 1][iz],
+	    model->z[ilon][ilat + 1][iz + 1],
+	    model->p[ilon][ilat + 1][iz + 1], z);
+  t01 =
+    LIN(model->z[ilon][ilat + 1][iz], model->t[ilon][ilat + 1][iz],
+	model->z[ilon][ilat + 1][iz + 1], model->t[ilon][ilat + 1][iz + 1],
+	z);
 
-  for (iz = 0; iz < nz; iz++)
-    zd[iz] = zs[ilon + 1][ilat][iz];
-  iz = locate_irr(zd, nz, z);
-  p10 = LIN(zs[ilon + 1][ilat][iz], ps[ilon + 1][ilat][iz],
-	    zs[ilon + 1][ilat][iz + 1], ps[ilon + 1][ilat][iz + 1], z);
-  t10 = LIN(zs[ilon + 1][ilat][iz], ts[ilon + 1][ilat][iz],
-	    zs[ilon + 1][ilat][iz + 1], ts[ilon + 1][ilat][iz + 1], z);
+  for (iz = 0; iz < model->nz; iz++)
+    zd[iz] = model->z[ilon + 1][ilat][iz];
+  iz = locate_irr(zd, model->nz, z);
+  p10 = LIN(model->z[ilon + 1][ilat][iz], model->p[ilon + 1][ilat][iz],
+	    model->z[ilon + 1][ilat][iz + 1],
+	    model->p[ilon + 1][ilat][iz + 1], z);
+  t10 =
+    LIN(model->z[ilon + 1][ilat][iz], model->t[ilon + 1][ilat][iz],
+	model->z[ilon + 1][ilat][iz + 1], model->t[ilon + 1][ilat][iz + 1],
+	z);
 
-  for (iz = 0; iz < nz; iz++)
-    zd[iz] = zs[ilon + 1][ilat + 1][iz];
-  iz = locate_irr(zd, nz, z);
-  p11 = LIN(zs[ilon + 1][ilat + 1][iz], ps[ilon + 1][ilat + 1][iz],
-	    zs[ilon + 1][ilat + 1][iz + 1], ps[ilon + 1][ilat + 1][iz + 1],
-	    z);
-  t11 = LIN(zs[ilon + 1][ilat + 1][iz], ts[ilon + 1][ilat + 1][iz],
-	    zs[ilon + 1][ilat + 1][iz + 1], ts[ilon + 1][ilat + 1][iz + 1],
-	    z);
+  for (iz = 0; iz < model->nz; iz++)
+    zd[iz] = model->z[ilon + 1][ilat + 1][iz];
+  iz = locate_irr(zd, model->nz, z);
+  p11 =
+    LIN(model->z[ilon + 1][ilat + 1][iz], model->p[ilon + 1][ilat + 1][iz],
+	model->z[ilon + 1][ilat + 1][iz + 1],
+	model->p[ilon + 1][ilat + 1][iz + 1], z);
+  t11 =
+    LIN(model->z[ilon + 1][ilat + 1][iz], model->t[ilon + 1][ilat + 1][iz],
+	model->z[ilon + 1][ilat + 1][iz + 1],
+	model->t[ilon + 1][ilat + 1][iz + 1], z);
 
   /* Interpolate horizontally... */
-  p00 = LIN(lons[ilon], p00, lons[ilon + 1], p10, lon);
-  p11 = LIN(lons[ilon], p01, lons[ilon + 1], p11, lon);
-  *p = LIN(lats[ilat], p00, lats[ilat + 1], p11, lat);
+  p00 = LIN(model->lon[ilon], p00, model->lon[ilon + 1], p10, lon);
+  p11 = LIN(model->lon[ilon], p01, model->lon[ilon + 1], p11, lon);
+  *p = LIN(model->lat[ilat], p00, model->lat[ilat + 1], p11, lat);
 
-  t00 = LIN(lons[ilon], t00, lons[ilon + 1], t10, lon);
-  t11 = LIN(lons[ilon], t01, lons[ilon + 1], t11, lon);
-  *t = LIN(lats[ilat], t00, lats[ilat + 1], t11, lat);
+  t00 = LIN(model->lon[ilon], t00, model->lon[ilon + 1], t10, lon);
+  t11 = LIN(model->lon[ilon], t01, model->lon[ilon + 1], t11, lon);
+  *t = LIN(model->lat[ilat], t00, model->lat[ilat + 1], t11, lat);
 }
 
 /************************************************************************/
 
 void smooth(
-  float ps[NLON][NLAT][NZ],
-  float ts[NLON][NLAT][NZ],
-  float zs[NLON][NLAT][NZ],
-  double lons[NLON],
-  double lats[NLAT],
-  int nz,
-  int nlon,
-  int nlat) {
+  model_t * model) {
 
   static float hp[NLON][NLAT], ht[NLON][NLAT], hz[NLON][NLAT], w, wsum;
 
@@ -642,52 +684,52 @@ void smooth(
   int iz, ilon, ilon2, ilat, ilat2, dlon = 3, dlat = 3;
 
   /* Set weights... */
-  dy = RE * M_PI / 180. * fabs(lats[1] - lats[0]);
+  dy = RE * M_PI / 180. * fabs(model->lat[1] - model->lat[0]);
   for (ilat = 0; ilat <= dlat; ilat++)
     wy[ilat] = exp(-0.5 * POW2(ilat * dy * 2.35482 / 20.));
 
   /* Loop over height levels... */
-  for (iz = 0; iz < nz; iz++) {
+  for (iz = 0; iz < model->nz; iz++) {
 
     /* Write info... */
-    printf("Smoothing level %d / %d ...\n", iz + 1, nz);
+    printf("Smoothing level %d / %d ...\n", iz + 1, model->nz);
 
     /* Copy data... */
-    for (ilon = 0; ilon < nlon; ilon++)
-      for (ilat = 0; ilat < nlat; ilat++) {
-	hp[ilon][ilat] = ps[ilon][ilat][iz];
-	ht[ilon][ilat] = ts[ilon][ilat][iz];
-	hz[ilon][ilat] = zs[ilon][ilat][iz];
+    for (ilon = 0; ilon < model->nlon; ilon++)
+      for (ilat = 0; ilat < model->nlat; ilat++) {
+	hp[ilon][ilat] = model->p[ilon][ilat][iz];
+	ht[ilon][ilat] = model->t[ilon][ilat][iz];
+	hz[ilon][ilat] = model->z[ilon][ilat][iz];
       }
 
     /* Loop over latitudes... */
-    for (ilat = 0; ilat < nlat; ilat++) {
+    for (ilat = 0; ilat < model->nlat; ilat++) {
 
       /* Set weights... */
-      dx = RE * M_PI / 180. * cos(lats[ilat] * M_PI / 180.) *
-	fabs(lons[1] - lons[0]);
+      dx = RE * M_PI / 180. * cos(model->lat[ilat] * M_PI / 180.) *
+	fabs(model->lon[1] - model->lon[0]);
       for (ilon = 0; ilon <= dlon; ilon++)
 	wx[ilon] = exp(-0.5 * POW2(ilon * dx * 2.35482 / 20.));
 
       /* Loop over longitudes... */
-      for (ilon = 0; ilon < nlon; ilon++) {
+      for (ilon = 0; ilon < model->nlon; ilon++) {
 	wsum = 0;
-	ps[ilon][ilat][iz] = 0;
-	ts[ilon][ilat][iz] = 0;
-	zs[ilon][ilat][iz] = 0;
+	model->p[ilon][ilat][iz] = 0;
+	model->t[ilon][ilat][iz] = 0;
+	model->z[ilon][ilat][iz] = 0;
 	for (ilon2 = GSL_MAX(ilon - dlon, 0);
-	     ilon2 <= GSL_MIN(ilon + dlon, nlon - 1); ilon2++)
+	     ilon2 <= GSL_MIN(ilon + dlon, model->nlon - 1); ilon2++)
 	  for (ilat2 = GSL_MAX(ilat - dlat, 0);
-	       ilat2 <= GSL_MIN(ilat + dlat, nlat - 1); ilat2++) {
+	       ilat2 <= GSL_MIN(ilat + dlat, model->nlat - 1); ilat2++) {
 	    w = (float) (wx[abs(ilon2 - ilon)] * wy[abs(ilat2 - ilat)]);
-	    ps[ilon][ilat][iz] += w * hp[ilon2][ilat2];
-	    ts[ilon][ilat][iz] += w * ht[ilon2][ilat2];
-	    zs[ilon][ilat][iz] += w * hz[ilon2][ilat2];
+	    model->p[ilon][ilat][iz] += w * hp[ilon2][ilat2];
+	    model->t[ilon][ilat][iz] += w * ht[ilon2][ilat2];
+	    model->z[ilon][ilat][iz] += w * hz[ilon2][ilat2];
 	    wsum += w;
 	  }
-	ps[ilon][ilat][iz] /= wsum;
-	ts[ilon][ilat][iz] /= wsum;
-	zs[ilon][ilat][iz] /= wsum;
+	model->p[ilon][ilat][iz] /= wsum;
+	model->t[ilon][ilat][iz] /= wsum;
+	model->z[ilon][ilat][iz] /= wsum;
       }
     }
   }

@@ -5,37 +5,60 @@
 # Executables...
 EXC = day2doy diff_apr diff_ret distance doy2day events extract hurricane island issifm map_pert map_rad map_ret noise_pert noise_ret optimize_btd orbit overpass perturbation rayt ret2tab sampling select_ret spec2tab spec_ana sza var1d variance volcano zm_ret
 
+# Installation directory...
+DESTDIR ?= ../bin
+
 # Library directories...
-LIBDIR = -L ../lib/build/lib
+LIBDIR += -L ../lib/build/lib
 
 # Include directories...
-INCDIR = -I ../lib/build/include
+INCDIR += -I ../lib/build/include
 
-# Profiling...
-#PROF = 1
+# Static compilation...
+STATIC ?= 1
+
+# Optimization flags...
+OPT ?= -O3
+
+# Optimization information...
+INFO ?= 0
+
+# Compile for profiling...
+PROF ?= 0
 
 # -----------------------------------------------------------------------------
 # Set flags for GNU compiler...
 # -----------------------------------------------------------------------------
 
+# Get git version...
+VERSION ?= $(shell git describe --abbrev=4 --dirty --always --tags)
+
 # Compiler...
-CC = gcc
-MPICC = mpicc
+CC ?= gcc
+MPICC ?= mpicc
 
 # CFLAGS...
-CFLAGS = $(INCDIR) -DHAVE_INLINE -DGSL_DISABLE_DEPRACTED $(DEFS) -pedantic -Werror -Wall -W -Wmissing-prototypes -Wstrict-prototypes -Wconversion -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs -Wno-long-long -Wmissing-declarations -Wredundant-decls -Winline -fno-common -fshort-enums -fopenmp -g -mcmodel=medium
+CFLAGS ?= $(INCDIR) $(DEFINES) -DVERSION=\"$(VERSION)\" $(OPT) -DHAVE_INLINE -DGSL_DISABLE_DEPRACTED -pedantic -Werror -Wall -W -Wmissing-prototypes -Wstrict-prototypes -Wconversion -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs -Wno-long-long -Wmissing-declarations -Wredundant-decls -Winline -fno-common -fshort-enums $(OPT) -g -fopenmp -mcmodel=medium
 
 # LDFLAGS...
-LDFLAGS = $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lGctp -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm
+LDFLAGS ?= $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lGctp -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm
 
 # LDFLAGS for retrieval...
-LDFLAGS_RET = $(LIBDIR) -lgsl -lgslcblas -lm -lnetcdf -lm
+LDFLAGS_RET ?= $(LIBDIR) -lgsl -lgslcblas -lm -lnetcdf -lm
 
-# Profiling...
-ifdef PROF
-  CFLAGS += -O2 -pg 
-else
-  CFLAGS += -O3
+# Optimization information...
+ifeq ($(INFO),1)
+  CFLAGS += -fopt-info
+endif
+
+# Compile for profiling...
+ifeq ($(PROF),1)
+  CFLAGS += -pg
+endif
+
+# Static compilation...
+ifeq ($(STATIC),1)
+  CFLAGS += -static
 endif
 
 # -----------------------------------------------------------------------------

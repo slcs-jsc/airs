@@ -1567,49 +1567,6 @@ void ret2wave(
 
 /*****************************************************************************/
 
-double sza(
-  double sec,
-  double lon,
-  double lat) {
-
-  double D, dec, e, g, GMST, h, L, LST, q, ra;
-
-  /* Number of days and fraction with respect to 2000-01-01T12:00Z... */
-  D = sec / 86400 - 0.5;
-
-  /* Geocentric apparent ecliptic longitude [rad]... */
-  g = (357.529 + 0.98560028 * D) * M_PI / 180;
-  q = 280.459 + 0.98564736 * D;
-  L = (q + 1.915 * sin(g) + 0.020 * sin(2 * g)) * M_PI / 180;
-
-  /* Mean obliquity of the ecliptic [rad]... */
-  e = (23.439 - 0.00000036 * D) * M_PI / 180;
-
-  /* Declination [rad]... */
-  dec = asin(sin(e) * sin(L));
-
-  /* Right ascension [rad]... */
-  ra = atan2(cos(e) * sin(L), cos(L));
-
-  /* Greenwich Mean Sidereal Time [h]... */
-  GMST = 18.697374558 + 24.06570982441908 * D;
-
-  /* Local Sidereal Time [h]... */
-  LST = GMST + lon / 15;
-
-  /* Hour angle [rad]... */
-  h = LST / 12 * M_PI - ra;
-
-  /* Convert latitude... */
-  lat *= M_PI / 180;
-
-  /* Return solar zenith angle [deg]... */
-  return acos(sin(lat) * sin(dec) +
-	      cos(lat) * cos(dec) * cos(h)) * 180 / M_PI;
-}
-
-/*****************************************************************************/
-
 void variance(
   wave_t * wave,
   double dh) {
