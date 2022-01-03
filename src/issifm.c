@@ -5,10 +5,10 @@
    ------------------------------------------------------------ */
 
 /*! Maximum number of model levels. */
-#define NZ 100
+#define NZ 244
 
 /*! Maximum number of model longitudes. */
-#define NLON 2200
+#define NLON 2128
 
 /*! Maximum number of model latitudes. */
 #define NLAT 1202
