@@ -239,6 +239,9 @@ typedef struct {
   /*! Perturbation [K]. */
   double pt[WX][WY];
 
+  /*! Fit [K]. */
+  double fit[WX][WY];
+
   /*! Variance [K]. */
   double var[WX][WY];
 
@@ -317,6 +320,15 @@ void doy2day(
   int *mon,
   int *day);
 
+/*! Evaluate wave fit... */
+void fit_wave(
+  wave_t * wave,
+  double amp,
+  double phi,
+  double kx,
+  double ky,
+  double *chisq);
+
 /*! Calculate 1-D FFT... */
 void fft_help(
   double *fcReal,
@@ -329,6 +341,8 @@ void fft(
   double *Amax,
   double *phimax,
   double *lhmax,
+  double *kxmax,
+  double *kymax,
   double *alphamax,
   double *betamax,
   char *filename);
@@ -367,9 +381,13 @@ void noise(
 /*! Compute periodogram. */
 void period(
   wave_t * wave,
+  double lxymax,
+  double dlxy,
   double *Amax,
   double *phimax,
   double *lhmax,
+  double *kxmax,
+  double *kymax,
   double *alphamax,
   double *betamax,
   char *filename);

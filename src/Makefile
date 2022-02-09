@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 
 # Executables...
-EXC = day2doy diff_apr diff_ret distance doy2day events extract hurricane island issifm map_pert map_rad map_ret noise_pert noise_ret optimize_btd orbit overpass perturbation rayt ret2tab sampling select_ret spec2tab spec_ana sza var1d variance volcano zm_ret
+EXC = day2doy diff_apr diff_ret distance doy2day events extract hurricane island issifm map_pert map_rad map_ret noise_pert noise_ret optimize_btd orbit overpass perturbation rayt ret2tab sampling select_ret spec2tab spec_ana spec_synth sza var1d variance volcano zm_ret
 
 # Installation directory...
 DESTDIR ?= ../bin

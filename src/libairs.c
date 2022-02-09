@@ -110,16 +110,16 @@ void background_poly(
 
   int ix, iy;
 
+  /* Check parameters... */
+  if (dim_x <= 0 && dim_y <= 0)
+    return;
+
   /* Copy temperatures to background... */
   for (ix = 0; ix < wave->nx; ix++)
     for (iy = 0; iy < wave->ny; iy++) {
       wave->bg[ix][iy] = wave->temp[ix][iy];
       wave->pt[ix][iy] = 0;
     }
-
-  /* Check parameters... */
-  if (dim_x <= 0 && dim_y <= 0)
-    return;
 
   /* Compute fit in x-direction... */
   if (dim_x > 0)
@@ -335,6 +335,32 @@ void doy2day(
 
 /*****************************************************************************/
 
+void fit_wave(
+  wave_t * wave,
+  double amp,
+  double phi,
+  double kx,
+  double ky,
+  double *chisq) {
+
+  /* Init... */
+  *chisq = 0;
+
+  /* Calculate fit... */
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
+      wave->fit[ix][iy]
+	= amp * cos(kx * wave->x[ix] + ky * wave->y[iy]
+		    - phi * M_PI / 180.);
+      *chisq += POW2(wave->fit[ix][iy] - wave->pt[ix][iy]);
+    }
+
+  /* Calculate chisq... */
+  *chisq /= (double) (wave->nx * wave->ny);
+}
+
+/*****************************************************************************/
+
 void fft_help(
   double *fcReal,
   double *fcImag,
@@ -382,13 +408,14 @@ void fft(
   double *Amax,
   double *phimax,
   double *lhmax,
+  double *kxmax,
+  double *kymax,
   double *alphamax,
   double *betamax,
   char *filename) {
 
   static double A[PMAX][PMAX], phi[PMAX][PMAX], kx[PMAX], ky[PMAX],
-    kxmax, kymax, cutReal[PMAX], cutImag[PMAX],
-    boxImag[PMAX][PMAX], boxReal[PMAX][PMAX];
+    cutReal[PMAX], cutImag[PMAX], boxImag[PMAX][PMAX], boxReal[PMAX][PMAX];
 
   FILE *out;
 
@@ -475,17 +502,15 @@ void fft(
       if (gsl_finite(A[i][j]) && A[i][j] > *Amax) {
 	*Amax = A[i][j];
 	*phimax = phi[i][j];
-	kxmax = kx[i];
-	kymax = ky[j];
-	imax = i;
-	jmax = j;
+	*kxmax = kx[i];
+	*kymax = ky[j];
       }
 
   /* Get horizontal wavelength... */
-  *lhmax = 2 * M_PI / sqrt(gsl_pow_2(kxmax) + gsl_pow_2(kymax));
+  *lhmax = 2 * M_PI / sqrt(gsl_pow_2(*kxmax) + gsl_pow_2(*kymax));
 
   /* Get propagation direction in xy-plane... */
-  *alphamax = 90. - 180. / M_PI * atan2(kxmax, kymax);
+  *alphamax = 90. - 180. / M_PI * atan2(*kxmax, *kymax);
 
   /* Get propagation direction in lon,lat-plane... */
   *betamax = *alphamax
@@ -823,18 +848,22 @@ void noise(
 
 void period(
   wave_t * wave,
+  double lxymax,
+  double dlxy,
   double *Amax,
   double *phimax,
   double *lhmax,
+  double *kxmax,
+  double *kymax,
   double *alphamax,
   double *betamax,
   char *filename) {
 
   FILE *out;
 
-  static double kx[PMAX], ky[PMAX], kx_ny, ky_ny, kxmax, kymax, A[PMAX][PMAX],
+  static double kx[PMAX], ky[PMAX], kx_ny, ky_ny, A[PMAX][PMAX],
     phi[PMAX][PMAX], cx[PMAX][WX], cy[PMAX][WY], sx[PMAX][WX], sy[PMAX][WY],
-    a, b, c, lx, ly, lxymax = 1000, dlxy = 10;
+    a, b, c, lx, ly;
 
   int i, imin, imax, j, jmin, jmax, l, lmax = 0, m, mmax = 0;
 
@@ -914,17 +943,15 @@ void period(
       if (gsl_finite(A[l][m]) && A[l][m] > *Amax) {
 	*Amax = A[l][m];
 	*phimax = phi[l][m];
-	kxmax = kx[l];
-	kymax = ky[m];
-	imax = i;
-	jmax = j;
+	*kxmax = kx[l];
+	*kymax = ky[m];
       }
 
   /* Get horizontal wavelength... */
-  *lhmax = 2 * M_PI / sqrt(gsl_pow_2(kxmax) + gsl_pow_2(kymax));
+  *lhmax = 2 * M_PI / sqrt(gsl_pow_2(*kxmax) + gsl_pow_2(*kymax));
 
   /* Get propagation direction in xy-plane... */
-  *alphamax = 90. - 180. / M_PI * atan2(kxmax, kymax);
+  *alphamax = 90. - 180. / M_PI * atan2(*kxmax, *kymax);
 
   /* Get propagation direction in lon,lat-plane... */
   *betamax = *alphamax
@@ -1390,7 +1417,8 @@ void read_wave(
 
   char line[LEN];
 
-  double rtime, rz, rlon, rlat, rx, ry, ryold = -1e10, rtemp, rbg, rpt, rvar;
+  double rtime, rz, rlon, rlat, rx, ry, ryold = -1e10,
+    rtemp, rbg, rpt, rvar, rfit;
 
   /* Init... */
   wave->nx = 0;
@@ -1405,9 +1433,9 @@ void read_wave(
 
   /* Read data... */
   while (fgets(line, LEN, in))
-    if (sscanf(line, "%lg %lg %lg %lg %lg %lg %lg %lg %lg %lg", &rtime,
+    if (sscanf(line, "%lg %lg %lg %lg %lg %lg %lg %lg %lg %lg %lg", &rtime,
 	       &rz, &rlon, &rlat, &rx, &ry, &rtemp, &rbg, &rpt,
-	       &rvar) == 10) {
+	       &rvar, &rfit) == 11) {
 
       /* Set index... */
       if (ry != ryold) {
@@ -1429,6 +1457,7 @@ void read_wave(
       wave->bg[wave->nx][wave->ny] = rbg;
       wave->pt[wave->nx][wave->ny] = rpt;
       wave->var[wave->nx][wave->ny] = rvar;
+      wave->var[wave->nx][wave->ny] = rfit;
     }
 
   /* Increment counters... */
@@ -1753,16 +1782,17 @@ void write_wave(
 	  "# $6  = along-track distance [km]\n"
 	  "# $7  = temperature [K]\n"
 	  "# $8  = background [K]\n"
-	  "# $9  = perturbation [K]\n" "# $10 = variance [K^2]\n");
+	  "# $9  = perturbation [K]\n"
+	  "# $10 = variance [K^2]\n" "# $11 = fitting model [K]\n");
 
   /* Write data... */
   for (j = 0; j < wave->ny; j++) {
     fprintf(out, "\n");
     for (i = 0; i < wave->nx; i++)
-      fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g\n",
+      fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g %g\n",
 	      wave->time, wave->z, wave->lon[i][j], wave->lat[i][j],
 	      wave->x[i], wave->y[j], wave->temp[i][j], wave->bg[i][j],
-	      wave->pt[i][j], wave->var[i][j]);
+	      wave->pt[i][j], wave->var[i][j], wave->fit[i][j]);
   }
 
   /* Close file... */
