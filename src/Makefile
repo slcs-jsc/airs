@@ -86,7 +86,7 @@ retrieval: retrieval.c jurassic.o
 clean:
 	rm -f $(EXC) nlte retrieval *.o *~
 
-cppcheck: all
+cppcheck:
 	cd ../ && cppcheck --enable=all ./src
 
 dist:
