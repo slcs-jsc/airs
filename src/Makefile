@@ -86,6 +86,9 @@ retrieval: retrieval.c jurassic.o
 clean:
 	rm -f $(EXC) nlte retrieval *.o *~
 
+cppcheck: all
+	cd ../ && cppcheck --enable=all ./src
+
 dist:
 	zip airs_`date +"%y%m%d%H%M"`.zip Doxyfile Makefile *.c *.h
 
