@@ -87,7 +87,7 @@ clean:
 	rm -f $(EXC) nlte retrieval *.o *~
 
 cppcheck:
-	cd ../ && cppcheck --enable=all ./src
+	cppcheck --enable=all ./
 
 dist:
 	zip airs_`date +"%y%m%d%H%M"`.zip Doxyfile Makefile *.c *.h
