@@ -431,7 +431,8 @@ int main(
 	    "# $2 = longitude [deg]\n"
 	    "# $3 = latitude [deg]\n"
 	    "# $4 = solar zenith angle [deg]\n"
-	    "# $5 = non-LTE index[K]\n" "# $6 = chi^2 of retrieval fit\n");
+	    "# $5 = non-LTE index [K]\n"
+	    "# $6 = chi^2 of retrieval fit\n");
 
     /* Write data... */
     for (track = track0; track <= track1; track++) {
