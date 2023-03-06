@@ -9,10 +9,10 @@ EXC = day2doy diff_apr diff_ret distance doy2day events extract hurricane island
 DESTDIR ?= ../bin
 
 # Library directories...
-LIBDIR += -L ../lib/build/lib
+LIBDIR += -L ../lib/build/lib -L /usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu/hdf5/serial
 
 # Include directories...
-INCDIR += -I ../lib/build/include
+INCDIR += -I ../lib/build/include -I/usr/include -I/usr/include/hdf5/serial
 
 # Static compilation...
 STATIC ?= 1
@@ -41,7 +41,9 @@ MPICC ?= mpicc
 CFLAGS ?= $(INCDIR) $(DEFINES) -DVERSION=\"$(VERSION)\" $(OPT) -DHAVE_INLINE -DGSL_DISABLE_DEPRACTED -pedantic -Werror -Wall -W -Wmissing-prototypes -Wstrict-prototypes -Wconversion -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs -Wno-long-long -Wmissing-declarations -Wredundant-decls -Winline -fno-common -fshort-enums $(OPT) -g -fopenmp -mcmodel=medium
 
 # LDFLAGS...
-LDFLAGS ?= $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lGctp -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm
+#LDFLAGS ?= $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lGctp -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm
+LDFLAGS ?= $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lmfhdf -ltirpc -ldf -lz -ljpeg -lnsl -lnetcdf -lhdf5_hl -lhdf5 -lm -lz -lcurl
+#-Wl,-z,muldefs
 
 # LDFLAGS for retrieval...
 LDFLAGS_RET ?= $(LIBDIR) -lgsl -lgslcblas -lm -lnetcdf -lm

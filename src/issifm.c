@@ -8,10 +8,10 @@
 #define NZ 244
 
 /*! Maximum number of model longitudes. */
-#define NLON 2128
+#define NLON 3502
 
 /*! Maximum number of model latitudes. */
-#define NLAT 1202
+#define NLAT 1402
 
 /* ------------------------------------------------------------
    Structs...
