@@ -51,13 +51,30 @@ cd $target/src/$dir \
     && make -j$THREADS && make check && make install \
     || exit
 
+# tirpc...
+dir=libtirpc-1.3.3
+infomsg $dir
+cd $target/src/$dir \
+    && ./configure --prefix=$target --disable-gssapi \
+    && make -j$THREADS && make check && make install \
+    || exit
+
 # HDF4...
-dir=HDF4.2r4_fix
+dir=hdf-4.2.16
 infomsg $dir
 cd $target/src/$dir \
     && ./configure --prefix=$target --disable-netcdf --disable-fortran \
+		   --disable-hdf4-xdr \
     && make -j$THREADS && make check && make install \
     || exit
+
+## HDF4...
+#dir=HDF4.2r4_fix
+#infomsg $dir
+#cd $target/src/$dir \
+#    && ./configure --prefix=$target --disable-netcdf --disable-fortran --disable-hdf4-xdr \
+#    && make -j$THREADS && make check && make install \
+#    || exit
 
 # HDF-EOS...
 infomsg hdfeos
