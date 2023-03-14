@@ -5,7 +5,7 @@
    ------------------------------------------------------------ */
 
 /*! Maximum number of model levels. */
-#define NZ 244
+#define NZ 152
 
 /*! Maximum number of model longitudes. */
 #define NLON 3502
@@ -136,7 +136,16 @@ int main(
   printf("Read %s data: %s\n", argv[2], argv[3]);
   NC(nc_open(argv[3], NC_NOWRITE, &ncid));
 
+  /* Check time... */
+  LOG(2, "Check time...");
+  if (nc_inq_dimid(ncid, "time", &dimid) != NC_NOERR)
+    NC(nc_inq_dimid(ncid, "time", &dimid));
+  NC(nc_inq_dimlen(ncid, dimid, &rs));
+  if (rs != 1)
+    ERRMSG("Only one time step is allowed!");
+
   /* Read latitudes... */
+  LOG(2, "Read latitudes...");
   if (nc_inq_dimid(ncid, "lat", &dimid) != NC_NOERR)
     NC(nc_inq_dimid(ncid, "latitude", &dimid));
   NC(nc_inq_dimlen(ncid, dimid, &rs));
@@ -148,6 +157,7 @@ int main(
   NC(nc_get_var_double(ncid, varid, model->lat));
 
   /* Read longitudes... */
+  LOG(2, "Read longitudes...");
   if (nc_inq_dimid(ncid, "lon", &dimid) != NC_NOERR)
     NC(nc_inq_dimid(ncid, "longitude", &dimid));
   NC(nc_inq_dimlen(ncid, dimid, &rs));
@@ -162,6 +172,7 @@ int main(
   if (strcasecmp(argv[2], "icon") == 0) {
 
     /* Get height levels... */
+    LOG(2, "Read levels...");
     NC(nc_inq_dimid(ncid, "height", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     model->nz = (int) rs;
@@ -169,6 +180,7 @@ int main(
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
+    LOG(2, "Read height...");
     NC(nc_inq_varid(ncid, "z_mc", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -179,6 +191,7 @@ int main(
 		     1e3);
 
     /* Read temperature... */
+    LOG(2, "Read temperature...");
     NC(nc_inq_varid(ncid, "temp", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -188,6 +201,7 @@ int main(
 	    help[(iz * model->nlat + ilat) * model->nlon + ilon];
 
     /* Read pressure... */
+    LOG(2, "Read pressure...");
     NC(nc_inq_varid(ncid, "pres", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -202,6 +216,7 @@ int main(
   else if (strcasecmp(argv[2], "ifs") == 0) {
 
     /* Get height levels... */
+    LOG(2, "Read levels...");
     NC(nc_inq_dimid(ncid, "lev_2", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     model->nz = (int) rs;
@@ -209,6 +224,7 @@ int main(
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
+    LOG(2, "Read height...");
     NC(nc_inq_varid(ncid, "gh", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -219,6 +235,7 @@ int main(
 		     1e3);
 
     /* Read temperature... */
+    LOG(2, "Read temperature...");
     NC(nc_inq_varid(ncid, "t", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -228,6 +245,7 @@ int main(
 	    help[(iz * model->nlat + ilat) * model->nlon + ilon];
 
     /* Read surface pressure... */
+    LOG(2, "Read surface pressure...");
     NC(nc_inq_varid(ncid, "lnsp", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -235,12 +253,14 @@ int main(
 	model->ps[ilon][ilat] = (float) exp(help[ilat * model->nlon + ilon]);
 
     /* Read grid coefficients... */
+    LOG(2, "Read grid coefficients...");
     NC(nc_inq_varid(ncid, "hyam", &varid));
     NC(nc_get_var_double(ncid, varid, hyam));
     NC(nc_inq_varid(ncid, "hybm", &varid));
     NC(nc_get_var_double(ncid, varid, hybm));
 
     /* Calculate pressure... */
+    LOG(2, "Calculate pressure...");
     for (ilon = 0; ilon < model->nlon; ilon++)
       for (ilat = 0; ilat < model->nlat; ilat++)
 	for (iz = 0; iz < model->nz; iz++)
@@ -252,6 +272,7 @@ int main(
   else if (strcasecmp(argv[2], "um") == 0) {
 
     /* Get height levels... */
+    LOG(2, "Read levels...");
     if (nc_inq_dimid(ncid, "RHO_TOP_eta_rho", &dimid) != NC_NOERR)
       NC(nc_inq_dimid(ncid, "RHO_eta_rho", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
@@ -260,6 +281,7 @@ int main(
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
+    LOG(2, "Read height...");
     if (nc_inq_varid(ncid, "STASH_m01s15i102_2", &varid) != NC_NOERR)
       NC(nc_inq_varid(ncid, "STASH_m01s15i102", &varid));
     NC(nc_get_var_float(ncid, varid, help));
@@ -271,6 +293,7 @@ int main(
 		     1e3);
 
     /* Read temperature... */
+    LOG(2, "Read temperature...");
     NC(nc_inq_varid(ncid, "STASH_m01s30i004", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -280,6 +303,7 @@ int main(
 	    help[(iz * model->nlat + ilat) * model->nlon + ilon];
 
     /* Read pressure... */
+    LOG(2, "Read pressure...");
     NC(nc_inq_varid(ncid, "STASH_m01s00i407", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -293,6 +317,7 @@ int main(
   else if (strcasecmp(argv[2], "wrf") == 0) {
 
     /* Get height levels... */
+    LOG(2, "Read levels...");
     NC(nc_inq_dimid(ncid, "bottom_top", &dimid));
     NC(nc_inq_dimlen(ncid, dimid, &rs));
     model->nz = (int) rs;
@@ -300,6 +325,7 @@ int main(
       ERRMSG("Too many altitudes!");
 
     /* Read height... */
+    LOG(2, "Read height...");
     NC(nc_inq_varid(ncid, "z", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -310,6 +336,7 @@ int main(
 		     1e3);
 
     /* Read temperature... */
+    LOG(2, "Read temperature...");
     NC(nc_inq_varid(ncid, "tk", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -319,6 +346,7 @@ int main(
 	    help[(iz * model->nlat + ilat) * model->nlon + ilon];
 
     /* Read pressure... */
+    LOG(2, "Read pressure...");
     NC(nc_inq_varid(ncid, "p", &varid));
     NC(nc_get_var_float(ncid, varid, help));
     for (ilon = 0; ilon < model->nlon; ilon++)
@@ -339,6 +367,7 @@ int main(
   free(help);
 
   /* Check data... */
+  LOG(2, "Checking...");
   for (ilon = 0; ilon < model->nlon; ilon++)
     for (ilat = 0; ilat < model->nlat; ilat++)
       for (iz = 0; iz < model->nz; iz++)
@@ -350,6 +379,7 @@ int main(
 	}
 
   /* Smoothing of model data... */
+  LOG(2, "Smoothing...");
   smooth(model);
 
   /* Write info... */

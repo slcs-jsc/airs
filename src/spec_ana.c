@@ -37,7 +37,7 @@ int main(
   double dlxy = scan_ctl(argc, argv, "DLXY", -1, "10.0", NULL);
   scan_ctl(argc, argv, "METHOD", -1, "P", method);
   int output = (int) scan_ctl(argc, argv, "OUTPUT", -1, "1", NULL);
-  
+
   /* Allocate... */
   ALLOC(pert, pert_t, 1);
   ALLOC(wave, wave_t, 1);
@@ -94,10 +94,10 @@ int main(
   for (int track = track0; track <= track1 - strack + 1; track += dtrack)
     for (int xtrack = xtrack0; xtrack <= xtrack1 - sxtrack + 1;
 	 xtrack += dxtrack) {
-      
+
       /* Write info... */
       printf("Analyze track = %d and xtrack = %d ...\n", track, xtrack);
-      
+
       /* Convert to wave analysis struct... */
       pert2wave(pert, wave, track, track + strack - 1,
 		xtrack, xtrack + sxtrack - 1);
@@ -118,11 +118,11 @@ int main(
       fit_wave(wave, Amax, phimax, kxmax, kymax, &chisq);
 
       /* Save wave struct... */
-      if(output) {
+      if (output) {
 	sprintf(filename, "wave_%d_%d.tab", track, xtrack);
 	write_wave(filename, wave);
       }
-      
+
       /* Write results... */
       fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g %g %d %d %d %d %d %d\n",
 	      pert->time[track + strack / 2][xtrack + sxtrack / 2],

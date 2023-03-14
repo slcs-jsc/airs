@@ -8,8 +8,51 @@ threads=$(cat /proc/cpuinfo | grep processor | wc -l)
 mkdir -p $target/src $target/bin $target/include $target/lib $target/man/man1 \
     && cp *tar.bz2 $target/src \
     && cd $target/src \
-    && for f in $(ls *tar.bz2) ; do tar xvjf $f ; done \
-	|| exit
+    && for f in $(ls *tar.gz) ; do tar xvzf $f ; done \
+    || exit
+
+# libjpeg...
+dir=jpeg-6b
+infomsg $dir
+cd $target/src/$dir \
+    && ./configure --prefix=$target \
+    && make && make check && make install \
+    && cp $target/src/$dir/libjpeg.a $target/lib \
+    || exit
+
+# zlib...
+dir=zlib-1.2.3
+infomsg $dir
+cd $target/src/$dir \
+    && ./configure --prefix=$target \
+    && make -j$THREADS && make check && make install \
+    || exit
+
+# tirpc...
+dir=libtirpc-1.3.3
+infomsg $dir
+cd $target/src/$dir \
+    && ./configure --prefix=$target --disable-gssapi \
+    && make -j$THREADS && make check && make install \
+    || exit
+
+# HDF4...
+dir=hdf-4.2.16
+infomsg $dir
+cd $target/src/$dir \
+    && ./configure --prefix=$target --disable-netcdf --disable-fortran \
+		   --disable-hdf4-xdr \
+    && make -j$THREADS && make check && make install \
+    || exit
+
+# HDF-EOS...
+infomsg hdfeos
+cd $target/src/hdfeos && bin/INSTALL-HDFEOS <<EOF
+$target/lib
+$target/include
+EOF
+cp include/* $target/include
+cp lib/linux/* $target/lib
 
 # AIRS reader...
 dir=airs-v6
