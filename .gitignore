@@ -30,6 +30,7 @@ src/sampling
 src/select_ret
 src/spec2tab
 src/spec_ana
+src/spec_qual
 src/spec_synth
 src/sza
 src/var1d
