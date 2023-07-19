@@ -39,8 +39,8 @@ int main(
 	  "# $4 = footprint longitude [deg]\n"
 	  "# $5 = footprint latitude [deg]\n"
 	  "# $6 = wavenumber [cm^-1]\n"
-	  "# $7 = brightness temperature [K]\n"
-	  "# $8 = radiance [W/(m^2 sr cm^-1)]\n"
+	  "# $7 = radiance [W/(m^2 sr cm^-1)]\n"
+	  "# $8 = channel number\n"
 	  "# $9 = state\n"
 	  "# $10 = excluded channels\n"
 	  "# $11 = calibration channel summary\n"
@@ -54,16 +54,15 @@ int main(
       || (airs_rad_gran.CalChanSummary[ichan] & 8)
       || (airs_rad_gran.CalChanSummary[ichan] & (32 + 64))
       || (airs_rad_gran.CalFlag[track][ichan] & 16);
-    fprintf(out, "%.2f %g %g %g %g %g %g %g %d %d %d %d %d\n",
+    fprintf(out, "%.2f %g %g %g %g %g %g %d %d %d %d %d %d\n",
 	    airs_rad_gran.Time[track][xtrack] - 220838400,
 	    airs_rad_gran.sat_lon[track],
 	    airs_rad_gran.sat_lat[track],
 	    airs_rad_gran.Longitude[track][xtrack],
 	    airs_rad_gran.Latitude[track][xtrack],
 	    airs_rad_gran.nominal_freq[ichan],
-	    brightness(airs_rad_gran.radiances[track][xtrack][ichan] * 1e-3,
-		       airs_rad_gran.nominal_freq[ichan]),
 	    airs_rad_gran.radiances[track][xtrack][ichan] * 1e-3,
+	    ichan,
 	    airs_rad_gran.state[track][xtrack],
 	    airs_rad_gran.ExcludedChans[ichan],
 	    airs_rad_gran.CalChanSummary[ichan],
