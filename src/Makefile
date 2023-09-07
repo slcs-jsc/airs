@@ -9,10 +9,10 @@ EXC = day2doy diff_apr diff_ret distance doy2day events extract hurricane island
 DESTDIR ?= ../bin
 
 # Library directories...
-LIBDIR += -L ../lib/build/lib -L /usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu/hdf5/serial
+LIBDIR += -L /usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu/hdf5/serial -L ../lib/build/lib 
 
 # Include directories...
-INCDIR += -I ../lib/build/include -I/usr/include -I/usr/include/hdf5/serial
+INCDIR += -I/usr/include -I/usr/include/hdf5/serial -I ../lib/build/include
 
 # Static compilation...
 STATIC ?= 1
