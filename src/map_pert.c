@@ -125,14 +125,15 @@ int main(
   /* Write header... */
   fprintf(out,
 	  "# $1 = time (seconds since 01-JAN-2000, 00:00 UTC)\n"
-	  "# $2 = along-track index\n"
+	  "# $2 = solar zenith angle [deg]\n"
 	  "# $3 = longitude [deg]\n"
 	  "# $4 = latitude [deg]\n"
 	  "# $5 = 8mu brightness temperature [K]\n"
 	  "# $6 = %s brightness temperature [K]\n"
 	  "# $7 = %s brightness temperature perturbation [K]\n"
-	  "# $8 = %s brightness temperature variance [K^2]\n",
-	  pertname, pertname, pertname);
+	  "# $8 = %s brightness temperature variance [K^2]\n"
+	  "# $9 = along-track index\n"
+	  "# $10 = across-track index\n", pertname, pertname, pertname);
 
   /* Write data... */
   for (itrack = 0; itrack < pert->ntrack; itrack++) {
@@ -185,12 +186,16 @@ int main(
 	  if (pert->time[itrack][ixtrack] >= t0
 	      && pert->time[itrack][ixtrack] <= t1
 	      && sza2 >= sza0 && sza2 <= sza1)
-	    fprintf(out, "%.2f %d %g %g %g %g %g %g\n",
-		    pert->time[itrack][ixtrack], itrack,
+	    fprintf(out, "%.2f %g %g %g %g %g %g %g %d %d\n",
+		    pert->time[itrack][ixtrack],
+		    sza(pert->time[itrack][ixtrack],
+			pert->lon[itrack][ixtrack],
+			pert->lat[itrack][ixtrack]),
 		    pert->lon[itrack][ixtrack], pert->lat[itrack][ixtrack],
 		    pert->dc[itrack][ixtrack], pert->bt[itrack][ixtrack],
 		    pert->pt[itrack][ixtrack],
-		    pert->var[itrack][ixtrack] - gsl_pow_2(nedt));
+		    pert->var[itrack][ixtrack] - gsl_pow_2(nedt), itrack,
+		    ixtrack);
     }
   }
 
