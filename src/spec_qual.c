@@ -44,9 +44,8 @@ int main(
 	  "# $9 = state\n"
 	  "# $10 = excluded channels\n"
 	  "# $11 = calibration channel summary\n"
-	  "# $12 = calibration flag\n"
-	  "# $13 = combined quality flag\n\n");
-  
+	  "# $12 = calibration flag\n" "# $13 = combined quality flag\n\n");
+
   /* Write data... */
   for (int ichan = 0; ichan < AIRS_RAD_CHANNEL; ichan++) {
     int flag = (airs_rad_gran.state[track][xtrack] != 0)
@@ -66,12 +65,11 @@ int main(
 	    airs_rad_gran.state[track][xtrack],
 	    airs_rad_gran.ExcludedChans[ichan],
 	    airs_rad_gran.CalChanSummary[ichan],
-	    airs_rad_gran.CalFlag[track][ichan],
-	    flag);
+	    airs_rad_gran.CalFlag[track][ichan], flag);
   }
-  
+
   /* Close file... */
   fclose(out);
-  
+
   return EXIT_SUCCESS;
 }

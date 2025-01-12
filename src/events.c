@@ -95,9 +95,9 @@ int main(
     if (dt230 > 0)
       for (itrack = 0; itrack < pert->ntrack; itrack++)
 	for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
-	  nesr = planck(t230 + dt230, nu) - planck(t230, nu);
+	  nesr = PLANCK(t230 + dt230, nu) - PLANCK(t230, nu);
 	  tbg = pert->bt[itrack][ixtrack] - pert->pt[itrack][ixtrack];
-	  nedt = brightness(planck(tbg, nu) + nesr, nu) - tbg;
+	  nedt = BRIGHT(PLANCK(tbg, nu) + nesr, nu) - tbg;
 	  pert->var[itrack][ixtrack] -= gsl_pow_2(nedt);
 	}
 

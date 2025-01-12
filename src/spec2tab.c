@@ -92,8 +92,8 @@ int main(
 	    airs_rad_gran.Longitude[track][xtrack],
 	    airs_rad_gran.Latitude[track][xtrack],
 	    airs_rad_gran.nominal_freq[ichan],
-	    brightness(airs_rad_gran.radiances[track][xtrack][ichan] * 1e-3,
-		       airs_rad_gran.nominal_freq[ichan]),
+	    BRIGHT(airs_rad_gran.radiances[track][xtrack][ichan] * 1e-3,
+		   airs_rad_gran.nominal_freq[ichan]),
 	    airs_rad_gran.radiances[track][xtrack][ichan] * 1e-3);
   }
 

@@ -143,8 +143,8 @@ int main(
     for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
       for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
 	pert_4mu->dc[track0 + track][xtrack]
-	  = brightness(airs_rad_gran.radiances[track][xtrack][1290],
-		       airs_rad_gran.nominal_freq[1290]);
+	  = BRIGHT(airs_rad_gran.radiances[track][xtrack][1290],
+		   airs_rad_gran.nominal_freq[1290]);
 
     /* Get 4.3 micron brightness temperature... */
     for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
@@ -153,9 +153,8 @@ int main(
 	for (i = 0; i < N4; i++)
 	  if (gsl_finite(airs_rad_gran.radiances[track][xtrack][list_4mu[i]])) {
 	    pert_4mu->bt[track0 + track][xtrack]
-	      +=
-	      brightness(airs_rad_gran.radiances[track][xtrack][list_4mu[i]],
-			 airs_rad_gran.nominal_freq[list_4mu[i]]);
+	      += BRIGHT(airs_rad_gran.radiances[track][xtrack][list_4mu[i]],
+			airs_rad_gran.nominal_freq[list_4mu[i]]);
 	    n++;
 	  }
 	if (n > 0.9 * N4)
@@ -172,9 +171,9 @@ int main(
 	  if (gsl_finite(airs_rad_gran.radiances
 			 [track][xtrack][list_15mu_low[i]])) {
 	    pert_15mu_low->bt[track0 + track][xtrack]
-	      += brightness(airs_rad_gran.radiances
-			    [track][xtrack][list_15mu_low[i]],
-			    airs_rad_gran.nominal_freq[list_15mu_low[i]]);
+	      +=
+	      BRIGHT(airs_rad_gran.radiances[track][xtrack][list_15mu_low[i]],
+		     airs_rad_gran.nominal_freq[list_15mu_low[i]]);
 	    n++;
 	  }
 	if (n > 0.9 * N15_LOW)
@@ -191,9 +190,9 @@ int main(
 	  if (gsl_finite(airs_rad_gran.radiances
 			 [track][xtrack][list_15mu_high[i]])) {
 	    pert_15mu_high->bt[track0 + track][xtrack]
-	      += brightness(airs_rad_gran.radiances
-			    [track][xtrack][list_15mu_high[i]],
-			    airs_rad_gran.nominal_freq[list_15mu_high[i]]);
+	      += BRIGHT(airs_rad_gran.radiances
+			[track][xtrack][list_15mu_high[i]],
+			airs_rad_gran.nominal_freq[list_15mu_high[i]]);
 	    n++;
 	  }
 	if (n > 0.9 * N15_HIGH)

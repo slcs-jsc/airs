@@ -586,7 +586,7 @@ int main(
 /************************************************************************/
 
 void intpol(
-  model_t * model,
+  model_t *model,
   double z,
   double lon,
   double lat,
@@ -705,7 +705,7 @@ void intpol(
 /************************************************************************/
 
 void smooth(
-  model_t * model) {
+  model_t *model) {
 
   static float hp[NLON][NLAT], ht[NLON][NLAT], hz[NLON][NLAT], w, wsum;
 
@@ -769,7 +769,7 @@ void smooth(
 
 void write_nc(
   char *filename,
-  wave_t * wave) {
+  wave_t *wave) {
 
   static double help[WX * WY];
 

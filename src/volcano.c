@@ -133,17 +133,17 @@ int main(
       for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 
 	/* cloud index... */
-	ci = brightness(airs_rad_gran.radiances[track][xtrack][ci_nu] * 0.001,
-			airs_rad_gran.nominal_freq[ci_nu]);
+	ci = BRIGHT(airs_rad_gran.radiances[track][xtrack][ci_nu] * 0.001,
+		    airs_rad_gran.nominal_freq[ci_nu]);
 	ci_err = get_noise(ci, ci_nedt, airs_rad_gran.nominal_freq[ci_nu]);
 
 	/* ash index (low wavenumbers)... */
 	ai_low_bt1 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][ai_low_nu1] *
-		     0.001, airs_rad_gran.nominal_freq[ai_low_nu1]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_low_nu1] *
+		 0.001, airs_rad_gran.nominal_freq[ai_low_nu1]);
 	ai_low_bt2 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][ai_low_nu2] *
-		     0.001, airs_rad_gran.nominal_freq[ai_low_nu2]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_low_nu2] *
+		 0.001, airs_rad_gran.nominal_freq[ai_low_nu2]);
 	ai_low = ai_low_bt1 - ai_low_bt2;
 	ai_low_err = sqrt(gsl_pow_2(get_noise(ai_low_bt1, ai_low_bt1_nedt,
 					      airs_rad_gran.nominal_freq
@@ -156,11 +156,11 @@ int main(
 
 	/* ash index (high wavenumbers)... */
 	ai_high_bt1 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][ai_high_nu1] *
-		     0.001, airs_rad_gran.nominal_freq[ai_high_nu1]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_high_nu1] *
+		 0.001, airs_rad_gran.nominal_freq[ai_high_nu1]);
 	ai_high_bt2 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][ai_high_nu2] *
-		     0.001, airs_rad_gran.nominal_freq[ai_high_nu2]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_high_nu2] *
+		 0.001, airs_rad_gran.nominal_freq[ai_high_nu2]);
 	ai_high = ai_high_bt1 - ai_high_bt2;
 	ai_high_err = sqrt(gsl_pow_2(get_noise(ai_high_bt1, ai_high_bt1_nedt,
 					       airs_rad_gran.nominal_freq
@@ -173,11 +173,11 @@ int main(
 
 	/* ash index (old)... */
 	ai_old_bt1 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][ai_old_nu1] *
-		     0.001, airs_rad_gran.nominal_freq[ai_old_nu1]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_old_nu1] *
+		 0.001, airs_rad_gran.nominal_freq[ai_old_nu1]);
 	ai_old_bt2 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][ai_old_nu2] *
-		     0.001, airs_rad_gran.nominal_freq[ai_old_nu2]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_old_nu2] *
+		 0.001, airs_rad_gran.nominal_freq[ai_old_nu2]);
 	ai_old = ai_old_bt1 - ai_old_bt2;
 	ai_old_err = sqrt(gsl_pow_2(get_noise(ai_old_bt1, ai_old_bt1_nedt,
 					      airs_rad_gran.nominal_freq
@@ -190,11 +190,11 @@ int main(
 
 	/* SO2 index (low concentrations)... */
 	si_low_bt1 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][si_low_nu1] *
-		     0.001, airs_rad_gran.nominal_freq[si_low_nu1]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_low_nu1] *
+		 0.001, airs_rad_gran.nominal_freq[si_low_nu1]);
 	si_low_bt2 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][si_low_nu2] *
-		     0.001, airs_rad_gran.nominal_freq[si_low_nu2]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_low_nu2] *
+		 0.001, airs_rad_gran.nominal_freq[si_low_nu2]);
 	si_low = si_low_bt1 - si_low_bt2;
 	si_low_err = sqrt(gsl_pow_2(get_noise(si_low_bt1, si_low_bt1_nedt,
 					      airs_rad_gran.nominal_freq
@@ -207,11 +207,11 @@ int main(
 
 	/* SO2 index (high concentrations)... */
 	si_high_bt1 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][si_high_nu1] *
-		     0.001, airs_rad_gran.nominal_freq[si_high_nu1]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_high_nu1] *
+		 0.001, airs_rad_gran.nominal_freq[si_high_nu1]);
 	si_high_bt2 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][si_high_nu2] *
-		     0.001, airs_rad_gran.nominal_freq[si_high_nu2]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_high_nu2] *
+		 0.001, airs_rad_gran.nominal_freq[si_high_nu2]);
 	si_high = si_high_bt1 - si_high_bt2;
 	si_high_err = sqrt(gsl_pow_2(get_noise(si_high_bt1, si_high_bt1_nedt,
 					       airs_rad_gran.nominal_freq
@@ -224,11 +224,11 @@ int main(
 
 	/* SO2 index (operational)... */
 	si_oper_bt1 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][si_oper_nu1] *
-		     0.001, airs_rad_gran.nominal_freq[si_oper_nu1]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_oper_nu1] *
+		 0.001, airs_rad_gran.nominal_freq[si_oper_nu1]);
 	si_oper_bt2 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][si_oper_nu2] *
-		     0.001, airs_rad_gran.nominal_freq[si_oper_nu2]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_oper_nu2] *
+		 0.001, airs_rad_gran.nominal_freq[si_oper_nu2]);
 	si_oper = si_oper_bt1 - si_oper_bt2;
 	si_oper_err = sqrt(gsl_pow_2(get_noise(si_oper_bt1, si_oper_bt1_nedt,
 					       airs_rad_gran.nominal_freq
@@ -241,11 +241,11 @@ int main(
 
 	/* SO2 index (old)... */
 	si_old_bt1 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][si_old_nu1] *
-		     0.001, airs_rad_gran.nominal_freq[si_old_nu1]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_old_nu1] *
+		 0.001, airs_rad_gran.nominal_freq[si_old_nu1]);
 	si_old_bt2 =
-	  brightness(airs_rad_gran.radiances[track][xtrack][si_old_nu2] *
-		     0.001, airs_rad_gran.nominal_freq[si_old_nu2]);
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_old_nu2] *
+		 0.001, airs_rad_gran.nominal_freq[si_old_nu2]);
 	si_old = si_old_bt1 - si_old_bt2;
 	si_old_err = sqrt(gsl_pow_2(get_noise(si_old_bt1, si_old_bt1_nedt,
 					      airs_rad_gran.nominal_freq
@@ -288,7 +288,7 @@ double get_noise(
 
   double nesr;
 
-  nesr = planck(250.0 + dt250, nu) - planck(250.0, nu);
+  nesr = PLANCK(250.0 + dt250, nu) - PLANCK(250.0, nu);
 
-  return brightness(planck(bt, nu) + nesr, nu) - bt;
+  return BRIGHT(PLANCK(bt, nu) + nesr, nu) - bt;
 }

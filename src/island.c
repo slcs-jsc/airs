@@ -199,9 +199,9 @@ int main(
 
 	    /* Estimate noise... */
 	    if (dt230 > 0) {
-	      nesr = planck(230.0 + dt230, nu) - planck(230.0, nu);
-	      enoise = brightness(planck(ebt / en, nu) + nesr, nu) - ebt / en;
-	      wnoise = brightness(planck(wbt / wn, nu) + nesr, nu) - wbt / wn;
+	      nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+	      enoise = BRIGHT(PLANCK(ebt / en, nu) + nesr, nu) - ebt / en;
+	      wnoise = BRIGHT(PLANCK(wbt / wn, nu) + nesr, nu) - wbt / wn;
 	    }
 
 	    /* Write output... */
@@ -284,9 +284,9 @@ int main(
 
       /* Estimate noise... */
       if (dt230 > 0) {
-	nesr = planck(230.0 + dt230, nu) - planck(230.0, nu);
-	enoise = brightness(planck(ebt / en, nu) + nesr, nu) - ebt / en;
-	wnoise = brightness(planck(wbt / wn, nu) + nesr, nu) - wbt / wn;
+	nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+	enoise = BRIGHT(PLANCK(ebt / en, nu) + nesr, nu) - ebt / en;
+	wnoise = BRIGHT(PLANCK(wbt / wn, nu) + nesr, nu) - wbt / wn;
       }
 
       /* Write output... */

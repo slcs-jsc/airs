@@ -205,7 +205,7 @@ int main(
 
 void read_nc(
   char *filename,
-  ncd_t * ncd) {
+  ncd_t *ncd) {
 
   int varid;
 

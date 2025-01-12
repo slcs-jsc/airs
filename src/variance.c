@@ -547,9 +547,8 @@ int main(
 
       /* Estimate noise... */
       if (dt230 > 0) {
-	nesr = planck(230.0 + dt230, nu) - planck(230.0, nu);
-	dt[ix][iy] =
-	  brightness(planck(bt[ix][iy], nu) + nesr, nu) - bt[ix][iy];
+	nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+	dt[ix][iy] = BRIGHT(PLANCK(bt[ix][iy], nu) + nesr, nu) - bt[ix][iy];
       }
 
       /* Get mean perturbation and variance... */

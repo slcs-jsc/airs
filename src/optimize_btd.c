@@ -62,8 +62,8 @@ int main(
 	      bt[ichan] = GSL_NAN;
 	    else
 	      bt[ichan]
-		= brightness(airs_rad_gran.radiances[track][xtrack][ichan]
-			     * 0.001, airs_rad_gran.nominal_freq[ichan]);
+		= BRIGHT(airs_rad_gran.radiances[track][xtrack][ichan]
+			 * 0.001, airs_rad_gran.nominal_freq[ichan]);
 
 	  /* Average channels... */
 	  for (ichan = 0; ichan < AIRS_RAD_CHANNEL - navg; ichan++) {

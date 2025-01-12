@@ -301,10 +301,9 @@ int main(
 
 	      /* Estimate noise... */
 	      if (dt230 > 0) {
-		nesr = planck(230.0 + dt230, nu) - planck(230.0, nu);
-		nedt =
-		  brightness(planck(bt4_mean / n, nu) + nesr,
-			     nu) - bt4_mean / n;
+		nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+		nedt = BRIGHT(PLANCK(bt4_mean / n, nu) + nesr,
+			      nu) - bt4_mean / n;
 	      }
 
 	      /* Write output... */

@@ -116,8 +116,8 @@ int main(
 /*****************************************************************************/
 
 void write_results(
-  FILE * out,
-  pert_t * pert,
+  FILE *out,
+  pert_t *pert,
   int track0,
   int xtrack0,
   int orb,
