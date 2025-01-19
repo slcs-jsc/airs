@@ -24,7 +24,7 @@ and 'make' are required for installation.
 
 Start by downloading the source code from the git repository:
 
-    git clone https://jugit.fz-juelich.de/slcs/airs
+    git clone https://github.com/slcs-jsc/airs.git
 
 Change to the directory airs/ which holds source codes,
 libraries, documentation, etc:
@@ -38,7 +38,7 @@ Furthermore, the HDF4 and HDFEOS libraries are required to read AIRS data.
 Copies of these libraries can be found in the repository, if they are
 not available on your system. A script is provided to build the libraries:
 
-    cd lib
+    cd libs
     ./build.sh
 
 Next, change to the source directory and edit the Makefile according to
@@ -60,22 +60,20 @@ produced. This behavior is enforced by the flag '-Werror'.
 
 The binaries will remain in the src/ directory.
 
+## License
+
+The AIRS Code Collection is distributed under the GNU GPL v3.
+Software libraries distributed along with this software package may have
+their own licenses and copyrights, please see corresponding documentation.
+
 ## Contact
 
 We are interested in sharing the AIRS code for research applications.
 
 Please do not hesitate to contact us if you have any further questions:
 
-Dr. Lars Hoffmann  
-Forschungszentrum Jülich  
-Jülich Supercomputing Centre  
-52425 Jülich  
-Germany  
+Dr. Lars Hoffmann
+
+Jülich Supercomputing Centre, Forschungszentrum Jülich  
 
 e-mail: l.hoffmann@fz-juelich.de
-
-## License
-
-The AIRS Code Collection is distributed under the GNU GPL v3.
-Software libraries distributed along with this software package may have
-their own licenses and copyrights, please see corresponding documentation.
