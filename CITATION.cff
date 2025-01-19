@@ -1,0 +1,33 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: AIRS Code Collection
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Lars
+    family-names: Hoffmann
+    email: l.hoffmann@fz-juelich.de
+    affiliation: Forschungszentrum Jülich
+    orcid: 'https://orcid.org/0000-0003-3773-4377'
+identifiers:
+  - type: doi
+    value: 10.5194/gmd-15-1855-2022
+    description: Reference paper.
+  - type: doi
+    value: 10.5281/zenodo.4572889
+    description: Latest release on Zenodo.
+  - type: url
+    value: 'https://github.com/slcs-jsc/airs'
+    description: Software repository on GitHub.
+abstract: >-
+  This repository provides a collection of codes for the analysis of
+  observations of NASA's Atmospheric InfraRed Sounder (AIRS).
+keywords:
+  - atmospheric science
+  - remote sensing
+  - infrared sounding
+license: GPL-3.0
