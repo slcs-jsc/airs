@@ -50,10 +50,6 @@ void background_poly_help(
   int n,
   int dim) {
 
-  gsl_multifit_linear_workspace *work;
-  gsl_matrix *cov, *X;
-  gsl_vector *c, *x, *y;
-
   double chisq, xx2[WX > WY ? WX : WY], yy2[WX > WY ? WX : WY];
 
   size_t i, i2, n2 = 0;
@@ -72,12 +68,13 @@ void background_poly_help(
   }
 
   /* Allocate... */
-  work = gsl_multifit_linear_alloc((size_t) n2, (size_t) dim);
-  cov = gsl_matrix_alloc((size_t) dim, (size_t) dim);
-  X = gsl_matrix_alloc((size_t) n2, (size_t) dim);
-  c = gsl_vector_alloc((size_t) dim);
-  x = gsl_vector_alloc((size_t) n2);
-  y = gsl_vector_alloc((size_t) n2);
+  gsl_multifit_linear_workspace *work
+    = gsl_multifit_linear_alloc((size_t) n2, (size_t) dim);
+  gsl_matrix *cov = gsl_matrix_alloc((size_t) dim, (size_t) dim);
+  gsl_matrix *X = gsl_matrix_alloc((size_t) n2, (size_t) dim);
+  gsl_vector *c = gsl_vector_alloc((size_t) dim);
+  gsl_vector *x = gsl_vector_alloc((size_t) n2);
+  gsl_vector *y = gsl_vector_alloc((size_t) n2);
 
   /* Compute polynomial fit... */
   for (i = 0; i < (size_t) n2; i++) {
@@ -237,19 +234,15 @@ void create_noise(
   wave_t *wave,
   double nedt) {
 
-  gsl_rng *r;
-
-  int ix, iy;
-
   /* Initialize random number generator... */
   gsl_rng_env_setup();
-  r = gsl_rng_alloc(gsl_rng_default);
+  gsl_rng *r = gsl_rng_alloc(gsl_rng_default);
   gsl_rng_set(r, (unsigned long int) time(NULL));
 
   /* Add noise to temperature... */
   if (nedt > 0)
-    for (ix = 0; ix < wave->nx; ix++)
-      for (iy = 0; iy < wave->ny; iy++)
+    for (int ix = 0; ix < wave->nx; ix++)
+      for (int iy = 0; iy < wave->ny; iy++)
 	wave->temp[ix][iy] += gsl_ran_gaussian(r, nedt);
 
   /* Free... */
@@ -366,23 +359,20 @@ void fft_help(
   double *fcImag,
   int n) {
 
-  gsl_fft_complex_wavetable *wavetable;
-  gsl_fft_complex_workspace *workspace;
-
   double data[2 * PMAX];
-
-  int i;
 
   /* Check size... */
   if (n > PMAX)
     ERRMSG("Too many data points!");
 
   /* Allocate... */
-  wavetable = gsl_fft_complex_wavetable_alloc((size_t) n);
-  workspace = gsl_fft_complex_workspace_alloc((size_t) n);
+  gsl_fft_complex_wavetable *wavetable
+    = gsl_fft_complex_wavetable_alloc((size_t) n);
+  gsl_fft_complex_workspace *workspace
+    = gsl_fft_complex_workspace_alloc((size_t) n);
 
   /* Set data (real, complex)... */
-  for (i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     data[2 * i] = fcReal[i];
     data[2 * i + 1] = fcImag[i];
   }
@@ -391,7 +381,7 @@ void fft_help(
   gsl_fft_complex_forward(data, 1, (size_t) n, wavetable, workspace);
 
   /* Copy data... */
-  for (i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     fcReal[i] = data[2 * i];
     fcImag[i] = data[2 * i + 1];
   }
@@ -643,9 +633,6 @@ void intpol_x(
   wave_t *wave,
   int n) {
 
-  gsl_interp_accel *acc;
-  gsl_spline *spline;
-
   double dummy, x[WX], xc[WX][3], xc2[WX][3], y[WX];
 
   int i, ic, ix, iy;
@@ -661,8 +648,9 @@ void intpol_x(
     x[i] = LIN(0.0, wave->x[0], n - 1.0, wave->x[wave->nx - 1], i);
 
   /* Allocate... */
-  acc = gsl_interp_accel_alloc();
-  spline = gsl_spline_alloc(gsl_interp_cspline, (size_t) wave->nx);
+  gsl_interp_accel *acc = gsl_interp_accel_alloc();
+  gsl_spline *spline
+    = gsl_spline_alloc(gsl_interp_cspline, (size_t) wave->nx);
 
   /* Loop over scans... */
   for (iy = 0; iy < wave->ny; iy++) {

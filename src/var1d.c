@@ -4,39 +4,35 @@ int main(
   int argc,
   char *argv[]) {
 
-  gsl_multifit_linear_workspace *work;
-  gsl_matrix *cov, *X;
-  gsl_vector *c, *xvec, *yvec, *yfit;
+  static double chisq, phi, var, var2, vmean, vmean2, w, wsum;
 
-  static double chisq, fwhm, lx, dlx, lxmin, lxmax, phi,
-    var, var2, vmean, vmean2, width, w, wsum;
-
-  static int dim, i, i2, n;
+  static int i, i2;
 
   /* Check arguments... */
   if (argc != 8)
     ERRMSG("Give parameters: <width> <n> <lxmin> <lxmax> <dlx> <fwhm> <dim>");
 
   /* Get arguments... */
-  width = atof(argv[1]);
-  n = atoi(argv[2]);
-  lxmin = atof(argv[3]);
-  lxmax = atof(argv[4]);
-  dlx = atoi(argv[5]);
-  fwhm = atof(argv[6]);
-  dim = atoi(argv[7]);
+  const double width = atof(argv[1]);
+  const int n = atoi(argv[2]);
+  const double lxmin = atof(argv[3]);
+  const double lxmax = atof(argv[4]);
+  const double dlx = atoi(argv[5]);
+  const double fwhm = atof(argv[6]);
+  const int dim = atoi(argv[7]);
 
   /* Initialize... */
-  c = gsl_vector_alloc((size_t) dim);
-  cov = gsl_matrix_alloc((size_t) dim, (size_t) dim);
-  work = gsl_multifit_linear_alloc((size_t) n, (size_t) dim);
-  X = gsl_matrix_alloc((size_t) n, (size_t) dim);
-  xvec = gsl_vector_alloc((size_t) n);
-  yvec = gsl_vector_alloc((size_t) n);
-  yfit = gsl_vector_alloc((size_t) n);
+  gsl_vector *c = gsl_vector_alloc((size_t) dim);
+  gsl_matrix *cov = gsl_matrix_alloc((size_t) dim, (size_t) dim);
+  gsl_multifit_linear_workspace *work
+    = gsl_multifit_linear_alloc((size_t) n, (size_t) dim);
+  gsl_matrix *X = gsl_matrix_alloc((size_t) n, (size_t) dim);
+  gsl_vector *xvec = gsl_vector_alloc((size_t) n);
+  gsl_vector *yvec = gsl_vector_alloc((size_t) n);
+  gsl_vector *yfit = gsl_vector_alloc((size_t) n);
 
   /* Loop over wavelengths... */
-  for (lx = lxmin; lx <= lxmax; lx += dlx) {
+  for (double lx = lxmin; lx <= lxmax; lx += dlx) {
 
     /* Initialize... */
     vmean = 0;

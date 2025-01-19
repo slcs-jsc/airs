@@ -402,8 +402,8 @@ int main(
 	for (id = 0; id < ctl.nd; id++)
 	  if (ctl.nu[id] >= 2000 && gsl_finite(obs_meas.rad[id][0])) {
 	    ni[track][xtrack] +=
-	      (brightness(obs_meas.rad[id][0], ncd.l1_nu[channel[id]])
-	       - brightness(obs_i.rad[id][0], ncd.l1_nu[channel[id]]));
+	      (BRIGHT(obs_meas.rad[id][0], ncd.l1_nu[channel[id]])
+	       - BRIGHT(obs_i.rad[id][0], ncd.l1_nu[channel[id]]));
 	    n++;
 	  }
 	ni[track][xtrack] /= n;
@@ -512,23 +512,19 @@ double cost_function(
   gsl_matrix *s_a_inv,
   gsl_vector *sig_eps_inv) {
 
-  gsl_vector *x_aux, *y_aux;
-
   double chisq_a, chisq_m = 0;
 
-  size_t i, m, n;
-
   /* Get sizes... */
-  m = dy->size;
-  n = dx->size;
+  const size_t m = dy->size;
+  const size_t n = dx->size;
 
   /* Allocate... */
-  x_aux = gsl_vector_alloc(n);
-  y_aux = gsl_vector_alloc(m);
+  gsl_vector *x_aux = gsl_vector_alloc(n);
+  gsl_vector *y_aux = gsl_vector_alloc(m);
 
   /* Determine normalized cost function...
      (chi^2 = 1/m * [dy^T * S_eps^{-1} * dy + dx^T * S_a^{-1} * dx]) */
-  for (i = 0; i < m; i++)
+  for (size_t i = 0; i < m; i++)
     chisq_m +=
       gsl_pow_2(gsl_vector_get(dy, i) * gsl_vector_get(sig_eps_inv, i));
   gsl_blas_dgemv(CblasNoTrans, 1.0, s_a_inv, dx, 0.0, x_aux);
@@ -686,23 +682,19 @@ void matrix_product(
   int transpose,
   gsl_matrix *c) {
 
-  gsl_matrix *aux;
-
-  size_t i, j, m, n;
-
   /* Set sizes... */
-  m = a->size1;
-  n = a->size2;
+  const size_t m = a->size1;
+  const size_t n = a->size2;
 
   /* Allocate... */
-  aux = gsl_matrix_alloc(m, n);
+  gsl_matrix *aux = gsl_matrix_alloc(m, n);
 
   /* Compute A^T B A... */
   if (transpose == 1) {
 
     /* Compute B^1/2 A... */
-    for (i = 0; i < m; i++)
-      for (j = 0; j < n; j++)
+    for (size_t i = 0; i < m; i++)
+      for (size_t j = 0; j < n; j++)
 	gsl_matrix_set(aux, i, j,
 		       gsl_vector_get(b, i) * gsl_matrix_get(a, i, j));
 
@@ -714,8 +706,8 @@ void matrix_product(
   else if (transpose == 2) {
 
     /* Compute A B^1/2... */
-    for (i = 0; i < m; i++)
-      for (j = 0; j < n; j++)
+    for (size_t i = 0; i < m; i++)
+      for (size_t j = 0; j < n; j++)
 	gsl_matrix_set(aux, i, j,
 		       gsl_matrix_get(a, i, j) * gsl_vector_get(b, j));
 
@@ -740,46 +732,38 @@ void optimal_estimation(
 
   static int ipa[N], iqa[N];
 
-  gsl_matrix *a, *cov, *k_i, *s_a_inv;
-  gsl_vector *b, *dx, *dy, *sig_eps_inv, *sig_formod, *sig_noise,
-    *x_a, *x_i, *x_step, *y_aux, *y_i, *y_m;
-
   double chisq_old, disq = 0, lmpar = 0.001;
-
-  int ig, ip, it = 0, it2, iw;
-
-  size_t i, m, n;
 
   /* ------------------------------------------------------------
      Initialize...
      ------------------------------------------------------------ */
 
   /* Get sizes... */
-  m = obs2y(ctl, obs_meas, NULL, NULL, NULL);
-  n = atm2x(ctl, atm_apr, NULL, iqa, ipa);
+  const size_t m = obs2y(ctl, obs_meas, NULL, NULL, NULL);
+  const size_t n = atm2x(ctl, atm_apr, NULL, iqa, ipa);
   if (m <= 0 || n <= 0) {
     *chisq = GSL_NAN;
     return;
   }
 
   /* Allocate... */
-  a = gsl_matrix_alloc(n, n);
-  cov = gsl_matrix_alloc(n, n);
-  k_i = gsl_matrix_alloc(m, n);
-  s_a_inv = gsl_matrix_alloc(n, n);
+  gsl_matrix *a = gsl_matrix_alloc(n, n);
+  gsl_matrix *cov = gsl_matrix_alloc(n, n);
+  gsl_matrix *k_i = gsl_matrix_alloc(m, n);
+  gsl_matrix *s_a_inv = gsl_matrix_alloc(n, n);
 
-  b = gsl_vector_alloc(n);
-  dx = gsl_vector_alloc(n);
-  dy = gsl_vector_alloc(m);
-  sig_eps_inv = gsl_vector_alloc(m);
-  sig_formod = gsl_vector_alloc(m);
-  sig_noise = gsl_vector_alloc(m);
-  x_a = gsl_vector_alloc(n);
-  x_i = gsl_vector_alloc(n);
-  x_step = gsl_vector_alloc(n);
-  y_aux = gsl_vector_alloc(m);
-  y_i = gsl_vector_alloc(m);
-  y_m = gsl_vector_alloc(m);
+  gsl_vector *b = gsl_vector_alloc(n);
+  gsl_vector *dx = gsl_vector_alloc(n);
+  gsl_vector *dy = gsl_vector_alloc(m);
+  gsl_vector *sig_eps_inv = gsl_vector_alloc(m);
+  gsl_vector *sig_formod = gsl_vector_alloc(m);
+  gsl_vector *sig_noise = gsl_vector_alloc(m);
+  gsl_vector *x_a = gsl_vector_alloc(n);
+  gsl_vector *x_i = gsl_vector_alloc(n);
+  gsl_vector *x_step = gsl_vector_alloc(n);
+  gsl_vector *y_aux = gsl_vector_alloc(m);
+  gsl_vector *y_i = gsl_vector_alloc(m);
+  gsl_vector *y_m = gsl_vector_alloc(m);
 
   /* Set initial state... */
   copy_atm(ctl, atm_i, atm_apr, 0);
@@ -816,7 +800,7 @@ void optimal_estimation(
      ------------------------------------------------------------ */
 
   /* Outer loop... */
-  for (it = 1; it <= ret->conv_itmax; it++) {
+  for (int it = 1; it <= ret->conv_itmax; it++) {
 
     /* Store current cost function value... */
     chisq_old = *chisq;
@@ -830,14 +814,14 @@ void optimal_estimation(
       matrix_product(k_i, sig_eps_inv, 1, cov);
 
     /* Determine b = K_i^T * S_eps^{-1} * dy - S_a^{-1} * dx ... */
-    for (i = 0; i < m; i++)
+    for (size_t i = 0; i < m; i++)
       gsl_vector_set(y_aux, i, gsl_vector_get(dy, i)
 		     * gsl_pow_2(gsl_vector_get(sig_eps_inv, i)));
     gsl_blas_dgemv(CblasTrans, 1.0, k_i, y_aux, 0.0, b);
     gsl_blas_dgemv(CblasNoTrans, -1.0, s_a_inv, dx, 1.0, b);
 
     /* Inner loop... */
-    for (it2 = 0; it2 < 20; it2++) {
+    for (int it2 = 0; it2 < 20; it2++) {
 
       /* Compute A = (1 + lmpar) * S_a^{-1} + K_i^T * S_eps^{-1} * K_i ... */
       gsl_matrix_memcpy(a, s_a_inv);
@@ -855,12 +839,12 @@ void optimal_estimation(
       x2atm(ctl, x_i, atm_i);
 
       /* Check atmospheric state... */
-      for (ip = 0; ip < atm_i->np; ip++) {
+      for (int ip = 0; ip < atm_i->np; ip++) {
 	atm_i->p[ip] = GSL_MIN(GSL_MAX(atm_i->p[ip], 5e-7), 5e4);
 	atm_i->t[ip] = GSL_MIN(GSL_MAX(atm_i->t[ip], 100), 400);
-	for (ig = 0; ig < ctl->ng; ig++)
+	for (int ig = 0; ig < ctl->ng; ig++)
 	  atm_i->q[ig][ip] = GSL_MIN(GSL_MAX(atm_i->q[ig][ip], 0), 1);
-	for (iw = 0; iw < ctl->nw; iw++)
+	for (int iw = 0; iw < ctl->nw; iw++)
 	  atm_i->k[iw][ip] = GSL_MAX(atm_i->k[iw][ip], 0);
       }
 
@@ -1011,8 +995,6 @@ void set_cov_apr(
   int *ipa,
   gsl_matrix *s_a) {
 
-  gsl_vector *x_a;
-
   double ch, cz, rho, x0[3], x1[3];
 
   int ig, iw;
@@ -1023,7 +1005,7 @@ void set_cov_apr(
   n = s_a->size1;
 
   /* Allocate... */
-  x_a = gsl_vector_alloc(n);
+  gsl_vector *x_a = gsl_vector_alloc(n);
 
   /* Get sigma vector... */
   atm2x(ctl, atm, x_a, NULL, NULL);
