@@ -23,6 +23,60 @@
   AIRS Code Collection library declarations.
 */
 
+/*! 
+  \mainpage
+
+  The AIRS Code Collection provides a collection of codes for the analysis of
+  observations of NASA's Atmospheric InfraRed Sounder (AIRS).
+
+  \section Introduction
+
+  The source code of the AIRS Code Collection is available from the
+  [git repository](https://github.com/slcs-jsc/airs). Please see the
+  [README.md](https://github.com/slcs-jsc/airs/blob/master/README.md)
+  in the git repository for introductory information. More information
+  can be found in the [user manual](https://slcs-jsc.github.io/airs).
+  
+  This doxygen manual contains information about the algorithms and
+  data structures used in the code. Please refer to the `libairs.h'
+  documentation for a first overview.
+  
+  \section References
+  
+  For citing the model in scientific publications, please see
+  [CITATION.cff](https://github.com/slcs-jsc/airs/blob/master/CITATION.cff).
+  
+  \section License
+  
+  The AIRS Code Collection is being develop at the Jülich Supercomputing Centre,
+  Forschungszentrum Jülich, Germany.
+  
+  the AIRS Code Collection is distributed under the terms of the
+  [GNU General Public License v3.0](https://github.com/slcs-jsc/airs/blob/master/COPYING).
+  
+  \section Contributing
+  
+  We are interested in supporting operational and research
+  applications with the AIRS Code Collection.
+  
+  You can submit bug reports or feature requests on the
+  [issue tracker](https://github.com/slcs-jsc/airs/issues).
+  
+  Proposed code changes and fixes can be submitted as
+  [pull requests](https://github.com/slcs-jsc/airs/pulls).
+  
+  Please do not hesitate to contact us if you have any questions or
+  need assistance.
+  
+  \section Contact
+  
+  Dr. Lars Hoffmann
+  
+  Jülich Supercomputing Centre, Forschungszentrum Jülich
+  
+  e-mail: <l.hoffmann@fz-juelich.de>
+*/
+
 #include <netcdf.h>
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_fft_complex.h>
