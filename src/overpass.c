@@ -53,23 +53,23 @@ int main(
 
   char pertname[LEN];
 
-  double dmin = 1e100, lon0, lat0, orblat, rmax, obsz, x0[3], x1[3];
+  double dmin = 1e100, x0[3], x1[3];
 
-  int orb = 0, track, track0 = 0, xtrack, xtrack0 = 0;
+  int orb = 0, track0 = 0, xtrack0 = 0;
 
   /* Check arguments... */
   if (argc < 6)
     ERRMSG("Give parameters: <ctl> <pert.nc> <lon0> <lat0> <overpass.tab>");
 
   /* Get arguments... */
-  lon0 = atof(argv[3]);
-  lat0 = atof(argv[4]);
+  const double lon0 = atof(argv[3]);
+  const double lat0 = atof(argv[4]);
 
   /* Get control parameters... */
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
-  orblat = scan_ctl(argc, argv, "ORBLAT", -1, "0", NULL);
-  rmax = scan_ctl(argc, argv, "RMAX", -1, "100", NULL);
-  obsz = scan_ctl(argc, argv, "OBSZ", -1, "", NULL);
+  const double orblat = scan_ctl(argc, argv, "ORBLAT", -1, "0", NULL);
+  const double rmax = scan_ctl(argc, argv, "RMAX", -1, "100", NULL);
+  const double obsz = scan_ctl(argc, argv, "OBSZ", -1, "", NULL);
 
   /* Allocate... */
   ALLOC(pert, pert_t, 1);
@@ -98,7 +98,7 @@ int main(
 	  "# $9  = scan angle [deg]\n" "# $10 = distance [km]\n\n");
 
   /* Find nearest footprint... */
-  for (track = 0; track < pert->ntrack; track++) {
+  for (int track = 0; track < pert->ntrack; track++) {
 
     /* Check for new orbit... */
     if (track > 0)
@@ -115,7 +115,7 @@ int main(
       }
 
     /* Check distance of footprints... */
-    for (xtrack = 0; xtrack < pert->nxtrack; xtrack++) {
+    for (int xtrack = 0; xtrack < pert->nxtrack; xtrack++) {
       geo2cart(0, pert->lon[track][xtrack], pert->lat[track][xtrack], x1);
       if (DIST2(x0, x1) < dmin) {
 	dmin = DIST2(x0, x1);
@@ -149,9 +149,9 @@ void write_results(
   double dmin,
   double obsz) {
 
-  double alpha, xf[3], xs[3], xsf[3], remain;
+  double xf[3], xs[3], xsf[3], remain;
 
-  int asc, i, year, mon, day, hour, min, sec;
+  int year, mon, day, hour, min, sec;
 
   /* Calculate scan angle... */
   geo2cart(0, pert->lon[track0][xtrack0], pert->lat[track0][xtrack0], xf);
@@ -159,17 +159,18 @@ void write_results(
 	   pert->lat[track0][pert->nxtrack / 2], xsf);
   geo2cart(obsz, pert->lon[track0][pert->nxtrack / 2],
 	   pert->lat[track0][pert->nxtrack / 2], xs);
-  for (i = 0; i < 3; i++) {
+  for (int i = 0; i < 3; i++) {
     xf[i] -= xs[i];
     xsf[i] -= xs[i];
   }
-  alpha = 180. / M_PI * acos(DOTP(xf, xsf) / NORM(xf) / NORM(xsf));
+  double alpha = 180. / M_PI * acos(DOTP(xf, xsf) / NORM(xf) / NORM(xsf));
   if (xtrack0 < pert->nxtrack / 2)
     alpha = -alpha;
 
   /* Get ascending/descending flag... */
-  asc = (pert->lat[track0 > 0 ? track0 : track0 + 1][pert->nxtrack / 2]
-	 > pert->lat[track0 > 0 ? track0 - 1 : track0][pert->nxtrack / 2]);
+  int asc = (pert->lat[track0 > 0 ? track0 : track0 + 1][pert->nxtrack / 2]
+	     > pert->lat[track0 >
+			 0 ? track0 - 1 : track0][pert->nxtrack / 2]);
 
   /* Write results... */
   jsec2time(pert->time[track0][xtrack0], &year, &mon, &day,

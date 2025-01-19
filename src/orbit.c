@@ -33,8 +33,6 @@ int main(
 
   FILE *out;
 
-  int i, track, xtrack;
-
   /* Check arguments... */
   if (argc < 3)
     ERRMSG
@@ -54,16 +52,16 @@ int main(
 	  "# $5 = footprint latitude [deg]\n");
 
   /* Loop over files... */
-  for (i = 2; i < argc; i++) {
+  for (int i = 2; i < argc; i++) {
 
     /* Read AIRS data... */
     printf("Read AIRS Level-1B data file: %s\n", argv[i]);
     airs_rad_rdr(argv[i], &airs_rad_gran);
 
     /* Write data... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++) {
       fprintf(out, "\n");
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
 	fprintf(out, "%.2f %g %g %g %g\n",
 		airs_rad_gran.Time[track][xtrack] - 220838400,
 		airs_rad_gran.sat_lon[track],

@@ -42,8 +42,8 @@ int main(
   airs_rad_rdr(argv[1], &airs_rad_gran);
 
   /* Get indices... */
-  int track = atoi(argv[2]);
-  int xtrack = atoi(argv[3]);
+  const int track = atoi(argv[2]);
+  const int xtrack = atoi(argv[3]);
 
   /* Check indices... */
   if (track < 0 || track >= AIRS_RAD_GEOTRACK)

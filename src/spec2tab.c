@@ -35,7 +35,7 @@ int main(
 
   double dmin = 1e100, x0[3], x1[3];
 
-  int ichan, track = -1, track2, xtrack = -1, xtrack2;
+  int track = -1, xtrack = -1;
 
   /* Check arguments... */
   if (argc != 6)
@@ -55,8 +55,8 @@ int main(
   /* Find nearest footprint... */
   else {
     geo2cart(0, atof(argv[3]), atof(argv[4]), x0);
-    for (track2 = 0; track2 < AIRS_RAD_GEOTRACK; track2++)
-      for (xtrack2 = 0; xtrack2 < AIRS_RAD_GEOXTRACK; xtrack2++) {
+    for (int track2 = 0; track2 < AIRS_RAD_GEOTRACK; track2++)
+      for (int xtrack2 = 0; xtrack2 < AIRS_RAD_GEOXTRACK; xtrack2++) {
 	geo2cart(0, airs_rad_gran.Longitude[track2][xtrack2],
 		 airs_rad_gran.Latitude[track2][xtrack2], x1);
 	if (DIST2(x0, x1) < dmin) {
@@ -79,7 +79,7 @@ int main(
     ERRMSG("Across-track index out of range!");
 
   /* Flag bad observations... */
-  for (ichan = 0; ichan < AIRS_RAD_CHANNEL; ichan++)
+  for (int ichan = 0; ichan < AIRS_RAD_CHANNEL; ichan++)
     if ((airs_rad_gran.state[track][xtrack] != 0)
 	|| (airs_rad_gran.ExcludedChans[ichan] > 2)
 	|| (airs_rad_gran.CalChanSummary[ichan] & 8)
@@ -105,7 +105,7 @@ int main(
 	  "# $8 = radiance [W/(m^2 sr cm^-1)]\n\n");
 
   /* Write data... */
-  for (ichan = 0; ichan < AIRS_RAD_CHANNEL; ichan++) {
+  for (int ichan = 0; ichan < AIRS_RAD_CHANNEL; ichan++) {
     if (ichan > 0)
       if (fabs(airs_rad_gran.nominal_freq[ichan]
 	       - airs_rad_gran.nominal_freq[ichan - 1]) > 1.2)

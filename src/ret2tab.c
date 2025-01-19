@@ -44,14 +44,12 @@ int main(
 
   FILE *out;
 
-  int lay, track, xtrack;
-
   /* Check arguments... */
   if (argc != 4)
     ERRMSG("Give parameters: <airs_l2_file> <layer> <airs.tab>");
 
   /* Get arguments... */
-  lay = atoi(argv[2]);
+  const int lay = atoi(argv[2]);
 
   /* Read AIRS data... */
   printf("Read AIRS Level-2 data file: %s\n", argv[1]);
@@ -76,9 +74,9 @@ int main(
 	  "# $10 = CO volume mixing ratio\n");
 
   /* Write data to stdout... */
-  for (track = 0; track < AIRS_RET_GEOTRACK; track++) {
+  for (int track = 0; track < AIRS_RET_GEOTRACK; track++) {
     fprintf(out, "\n");
-    for (xtrack = 0; xtrack < AIRS_RET_GEOXTRACK; xtrack++)
+    for (int xtrack = 0; xtrack < AIRS_RET_GEOXTRACK; xtrack++)
       fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g\n",
 	      airs_ret_gran.Time[track][xtrack] - 220838400,
 	      CHECK(airs_ret_gran.GP_Height[track][xtrack][lay]) / 1000,

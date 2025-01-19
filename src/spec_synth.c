@@ -35,37 +35,40 @@ int main(
 
   char method[LEN], filename[LEN];
 
-  double Amax, phimax, lhmax, kxmax, kymax, alphamax, betamax, chisq, lh,
-    alpha;
+  double Amax, phimax, lhmax, kxmax, kymax, alphamax, betamax, chisq;
 
   /* Check arguments... */
   if (argc < 3)
     ERRMSG("Give parameters: <ctl> <spec.tab>");
 
   /* Get control parameters... */
-  int nx = (int) scan_ctl(argc, argv, "NX", -1, "256", NULL);
-  int ny = (int) scan_ctl(argc, argv, "NY", -1, "256", NULL);
-  double sx = scan_ctl(argc, argv, "SX", -1, "1000.0", NULL);
-  double sy = scan_ctl(argc, argv, "SY", -1, "1000.0", NULL);
-  double amp = scan_ctl(argc, argv, "AMP", -1, "1.0", NULL);
-  double phi = scan_ctl(argc, argv, "PHI", -1, "0.0", NULL);
-  double lx0 = scan_ctl(argc, argv, "LX0", -1, "100.0", NULL);
-  double lx1 = scan_ctl(argc, argv, "LX1", -1, "100.0", NULL);
-  double dlx = scan_ctl(argc, argv, "DLX", -1, "10.0", NULL);
-  double ly0 = scan_ctl(argc, argv, "LY0", -1, "200.0", NULL);
-  double ly1 = scan_ctl(argc, argv, "LY1", -1, "200.0", NULL);
-  double dly = scan_ctl(argc, argv, "DLY", -1, "10.0", NULL);
-  double fwhm = scan_ctl(argc, argv, "FWHM", -1, "0.0", NULL);
-  int inter_x = (int) scan_ctl(argc, argv, "INTER_X", -1, "0", NULL);
-  int bg_poly_x = (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "5", NULL);
-  int bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
-  int bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
-  int bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
-  double var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "100.0", NULL);
-  double lxymax = scan_ctl(argc, argv, "LXYMAX", -1, "1000.0", NULL);
-  double dlxy = scan_ctl(argc, argv, "DLXY", -1, "10.0", NULL);
+  const int nx = (int) scan_ctl(argc, argv, "NX", -1, "256", NULL);
+  const int ny = (int) scan_ctl(argc, argv, "NY", -1, "256", NULL);
+  const double sx = scan_ctl(argc, argv, "SX", -1, "1000.0", NULL);
+  const double sy = scan_ctl(argc, argv, "SY", -1, "1000.0", NULL);
+  const double amp = scan_ctl(argc, argv, "AMP", -1, "1.0", NULL);
+  const double phi = scan_ctl(argc, argv, "PHI", -1, "0.0", NULL);
+  const double lx0 = scan_ctl(argc, argv, "LX0", -1, "100.0", NULL);
+  const double lx1 = scan_ctl(argc, argv, "LX1", -1, "100.0", NULL);
+  const double dlx = scan_ctl(argc, argv, "DLX", -1, "10.0", NULL);
+  const double ly0 = scan_ctl(argc, argv, "LY0", -1, "200.0", NULL);
+  const double ly1 = scan_ctl(argc, argv, "LY1", -1, "200.0", NULL);
+  const double dly = scan_ctl(argc, argv, "DLY", -1, "10.0", NULL);
+  const double fwhm = scan_ctl(argc, argv, "FWHM", -1, "0.0", NULL);
+  const int inter_x = (int) scan_ctl(argc, argv, "INTER_X", -1, "0", NULL);
+  const int bg_poly_x =
+    (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "5", NULL);
+  const int bg_poly_y =
+    (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
+  const int bg_smooth_x =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
+  const int bg_smooth_y =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  const double var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "100.0", NULL);
+  const double lxymax = scan_ctl(argc, argv, "LXYMAX", -1, "1000.0", NULL);
+  const double dlxy = scan_ctl(argc, argv, "DLXY", -1, "10.0", NULL);
   scan_ctl(argc, argv, "METHOD", -1, "P", method);
-  int output = (int) scan_ctl(argc, argv, "OUTPUT", -1, "1", NULL);
+  const int output = (int) scan_ctl(argc, argv, "OUTPUT", -1, "1", NULL);
 
   /* Allocate... */
   ALLOC(wave, wave_t, 1);
@@ -116,11 +119,11 @@ int main(
       printf("Analyze lx = %g km and ly = %g km...\n", lx, ly);
 
       /* Get horizontal wavelength... */
-      lh =
+      double lh =
 	2 * M_PI / sqrt(gsl_pow_2(2 * M_PI / lx) + gsl_pow_2(2 * M_PI / ly));
 
       /* Get propagation direction in xy-plane... */
-      alpha = 90. - 180. / M_PI * atan2(2 * M_PI / lx, 2 * M_PI / ly);
+      double alpha = 90. - 180. / M_PI * atan2(2 * M_PI / lx, 2 * M_PI / ly);
 
       /* Create wave field... */
       create_wave(wave, amp, lx, ly, phi, fwhm);

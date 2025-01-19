@@ -65,9 +65,7 @@ int main(
     for (double phi = 0; phi < 2 * M_PI; phi += M_PI / 180) {
 
       /* Initialize... */
-      double var = 0;
-      double var2 = 0;
-      double wsum = 0;
+      double var = 0, var2 = 0, wsum = 0;
 
       /* Set wave... */
       for (int i = 0; i < n; i++) {

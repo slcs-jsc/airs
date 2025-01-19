@@ -36,10 +36,14 @@ int main(
     ERRMSG("Give parameters: <ctl> [<airs1.nc> <airs2.c> ...]");
 
   /* Get control parameters... */
-  double lon0 = (int) scan_ctl(argc, argv, "SELECT_LON0", -1, "-180", NULL);
-  double lon1 = (int) scan_ctl(argc, argv, "SELECT_LON1", -1, "180", NULL);
-  double lat0 = (int) scan_ctl(argc, argv, "SELECT_LAT0", -1, "-90", NULL);
-  double lat1 = (int) scan_ctl(argc, argv, "SELECT_LAT1", -1, "90", NULL);
+  const double lon0 =
+    (int) scan_ctl(argc, argv, "SELECT_LON0", -1, "-180", NULL);
+  const double lon1 =
+    (int) scan_ctl(argc, argv, "SELECT_LON1", -1, "180", NULL);
+  const double lat0 =
+    (int) scan_ctl(argc, argv, "SELECT_LAT0", -1, "-90", NULL);
+  const double lat1 =
+    (int) scan_ctl(argc, argv, "SELECT_LAT1", -1, "90", NULL);
 
   /* Loop over retrieval files... */
   for (int i = 2; i < argc; i++) {

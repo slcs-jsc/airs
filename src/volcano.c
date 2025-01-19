@@ -47,28 +47,19 @@ int main(
 
   static airs_rad_gran_t airs_rad_gran;
 
-  static double ci, ci_err, ci_nedt = 0.0783,
-    ai_low, ai_low_err, ai_low_bt1, ai_low_bt1_nedt =
-    0.3698, ai_low_bt2, ai_low_bt2_nedt =
-    0.1177, ai_high, ai_high_err, ai_high_bt1, ai_high_bt1_nedt =
-    0.0766, ai_high_bt2, ai_high_bt2_nedt =
-    0.3706,
-    ai_old, ai_old_err, ai_old_bt1, ai_old_bt1_nedt =
-    0.3155, ai_old_bt2, ai_old_bt2_nedt =
-    0.1177, si_high, si_high_err, si_high_bt1, si_high_bt1_nedt =
-    0.1025, si_high_bt2, si_high_bt2_nedt =
-    0.1373, si_low, si_low_err, si_low_bt1, si_low_bt1_nedt =
-    0.0799, si_low_bt2, si_low_bt2_nedt =
-    0.0909, si_old, si_old_err, si_old_bt1, si_old_bt1_nedt =
-    0.1064, si_old_bt2, si_old_bt2_nedt =
-    0.0909, si_oper, si_oper_err, si_oper_bt1, si_oper_bt1_nedt =
-    0.0884, si_oper_bt2, si_oper_bt2_nedt = 0.1159;
+  const double ci_nedt = 0.0783, ai_low_bt1_nedt = 0.3698, ai_low_bt2_nedt =
+    0.1177, ai_high_bt1_nedt = 0.0766, ai_high_bt2_nedt =
+    0.3706, ai_old_bt1_nedt = 0.3155, ai_old_bt2_nedt =
+    0.1177, si_high_bt1_nedt = 0.1025, si_high_bt2_nedt =
+    0.1373, si_low_bt1_nedt = 0.0799, si_low_bt2_nedt =
+    0.0909, si_old_bt1_nedt = 0.1064, si_old_bt2_nedt =
+    0.0909, si_oper_bt1_nedt = 0.0884, si_oper_bt2_nedt = 0.1159;
 
-  static int ichan, track, xtrack, iarg, ai_low_nu1 = 641, ai_low_nu2 =
-    901, ai_high_nu1 = 1295, ai_high_nu2 = 1162, ai_old_nu1 =
-    559, ai_old_nu2 = 901, ci_nu = 1290, si_low_nu1 = 1601, si_low_nu2 =
-    1526, si_high_nu1 = 1602, si_high_nu2 = 1551, si_old_nu1 =
-    1591, si_old_nu2 = 1526, si_oper_nu1 = 1636, si_oper_nu2 = 1507;
+  const int ai_low_nu1 = 641, ai_low_nu2 = 901, ai_high_nu1 =
+    1295, ai_high_nu2 = 1162, ai_old_nu1 = 559, ai_old_nu2 = 901, ci_nu =
+    1290, si_low_nu1 = 1601, si_low_nu2 = 1526, si_high_nu1 =
+    1602, si_high_nu2 = 1551, si_old_nu1 = 1591, si_old_nu2 =
+    1526, si_oper_nu1 = 1636, si_oper_nu2 = 1507;
 
   /* Check arguments... */
   if (argc < 3)
@@ -80,7 +71,7 @@ int main(
     ERRMSG("Cannot create file!");
 
   /* Loop over HDF files... */
-  for (iarg = 2; iarg < argc; iarg++) {
+  for (int iarg = 2; iarg < argc; iarg++) {
 
     /* Read AIRS data... */
     printf("Read AIRS Level-1B data file: %s\n", argv[iarg]);
@@ -138,9 +129,9 @@ int main(
     }
 
     /* Flag bad observations... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
-	for (ichan = 0; ichan < AIRS_RAD_CHANNEL; ichan++)
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
+	for (int ichan = 0; ichan < AIRS_RAD_CHANNEL; ichan++)
 	  if ((airs_rad_gran.state[track][xtrack] != 0)
 	      || (airs_rad_gran.ExcludedChans[ichan] > 2)
 	      || (airs_rad_gran.CalChanSummary[ichan] & 8)
@@ -149,135 +140,123 @@ int main(
 	    airs_rad_gran.radiances[track][xtrack][ichan] = GSL_NAN;
 
     /* Loop over scans... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++) {
 
       /* Write output... */
       fprintf(out, "\n");
 
       /* Loop over footprints... */
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 
 	/* cloud index... */
-	ci = BRIGHT(airs_rad_gran.radiances[track][xtrack][ci_nu] * 0.001,
-		    airs_rad_gran.nominal_freq[ci_nu]);
-	ci_err = get_noise(ci, ci_nedt, airs_rad_gran.nominal_freq[ci_nu]);
+	double ci =
+	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ci_nu] * 0.001,
+		 airs_rad_gran.nominal_freq[ci_nu]);
+	double ci_err =
+	  get_noise(ci, ci_nedt, airs_rad_gran.nominal_freq[ci_nu]);
 
 	/* ash index (low wavenumbers)... */
-	ai_low_bt1 =
+	double ai_low_bt1 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_low_nu1] *
 		 0.001, airs_rad_gran.nominal_freq[ai_low_nu1]);
-	ai_low_bt2 =
+	double ai_low_bt2 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_low_nu2] *
 		 0.001, airs_rad_gran.nominal_freq[ai_low_nu2]);
-	ai_low = ai_low_bt1 - ai_low_bt2;
-	ai_low_err = sqrt(gsl_pow_2(get_noise(ai_low_bt1, ai_low_bt1_nedt,
-					      airs_rad_gran.nominal_freq
-					      [ai_low_nu1]))
-			  +
-			  gsl_pow_2(get_noise
-				    (ai_low_bt2, ai_low_bt2_nedt,
+	double ai_low = ai_low_bt1 - ai_low_bt2;
+	double ai_low_err =
+	  sqrt(gsl_pow_2(get_noise(ai_low_bt1, ai_low_bt1_nedt,
+				   airs_rad_gran.nominal_freq[ai_low_nu1]))
+	       + gsl_pow_2(get_noise(ai_low_bt2, ai_low_bt2_nedt,
 				     airs_rad_gran.nominal_freq
 				     [ai_low_nu2])));
 
 	/* ash index (high wavenumbers)... */
-	ai_high_bt1 =
+	double ai_high_bt1 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_high_nu1] *
 		 0.001, airs_rad_gran.nominal_freq[ai_high_nu1]);
-	ai_high_bt2 =
+	double ai_high_bt2 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_high_nu2] *
 		 0.001, airs_rad_gran.nominal_freq[ai_high_nu2]);
-	ai_high = ai_high_bt1 - ai_high_bt2;
-	ai_high_err = sqrt(gsl_pow_2(get_noise(ai_high_bt1, ai_high_bt1_nedt,
-					       airs_rad_gran.nominal_freq
-					       [ai_high_nu1]))
-			   +
-			   gsl_pow_2(get_noise
-				     (ai_high_bt2, ai_high_bt2_nedt,
-				      airs_rad_gran.nominal_freq
-				      [ai_high_nu2])));
+	double ai_high = ai_high_bt1 - ai_high_bt2;
+	double ai_high_err =
+	  sqrt(gsl_pow_2(get_noise(ai_high_bt1, ai_high_bt1_nedt,
+				   airs_rad_gran.nominal_freq[ai_high_nu1]))
+	       + gsl_pow_2(get_noise(ai_high_bt2, ai_high_bt2_nedt,
+				     airs_rad_gran.nominal_freq
+				     [ai_high_nu2])));
 
 	/* ash index (old)... */
-	ai_old_bt1 =
+	double ai_old_bt1 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_old_nu1] *
 		 0.001, airs_rad_gran.nominal_freq[ai_old_nu1]);
-	ai_old_bt2 =
+	double ai_old_bt2 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][ai_old_nu2] *
 		 0.001, airs_rad_gran.nominal_freq[ai_old_nu2]);
-	ai_old = ai_old_bt1 - ai_old_bt2;
-	ai_old_err = sqrt(gsl_pow_2(get_noise(ai_old_bt1, ai_old_bt1_nedt,
-					      airs_rad_gran.nominal_freq
-					      [ai_old_nu1]))
-			  +
-			  gsl_pow_2(get_noise
-				    (ai_old_bt2, ai_old_bt2_nedt,
+	double ai_old = ai_old_bt1 - ai_old_bt2;
+	double ai_old_err =
+	  sqrt(gsl_pow_2(get_noise(ai_old_bt1, ai_old_bt1_nedt,
+				   airs_rad_gran.nominal_freq[ai_old_nu1]))
+	       + gsl_pow_2(get_noise(ai_old_bt2, ai_old_bt2_nedt,
 				     airs_rad_gran.nominal_freq
 				     [ai_old_nu2])));
 
 	/* SO2 index (low concentrations)... */
-	si_low_bt1 =
+	double si_low_bt1 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_low_nu1] *
 		 0.001, airs_rad_gran.nominal_freq[si_low_nu1]);
-	si_low_bt2 =
+	double si_low_bt2 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_low_nu2] *
 		 0.001, airs_rad_gran.nominal_freq[si_low_nu2]);
-	si_low = si_low_bt1 - si_low_bt2;
-	si_low_err = sqrt(gsl_pow_2(get_noise(si_low_bt1, si_low_bt1_nedt,
-					      airs_rad_gran.nominal_freq
-					      [si_low_nu1]))
-			  +
-			  gsl_pow_2(get_noise
-				    (si_low_bt2, si_low_bt2_nedt,
+	double si_low = si_low_bt1 - si_low_bt2;
+	double si_low_err =
+	  sqrt(gsl_pow_2(get_noise(si_low_bt1, si_low_bt1_nedt,
+				   airs_rad_gran.nominal_freq[si_low_nu1]))
+	       + gsl_pow_2(get_noise(si_low_bt2, si_low_bt2_nedt,
 				     airs_rad_gran.nominal_freq
 				     [si_low_nu2])));
 
 	/* SO2 index (high concentrations)... */
-	si_high_bt1 =
+	double si_high_bt1 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_high_nu1] *
 		 0.001, airs_rad_gran.nominal_freq[si_high_nu1]);
-	si_high_bt2 =
+	double si_high_bt2 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_high_nu2] *
 		 0.001, airs_rad_gran.nominal_freq[si_high_nu2]);
-	si_high = si_high_bt1 - si_high_bt2;
-	si_high_err = sqrt(gsl_pow_2(get_noise(si_high_bt1, si_high_bt1_nedt,
-					       airs_rad_gran.nominal_freq
-					       [si_high_nu1]))
-			   +
-			   gsl_pow_2(get_noise
-				     (si_high_bt2, si_high_bt2_nedt,
-				      airs_rad_gran.nominal_freq
-				      [si_high_nu2])));
+	double si_high = si_high_bt1 - si_high_bt2;
+	double si_high_err =
+	  sqrt(gsl_pow_2(get_noise(si_high_bt1, si_high_bt1_nedt,
+				   airs_rad_gran.nominal_freq[si_high_nu1]))
+	       + gsl_pow_2(get_noise(si_high_bt2, si_high_bt2_nedt,
+				     airs_rad_gran.nominal_freq
+				     [si_high_nu2])));
 
 	/* SO2 index (operational)... */
-	si_oper_bt1 =
+	double si_oper_bt1 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_oper_nu1] *
 		 0.001, airs_rad_gran.nominal_freq[si_oper_nu1]);
-	si_oper_bt2 =
+	double si_oper_bt2 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_oper_nu2] *
 		 0.001, airs_rad_gran.nominal_freq[si_oper_nu2]);
-	si_oper = si_oper_bt1 - si_oper_bt2;
-	si_oper_err = sqrt(gsl_pow_2(get_noise(si_oper_bt1, si_oper_bt1_nedt,
-					       airs_rad_gran.nominal_freq
-					       [si_oper_nu1]))
-			   +
-			   gsl_pow_2(get_noise
-				     (si_oper_bt2, si_oper_bt2_nedt,
-				      airs_rad_gran.nominal_freq
-				      [si_oper_nu2])));
+	double si_oper = si_oper_bt1 - si_oper_bt2;
+	double si_oper_err =
+	  sqrt(gsl_pow_2(get_noise(si_oper_bt1, si_oper_bt1_nedt,
+				   airs_rad_gran.nominal_freq[si_oper_nu1]))
+	       + gsl_pow_2(get_noise(si_oper_bt2, si_oper_bt2_nedt,
+				     airs_rad_gran.nominal_freq
+				     [si_oper_nu2])));
 
 	/* SO2 index (old)... */
-	si_old_bt1 =
+	double si_old_bt1 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_old_nu1] *
 		 0.001, airs_rad_gran.nominal_freq[si_old_nu1]);
-	si_old_bt2 =
+	double si_old_bt2 =
 	  BRIGHT(airs_rad_gran.radiances[track][xtrack][si_old_nu2] *
 		 0.001, airs_rad_gran.nominal_freq[si_old_nu2]);
-	si_old = si_old_bt1 - si_old_bt2;
-	si_old_err = sqrt(gsl_pow_2(get_noise(si_old_bt1, si_old_bt1_nedt,
-					      airs_rad_gran.nominal_freq
-					      [si_old_nu1]))
-			  +
-			  gsl_pow_2(get_noise
-				    (si_old_bt2, si_old_bt2_nedt,
+	double si_old = si_old_bt1 - si_old_bt2;
+	double si_old_err =
+	  sqrt(gsl_pow_2(get_noise(si_old_bt1, si_old_bt1_nedt,
+				   airs_rad_gran.nominal_freq[si_old_nu1]))
+	       + gsl_pow_2(get_noise(si_old_bt2, si_old_bt2_nedt,
 				     airs_rad_gran.nominal_freq
 				     [si_old_nu2])));
 

@@ -36,9 +36,7 @@ int main(
 
   char pertname[LEN];
 
-  double maxvar, mu, nedt = -1e99, nedt_old;
-
-  int bsize, itrack;
+  double mu, nedt = -1e99, nedt_old;
 
   /* Check arguments... */
   if (argc < 4)
@@ -46,8 +44,8 @@ int main(
 
   /* Read control parameters... */
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
-  bsize = (int) scan_ctl(argc, argv, "BSIZE", -1, "-999", NULL);
-  maxvar = (int) scan_ctl(argc, argv, "MAXVAR", -1, "-999", NULL);
+  int bsize = (int) scan_ctl(argc, argv, "BSIZE", -1, "-999", NULL);
+  const double maxvar = scan_ctl(argc, argv, "MAXVAR", -1, "-999", NULL);
 
   /* Allocate... */
   ALLOC(pert, pert_t, 1);
@@ -72,7 +70,7 @@ int main(
 	  "# $4 = noise estimate [K]\n\n");
 
   /* Loop over granules... */
-  for (itrack = 0; itrack < pert->ntrack; itrack += bsize) {
+  for (int itrack = 0; itrack < pert->ntrack; itrack += bsize) {
 
     /* Convert retrieval data to wave struct... */
     pert2wave(pert, &wave, itrack, itrack + bsize,

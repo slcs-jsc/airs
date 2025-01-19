@@ -49,11 +49,9 @@ int main(
 
   char set[LEN], pertname[LEN];
 
-  double orblat, nu, t230 = 230.0, dt230, tbg, nesr, nedt = 0,
-    var_dh, gauss_fwhm, t0, t1, sza0, sza1, sza2 = 0;
+  double nedt = 0, sza2 = 0;
 
-  int asc, bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y, ham_iter,
-    itrack, ixtrack, ix, iy, med_dx, orb = 0, orbit, fill;
+  int orb = 0;
 
   FILE *out;
 
@@ -63,24 +61,28 @@ int main(
 
   /* Get control parameters... */
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
-  bg_poly_x = (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "0", NULL);
-  bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
-  bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
-  bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
-  gauss_fwhm = scan_ctl(argc, argv, "GAUSS_FWHM", -1, "0", NULL);
-  ham_iter = (int) scan_ctl(argc, argv, "HAM_ITER", -1, "0", NULL);
-  med_dx = (int) scan_ctl(argc, argv, "MED_DX", -1, "0", NULL);
-  var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "0", NULL);
+  const int bg_poly_x =
+    (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "0", NULL);
+  const int bg_poly_y =
+    (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
+  const int bg_smooth_x =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
+  const int bg_smooth_y =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  const double gauss_fwhm = scan_ctl(argc, argv, "GAUSS_FWHM", -1, "0", NULL);
+  const int ham_iter = (int) scan_ctl(argc, argv, "HAM_ITER", -1, "0", NULL);
+  const int med_dx = (int) scan_ctl(argc, argv, "MED_DX", -1, "0", NULL);
+  const double var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "0", NULL);
   scan_ctl(argc, argv, "SET", -1, "full", set);
-  orbit = (int) scan_ctl(argc, argv, "ORBIT", -1, "-999", NULL);
-  orblat = scan_ctl(argc, argv, "ORBLAT", -1, "0", NULL);
-  t0 = scan_ctl(argc, argv, "T0", -1, "-1e100", NULL);
-  t1 = scan_ctl(argc, argv, "T1", -1, "1e100", NULL);
-  sza0 = scan_ctl(argc, argv, "SZA0", -1, "-1e100", NULL);
-  sza1 = scan_ctl(argc, argv, "SZA1", -1, "1e100", NULL);
-  dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
-  nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
-  fill = (int) scan_ctl(argc, argv, "FILL", -1, "0", NULL);
+  const int orbit = (int) scan_ctl(argc, argv, "ORBIT", -1, "-999", NULL);
+  const double orblat = scan_ctl(argc, argv, "ORBLAT", -1, "0", NULL);
+  const double t0 = scan_ctl(argc, argv, "T0", -1, "-1e100", NULL);
+  const double t1 = scan_ctl(argc, argv, "T1", -1, "1e100", NULL);
+  const double sza0 = scan_ctl(argc, argv, "SZA0", -1, "-1e100", NULL);
+  const double sza1 = scan_ctl(argc, argv, "SZA1", -1, "1e100", NULL);
+  const double dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
+  const double nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
+  const int fill = (int) scan_ctl(argc, argv, "FILL", -1, "0", NULL);
 
   /* Allocate... */
   ALLOC(pert, pert_t, 1);
@@ -114,8 +116,8 @@ int main(
     variance(&wave, var_dh);
 
     /* Copy data... */
-    for (ix = 0; ix < wave.nx; ix++)
-      for (iy = 0; iy < wave.ny; iy++) {
+    for (int ix = 0; ix < wave.nx; ix++)
+      for (int iy = 0; iy < wave.ny; iy++) {
 	pert->pt[iy][ix] = wave.pt[ix][iy];
 	pert->var[iy][ix] = wave.var[ix][iy];
       }
@@ -123,8 +125,8 @@ int main(
 
   /* Fill data gaps... */
   if (fill)
-    for (itrack = 0; itrack < pert->ntrack; itrack++)
-      for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
+    for (int itrack = 0; itrack < pert->ntrack; itrack++)
+      for (int ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
 	if (!gsl_finite(pert->dc[itrack][ixtrack]))
 	  pert->dc[itrack][ixtrack]
 	    = fill_array(pert->dc, pert->ntrack, itrack, ixtrack);
@@ -161,7 +163,7 @@ int main(
 	  "# $10 = across-track index\n", pertname, pertname, pertname);
 
   /* Write data... */
-  for (itrack = 0; itrack < pert->ntrack; itrack++) {
+  for (int itrack = 0; itrack < pert->ntrack; itrack++) {
 
     /* Count orbits... */
     if (itrack > 0)
@@ -178,7 +180,7 @@ int main(
       fprintf(out, "\n");
 
     /* Loop over scan... */
-    for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
+    for (int ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
 
       /* Check data... */
       if (pert->lon[itrack][ixtrack] < -180
@@ -188,9 +190,9 @@ int main(
 	continue;
 
       /* Get ascending/descending flag... */
-      asc = (pert->lat[itrack > 0 ? itrack : itrack + 1][pert->nxtrack / 2]
-	     > pert->lat[itrack >
-			 0 ? itrack - 1 : itrack][pert->nxtrack / 2]);
+      int asc =
+	(pert->lat[itrack > 0 ? itrack : itrack + 1][pert->nxtrack / 2]
+	 > pert->lat[itrack > 0 ? itrack - 1 : itrack][pert->nxtrack / 2]);
 
       /* Calculate solar zenith angle... */
       if (sza0 >= -1e10 && sza0 <= 1e10 && sza1 >= -1e10 && sza1 <= 1e10)
@@ -199,8 +201,9 @@ int main(
 
       /* Estimate noise... */
       if (dt230 > 0) {
-	nesr = PLANCK(t230 + dt230, nu) - PLANCK(t230, nu);
-	tbg = pert->bt[itrack][ixtrack] - pert->pt[itrack][ixtrack];
+	const double nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+	const double tbg =
+	  pert->bt[itrack][ixtrack] - pert->pt[itrack][ixtrack];
 	nedt = BRIGHT(PLANCK(tbg, nu) + nesr, nu) - tbg;
       }
 
@@ -244,16 +247,14 @@ double fill_array(
 
   double d1 = 0, d2 = 0, v1 = 0, v2 = 0;
 
-  int i;
-
   /* Find nearest neighbours... */
-  for (i = itrack + 1; i < ntrack; i++)
+  for (int i = itrack + 1; i < ntrack; i++)
     if (gsl_finite(var[i][ixtrack])) {
       d1 = fabs((double) i - (double) itrack);
       v1 = var[i][ixtrack];
       break;
     }
-  for (i = itrack - 1; i >= 0; i--)
+  for (int i = itrack - 1; i >= 0; i--)
     if (gsl_finite(var[i][ixtrack])) {
       d2 = fabs((double) i - (double) itrack);
       v2 = var[i][ixtrack];

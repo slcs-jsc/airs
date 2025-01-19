@@ -589,7 +589,7 @@ void fill_gaps(
   double cx,
   double cy) {
 
-  double help[L2_NTRACK][L2_NXTRACK], w, wsum;
+  double help[L2_NTRACK][L2_NXTRACK];
 
   /* Loop over layers... */
   for (int lay = 0; lay < L2_NLAY; lay++) {
@@ -600,15 +600,15 @@ void fill_gaps(
 
 	/* Init... */
 	help[track][xtrack] = 0;
-	wsum = 0;
+	double wsum = 0;
 
 	/* Averrage data points... */
 	for (int track2 = 0; track2 < L2_NTRACK; track2++)
 	  for (int xtrack2 = 0; xtrack2 < L2_NXTRACK; xtrack2++)
 	    if (gsl_finite(x[track2][xtrack2][lay])
 		&& x[track2][xtrack2][lay] > 0) {
-	      w = exp(-gsl_pow_2((xtrack - xtrack2) / cx)
-		      - gsl_pow_2((track - track2) / cy));
+	      const double w = exp(-gsl_pow_2((xtrack - xtrack2) / cx)
+				   - gsl_pow_2((track - track2) / cy));
 	      help[track][xtrack] += w * x[track2][xtrack2][lay];
 	      wsum += w;
 	    }
@@ -638,7 +638,7 @@ void init_l2(
 
   static atm_t atm_airs;
 
-  double k[NW], p, q[NG], t, w, zmax = 0, zmin = 1000;
+  double k[NW], p, q[NG], t, zmax = 0, zmin = 1000;
 
   /* Reset track- and xtrack-index to match Level-2 data... */
   track /= 3;
@@ -672,7 +672,7 @@ void init_l2(
     intpol_atm(ctl, &atm_airs, atm->z[ip], &p, &t, q, k);
 
     /* Weighting factor... */
-    w = 1;
+    double w = 1;
     if (atm->z[ip] > zmax)
       w = GSL_MAX(1 - (atm->z[ip] - zmax) / 50, 0);
     if (atm->z[ip] < zmin)
@@ -1033,8 +1033,6 @@ void set_cov_apr(
   int *ipa,
   gsl_matrix *s_a) {
 
-  double x0[3], x1[3];
-
   /* Get sizes... */
   const size_t n = s_a->size1;
 
@@ -1105,6 +1103,7 @@ void set_cov_apr(
 	if (cz > 0 && ch > 0) {
 
 	  /* Get Cartesian coordinates... */
+	  double x0[3], x1[3];
 	  geo2cart(0, atm->lon[ipa[i]], atm->lat[ipa[i]], x0);
 	  geo2cart(0, atm->lon[ipa[j]], atm->lat[ipa[j]], x1);
 

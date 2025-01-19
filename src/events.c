@@ -37,12 +37,7 @@ int main(
 
   static char pertname[LEN];
 
-  static double gauss_fwhm, var_dh, varmin, varmax, nu, t230 = 230.0,
-    dt230, tbg, nesr, nedt = 0;
-
-  static int iarg, ix, iy, bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y,
-    itrack, itrack2, itrackmax, ixtrack, ixtrack2, ixtrackmax, dtrack = 15,
-    dxtrack = 15;
+  const int dtrack = 15, dxtrack = 15;
 
   /* Check arguments... */
   if (argc < 4)
@@ -50,15 +45,19 @@ int main(
 
   /* Get control parameters... */
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
-  bg_poly_x = (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "0", NULL);
-  bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
-  bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
-  bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
-  gauss_fwhm = scan_ctl(argc, argv, "GAUSS_FWHM", -1, "0", NULL);
-  var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "0", NULL);
-  varmin = scan_ctl(argc, argv, "VARMIN", -1, "", NULL);
-  dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
-  nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
+  const int bg_poly_x =
+    (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "0", NULL);
+  const int bg_poly_y =
+    (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
+  const int bg_smooth_x =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
+  const int bg_smooth_y =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  const double gauss_fwhm = scan_ctl(argc, argv, "GAUSS_FWHM", -1, "0", NULL);
+  const double var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "0", NULL);
+  const double varmin = scan_ctl(argc, argv, "VARMIN", -1, "", NULL);
+  const double dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
+  const double nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
 
   /* Alloc... */
   ALLOC(pert, pert_t, 1);
@@ -75,7 +74,7 @@ int main(
 	  "# $3 = latitude [deg]\n" "# $4 = maximum variance [K^2]\n\n");
 
   /* Loop over perturbation files... */
-  for (iarg = 3; iarg < argc; iarg++) {
+  for (int iarg = 3; iarg < argc; iarg++) {
 
     /* Read perturbation data... */
     if (!(in = fopen(argv[iarg], "r")))
@@ -106,8 +105,8 @@ int main(
       variance(wave, var_dh);
 
       /* Copy data... */
-      for (ix = 0; ix < wave->nx; ix++)
-	for (iy = 0; iy < wave->ny; iy++) {
+      for (int ix = 0; ix < wave->nx; ix++)
+	for (int iy = 0; iy < wave->ny; iy++) {
 	  pert->pt[iy][ix] = wave->pt[ix][iy];
 	  pert->var[iy][ix] = wave->var[ix][iy];
 	}
@@ -118,28 +117,29 @@ int main(
 
     /* Apply noise correction... */
     if (dt230 > 0)
-      for (itrack = 0; itrack < pert->ntrack; itrack++)
-	for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
-	  nesr = PLANCK(t230 + dt230, nu) - PLANCK(t230, nu);
-	  tbg = pert->bt[itrack][ixtrack] - pert->pt[itrack][ixtrack];
-	  nedt = BRIGHT(PLANCK(tbg, nu) + nesr, nu) - tbg;
+      for (int itrack = 0; itrack < pert->ntrack; itrack++)
+	for (int ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
+	  const double nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+	  const double tbg =
+	    pert->bt[itrack][ixtrack] - pert->pt[itrack][ixtrack];
+	  const double nedt = BRIGHT(PLANCK(tbg, nu) + nesr, nu) - tbg;
 	  pert->var[itrack][ixtrack] -= gsl_pow_2(nedt);
 	}
 
     /* Find local maxima... */
-    for (itrack = 0; itrack < pert->ntrack; itrack += 2 * dtrack)
-      for (ixtrack = dxtrack / 2; ixtrack < pert->nxtrack;
+    for (int itrack = 0; itrack < pert->ntrack; itrack += 2 * dtrack)
+      for (int ixtrack = dxtrack / 2; ixtrack < pert->nxtrack;
 	   ixtrack += 2 * dxtrack) {
 
 	/* Init... */
-	varmax = 0;
-	itrackmax = -999;
-	ixtrackmax = -999;
+	double varmax = 0;
+	int itrackmax = -999;
+	int ixtrackmax = -999;
 
 	/* Loop over box... */
-	for (itrack2 = itrack;
+	for (int itrack2 = itrack;
 	     itrack2 < GSL_MIN(itrack + dtrack, pert->ntrack); itrack2++)
-	  for (ixtrack2 = ixtrack;
+	  for (int ixtrack2 = ixtrack;
 	       ixtrack2 < GSL_MIN(ixtrack + dxtrack, pert->nxtrack);
 	       ixtrack2++)
 	    if (pert->var[itrack2][ixtrack2] >= varmax) {

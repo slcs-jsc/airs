@@ -37,14 +37,12 @@ int main(
 
   static char pertname[LEN], ncfile[LEN];
 
-  static double gauss_fwhm, var_dh, orblat, lon0, lat0, dlon, dlat, offset,
-    ebt, emu, enoise, evar, wbt, wmu, wnoise, wvar, etime, wtime,
-    dt230, nu, nesr, aux;
+  static double ebt, emu, enoise, evar, wbt, wmu, wnoise, wvar, etime, wtime,
+    aux;
 
-  static int iarg, ix, iy, itrack, itrack2, ixtrack, bg_poly_x, bg_poly_y,
-    bg_smooth_x, bg_smooth_y, orb, orb_old = -1, en, wn, ncid, dimid[2],
-    time_varid, track_varid, np_east_varid, var_east_varid,
-    np_west_varid, var_west_varid, year_varid, doy_varid,
+  static int orb_old =
+    -1, en, wn, ncid, dimid[2], time_varid, track_varid, np_east_varid,
+    var_east_varid, np_west_varid, var_west_varid, year_varid, doy_varid,
     track, year, mon, day, doy, iaux;
 
   static size_t count[2] = { 1, 1 }, start[2];
@@ -55,20 +53,24 @@ int main(
 
   /* Get control parameters... */
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
-  lon0 = scan_ctl(argc, argv, "LON0", -1, "", NULL);
-  lat0 = scan_ctl(argc, argv, "LAT0", -1, "", NULL);
-  dlon = scan_ctl(argc, argv, "DLON", -1, "", NULL);
-  dlat = scan_ctl(argc, argv, "DLAT", -1, "", NULL);
-  offset = scan_ctl(argc, argv, "OFFSET", -1, "1", NULL);
-  bg_poly_x = (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "0", NULL);
-  bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
-  bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
-  bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
-  gauss_fwhm = scan_ctl(argc, argv, "GAUSS_FWHM", -1, "0", NULL);
-  var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "0", NULL);
-  orblat = scan_ctl(argc, argv, "ORBLAT", -1, "0", NULL);
-  dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
-  nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
+  const double lon0 = scan_ctl(argc, argv, "LON0", -1, "", NULL);
+  const double lat0 = scan_ctl(argc, argv, "LAT0", -1, "", NULL);
+  const double dlon = scan_ctl(argc, argv, "DLON", -1, "", NULL);
+  const double dlat = scan_ctl(argc, argv, "DLAT", -1, "", NULL);
+  const double offset = scan_ctl(argc, argv, "OFFSET", -1, "1", NULL);
+  const int bg_poly_x =
+    (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "0", NULL);
+  const int bg_poly_y =
+    (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
+  const int bg_smooth_x =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
+  const int bg_smooth_y =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  const double gauss_fwhm = scan_ctl(argc, argv, "GAUSS_FWHM", -1, "0", NULL);
+  const double var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "0", NULL);
+  const double orblat = scan_ctl(argc, argv, "ORBLAT", -1, "0", NULL);
+  const double dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
+  const double nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
   scan_ctl(argc, argv, "NCFILE", -1, "-", ncfile);
 
   /* Allocate... */
@@ -143,14 +145,14 @@ int main(
   }
 
   /* Loop over perturbation files... */
-  for (iarg = 3; iarg < argc; iarg++) {
+  for (int iarg = 3; iarg < argc; iarg++) {
 
     /* Check filename... */
     if (!strcmp(argv[iarg], ncfile))
       continue;
 
     /* Initialize... */
-    orb = 0;
+    int orb = 0;
 
     /* Read perturbation data... */
     if (!(in = fopen(argv[iarg], "r")))
@@ -181,8 +183,8 @@ int main(
       variance(wave, var_dh);
 
       /* Copy data... */
-      for (ix = 0; ix < wave->nx; ix++)
-	for (iy = 0; iy < wave->ny; iy++) {
+      for (int ix = 0; ix < wave->nx; ix++)
+	for (int iy = 0; iy < wave->ny; iy++) {
 	  pert->pt[iy][ix] = wave->pt[ix][iy];
 	  pert->var[iy][ix] = wave->var[ix][iy];
 	}
@@ -192,8 +194,8 @@ int main(
     }
 
     /* Detection... */
-    for (itrack = 0; itrack < pert->ntrack; itrack++)
-      for (ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
+    for (int itrack = 0; itrack < pert->ntrack; itrack++)
+      for (int ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
 
 	/* Check data... */
 	if (pert->time[itrack][ixtrack] < 0
@@ -224,7 +226,8 @@ int main(
 
 	    /* Estimate noise... */
 	    if (dt230 > 0) {
-	      nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+	      const double nesr =
+		PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
 	      enoise = BRIGHT(PLANCK(ebt / en, nu) + nesr, nu) - ebt / en;
 	      wnoise = BRIGHT(PLANCK(wbt / wn, nu) + nesr, nu) - wbt / wn;
 	    }
@@ -244,7 +247,7 @@ int main(
 
 	      /* Find along-track index... */
 	      track = 0;
-	      for (itrack2 = 0; itrack2 < pert->ntrack; itrack2++)
+	      for (int itrack2 = 0; itrack2 < pert->ntrack; itrack2++)
 		if (fabs(pert->time[itrack2][0] - etime / en)
 		    < fabs(pert->time[track][0] - etime / en))
 		  track = itrack2;
@@ -309,7 +312,7 @@ int main(
 
       /* Estimate noise... */
       if (dt230 > 0) {
-	nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+	const double nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
 	enoise = BRIGHT(PLANCK(ebt / en, nu) + nesr, nu) - ebt / en;
 	wnoise = BRIGHT(PLANCK(wbt / wn, nu) + nesr, nu) - wbt / wn;
       }
@@ -328,7 +331,7 @@ int main(
 
 	/* Find along-track index... */
 	track = 0;
-	for (itrack2 = 0; itrack2 < pert->ntrack; itrack2++)
+	for (int itrack2 = 0; itrack2 < pert->ntrack; itrack2++)
 	  if (fabs(pert->time[itrack2][0] - etime / en)
 	      < fabs(pert->time[track][0] - etime / en))
 	    track = itrack2;

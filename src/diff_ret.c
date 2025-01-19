@@ -36,8 +36,6 @@ int main(
   static double mean[NPG], sigma[NPG], min[NPG], max[NPG],
     tt[NPG], lon[NPG], lat[NPG], temp[NPG], press[NPG];
 
-  static int ids, ip;
-
   /* Check arguments... */
   if (argc < 5)
     ERRMSG("Give parameters: <ctl> <airs.nc> <airs2.nc> <diff.tab>");
@@ -47,8 +45,8 @@ int main(
   read_retr(argv[3], &ret2);
 
   /* Compute differences... */
-  for (ids = 0; ids < ret.nds; ids++)
-    for (ip = 0; ip < ret.np; ip++) {
+  for (int ids = 0; ids < ret.nds; ids++)
+    for (int ip = 0; ip < ret.np; ip++) {
       if (ret.time[ids][ip] != ret2.time[ids][ip] ||
 	  ret.lon[ids][ip] != ret2.lon[ids][ip] ||
 	  ret.lat[ids][ip] != ret2.lat[ids][ip])
@@ -83,7 +81,7 @@ int main(
 	  "# $10 = temperature difference (maximum, set 2 - set 1) [K]\n\n");
 
   /* Write output... */
-  for (ip = 0; ip < ret.np; ip++)
+  for (int ip = 0; ip < ret.np; ip++)
     fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g\n",
 	    tt[ip] / ret.nds, ret.z[0][ip], lon[ip] / ret.nds,
 	    lat[ip] / ret.nds, press[ip] / ret.nds, temp[ip] / ret.nds,

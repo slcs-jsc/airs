@@ -37,8 +37,6 @@ int main(
 
   double mu, mu2, nedt, nedt2;
 
-  int ip;
-
   /* Check arguments... */
   if (argc < 4)
     ERRMSG("Give parameters: <ctl> <airs.nc> <noise.tab>");
@@ -66,7 +64,7 @@ int main(
 	  "# $7 = noise estimate (a priori) [K]\n\n");
 
   /* Loop over altitudes... */
-  for (ip = 0; ip < ret.np; ip++) {
+  for (int ip = 0; ip < ret.np; ip++) {
 
     /* Convert retrieval data to wave struct... */
     ret2wave(&ret, wave, 1, ip);

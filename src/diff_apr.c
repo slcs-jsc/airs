@@ -1,22 +1,22 @@
  /*
-  This file is part of the AIRS Code Collection.
-  
-  the AIRS Code Collections is free software: you can redistribute it
-  and/or modify it under the terms of the GNU General Public License
-  as published by the Free Software Foundation, either version 3 of
-  the License, or (at your option) any later version.
-  
-  The AIRS Code Collection is distributed in the hope that it will be
-  useful, but WITHOUT ANY WARRANTY; without even the implied warranty
-  of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-  
-  You should have received a copy of the GNU General Public License
-  along with the AIRS Code Collection. If not, see
-  <http://www.gnu.org/licenses/>.
-  
-  Copyright (C) 2019-2025 Forschungszentrum Juelich GmbH
-*/
+    This file is part of the AIRS Code Collection.
+
+    the AIRS Code Collections is free software: you can redistribute it
+    and/or modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, either version 3 of
+    the License, or (at your option) any later version.
+
+    The AIRS Code Collection is distributed in the hope that it will be
+    useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+    of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with the AIRS Code Collection. If not, see
+    <http://www.gnu.org/licenses/>.
+
+    Copyright (C) 2019-2025 Forschungszentrum Juelich GmbH
+  */
 
 /*! 
   \file
@@ -142,9 +142,7 @@ int main(
 
   static double mean[L2_NLAY], sigma[L2_NLAY], min[L2_NLAY], max[L2_NLAY],
     tt[L2_NLAY], lon[L2_NLAY], lat[L2_NLAY], temp[L2_NLAY], press[L2_NLAY],
-    z[L2_NLAY], tip;
-
-  static int idx, ip, itrack, ixtrack;
+    z[L2_NLAY];
 
   /* Check arguments... */
   if (argc < 5)
@@ -158,9 +156,9 @@ int main(
   read_nc(argv[3], &ncd2);
 
   /* Compute differences... */
-  for (itrack = 0; itrack < L2_NTRACK; itrack++)
-    for (ixtrack = 0; ixtrack < L2_NXTRACK; ixtrack++) {
-      for (ip = 0; ip < L2_NLAY; ip++) {
+  for (int itrack = 0; itrack < L2_NTRACK; itrack++)
+    for (int ixtrack = 0; ixtrack < L2_NXTRACK; ixtrack++) {
+      for (int ip = 0; ip < L2_NLAY; ip++) {
 	if (ncd.l1_time[3 * itrack + 1][3 * ixtrack + 1] !=
 	    ncd2.l1_time[3 * itrack + 1][3 * ixtrack + 1]
 	    || ncd.l1_lon[3 * itrack + 1][3 * ixtrack + 1] !=
@@ -174,15 +172,13 @@ int main(
 	z[ip] += ncd.l2_z[itrack][ixtrack][ip];
 	press[ip] += ncd.l2_p[ip];
 	temp[ip] += ncd.l2_t[itrack][ixtrack][ip];
-	idx =
-	  locate_irr(ncd2.l2_z[itrack][ixtrack], L2_NLAY,
-		     ncd.l2_z[itrack][ixtrack][ip]);
-	tip =
-	  LIN(ncd2.l2_z[itrack][ixtrack][idx],
-	      ncd2.l2_t[itrack][ixtrack][idx],
-	      ncd2.l2_z[itrack][ixtrack][idx + 1],
-	      ncd2.l2_t[itrack][ixtrack][idx + 1],
-	      ncd.l2_z[itrack][ixtrack][ip]);
+	int idx = locate_irr(ncd2.l2_z[itrack][ixtrack], L2_NLAY,
+			     ncd.l2_z[itrack][ixtrack][ip]);
+	double tip = LIN(ncd2.l2_z[itrack][ixtrack][idx],
+			 ncd2.l2_t[itrack][ixtrack][idx],
+			 ncd2.l2_z[itrack][ixtrack][idx + 1],
+			 ncd2.l2_t[itrack][ixtrack][idx + 1],
+			 ncd.l2_z[itrack][ixtrack][ip]);
 	mean[ip] += tip - ncd.l2_t[itrack][ixtrack][ip];
 	sigma[ip] += gsl_pow_2(tip - ncd.l2_t[itrack][ixtrack][ip]);
 	min[ip] = GSL_MIN(min[ip], tip - ncd.l2_t[itrack][ixtrack][ip]);
@@ -209,7 +205,7 @@ int main(
 	  "# $10 = temperature difference (maximum, set 2 - set 1) [K]\n\n");
 
   /* Write output... */
-  for (ip = 0; ip < L2_NLAY; ip++)
+  for (int ip = 0; ip < L2_NLAY; ip++)
     fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g\n",
 	    tt[ip] / (L2_NTRACK * L2_NXTRACK),
 	    z[ip] / (L2_NTRACK * L2_NXTRACK),

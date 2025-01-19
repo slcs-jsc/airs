@@ -47,8 +47,7 @@ int main(
     ret_tm[NPG][NLAT], ret_var[NPG][NLAT], ret_noise[NPG][NLAT],
     ret_time[NPG][NLAT], mu, sig_apr, sig_ret, tbg[NDS], tabg[NDS];
 
-  static int bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y,
-    i, ids, ilat, ip, ix, iy, nlat, n[NPG][NLAT], ncid;
+  static int n[NPG][NLAT], ncid;
 
   FILE *out;
 
@@ -57,16 +56,20 @@ int main(
     ERRMSG("Give parameters: <ctl> <zm.tab> <airs1.nc> [<airs2.nc> ...]");
 
   /* Get control parameters... */
-  bg_poly_x = (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "5", NULL);
-  bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
-  bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
-  bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
-  nlat = (int) scan_ctl(argc, argv, "NLAT", -1, "36", NULL);
+  const int bg_poly_x =
+    (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "5", NULL);
+  const int bg_poly_y =
+    (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
+  const int bg_smooth_x =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
+  const int bg_smooth_y =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  const int nlat = (int) scan_ctl(argc, argv, "NLAT", -1, "36", NULL);
   if (nlat > NLAT)
     ERRMSG("Too many latitudes!");
 
   /* Loop over files... */
-  for (i = 3; i < argc; i++) {
+  for (int i = 3; i < argc; i++) {
 
     /* Read AIRS data... */
     if (nc_open(argv[i], NC_WRITE, &ncid) != NC_NOERR)
@@ -76,26 +79,26 @@ int main(
     read_retr(argv[i], &ret);
 
     /* Loop over altitudes... */
-    for (ip = 0; ip < ret.np; ip++) {
+    for (int ip = 0; ip < ret.np; ip++) {
 
       /* Compute background... */
       ret2wave(&ret, &wave, 1, ip);
       background_poly(&wave, bg_poly_x, bg_poly_y);
       background_smooth(&wave, bg_smooth_x, bg_smooth_y);
-      for (ix = 0; ix < wave.nx; ix++)
-	for (iy = 0; iy < wave.ny; iy++)
+      for (int ix = 0; ix < wave.nx; ix++)
+	for (int iy = 0; iy < wave.ny; iy++)
 	  tbg[iy * 90 + ix] = wave.bg[ix][iy];
       noise(&wave, &mu, &sig_ret);
       ret2wave(&ret, &wave, 2, ip);
       background_poly(&wave, bg_poly_x, bg_poly_y);
       background_smooth(&wave, bg_smooth_x, bg_smooth_y);
-      for (ix = 0; ix < wave.nx; ix++)
-	for (iy = 0; iy < wave.ny; iy++)
+      for (int ix = 0; ix < wave.nx; ix++)
+	for (int iy = 0; iy < wave.ny; iy++)
 	  tabg[iy * 90 + ix] = wave.bg[ix][iy];
       noise(&wave, &mu, &sig_apr);
 
       /* Loop over data sets... */
-      for (ids = 0; ids < ret.nds; ids++) {
+      for (int ids = 0; ids < ret.nds; ids++) {
 
 	/* Check data... */
 	if (ret.lon[ids][ip] < -180 || ret.lon[ids][ip] > 180
@@ -105,7 +108,8 @@ int main(
 	  continue;
 
 	/* Get latitude index... */
-	ilat = (int) ((ret.lat[ids][ip] + 90.) / 180. * (double) nlat);
+	const int ilat =
+	  (int) ((ret.lat[ids][ip] + 90.) / 180. * (double) nlat);
 	if (ilat < 0 || ilat >= nlat)
 	  continue;
 
@@ -143,13 +147,13 @@ int main(
 	  "# $10 = number of data points\n");
 
   /* Loop over latitudes... */
-  for (ilat = 0; ilat < nlat; ilat++) {
+  for (int ilat = 0; ilat < nlat; ilat++) {
 
     /* Write empty line... */
     fprintf(out, "\n");
 
     /* Loop over altitudes... */
-    for (ip = 0; ip < ret.np; ip++) {
+    for (int ip = 0; ip < ret.np; ip++) {
 
       /* Write data... */
       fprintf(out, "%.2f %g %g %g %g %g %g %g %g %d\n",

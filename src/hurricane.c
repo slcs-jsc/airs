@@ -78,18 +78,17 @@ int main(
 
   static char filter[LEN], pertname[LEN], set[LEN];
 
-  static double bt4_mean, bt4_var, bt8_min, dpres, dpresbest, dt230, dwind,
+  static double bt4_mean, bt4_var, bt8_min, dpres, dpresbest, dwind,
     dwindbest, lat_wmo[NSTORM][NTIME], latbest, lon_wmo[NSTORM][NTIME],
-    lonbest, lonsat, lonstorm, nedt, nesr, nu, pmin, pres_wmo[NSTORM][NTIME],
-    pres, presbest, r2, r2best = 1e100, rmax, wind_wmo[NSTORM][NTIME], wind,
-    windbest, wmax, time_max_pres[NSTORM], time_max_wind[NSTORM],
+    lonbest, lonsat, lonstorm, nedt, pres_wmo[NSTORM][NTIME],
+    pres, presbest, r2best = 1e100, wind_wmo[NSTORM][NTIME], wind,
+    windbest, time_max_pres[NSTORM], time_max_wind[NSTORM],
     time_wmo[NSTORM][NTIME], timebest, xf[PERT_NTRACK][PERT_NXTRACK][3],
     xs[3], z;
 
-  static int asc, dimid, dt, iarg, iobs, itrack, itrack2, ixtrack2, n,
-    ncid, nobs[NSTORM], st, varid;
+  static int dimid, n, ncid, nobs[NSTORM], varid;
 
-  static size_t istorm, nstorm, ntime;
+  static size_t nstorm, ntime;
 
   /* Check arguments... */
   if (argc < 5)
@@ -100,11 +99,11 @@ int main(
   scan_ctl(argc, argv, "SET", -1, "full", set);
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
   scan_ctl(argc, argv, "FILTER", -1, "both", filter);
-  dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
-  nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
-  rmax = scan_ctl(argc, argv, "RMAX", -1, "500", NULL);
-  dt = (int) scan_ctl(argc, argv, "DT", -1, "0", NULL);
-  st = (int) scan_ctl(argc, argv, "ST", -1, "0", NULL);
+  const double dt230 = scan_ctl(argc, argv, "DT230", -1, "0.16", NULL);
+  const double nu = scan_ctl(argc, argv, "NU", -1, "2345.0", NULL);
+  const double rmax = scan_ctl(argc, argv, "RMAX", -1, "500", NULL);
+  const int dt = (int) scan_ctl(argc, argv, "DT", -1, "0", NULL);
+  const int st = (int) scan_ctl(argc, argv, "ST", -1, "0", NULL);
 
   /* Allocate... */
   ALLOC(pert, pert_t, 1);
@@ -141,8 +140,8 @@ int main(
   read_var(ncid, "pres_wmo", nstorm, nobs, pres_wmo);
 
   /* Convert units.. */
-  for (istorm = 0; istorm < nstorm; istorm++)
-    for (iobs = 0; iobs < nobs[istorm]; iobs++) {
+  for (size_t istorm = 0; istorm < nstorm; istorm++)
+    for (int iobs = 0; iobs < nobs[istorm]; iobs++) {
       time_wmo[istorm][iobs] *= 86400.;
       time_wmo[istorm][iobs] -= 4453401600.00;
       lon_wmo[istorm][iobs] *= 0.01;
@@ -152,8 +151,8 @@ int main(
     }
 
   /* Check data... */
-  for (istorm = 0; istorm < nstorm; istorm++)
-    for (iobs = 0; iobs < nobs[istorm]; iobs++) {
+  for (size_t istorm = 0; istorm < nstorm; istorm++)
+    for (int iobs = 0; iobs < nobs[istorm]; iobs++) {
       if (pres_wmo[istorm][iobs] <= 800 || pres_wmo[istorm][iobs] >= 1200)
 	pres_wmo[istorm][iobs] = GSL_NAN;
       if (wind_wmo[istorm][iobs] <= 0.1)
@@ -161,10 +160,10 @@ int main(
     }
 
   /* Find time of maximum intensity (lowest pressure)... */
-  for (istorm = 0; istorm < nstorm; istorm++) {
-    pmin = 1e100;
+  for (size_t istorm = 0; istorm < nstorm; istorm++) {
+    double pmin = 1e100;
     time_max_pres[istorm] = GSL_NAN;
-    for (iobs = 0; iobs < nobs[istorm]; iobs++)
+    for (int iobs = 0; iobs < nobs[istorm]; iobs++)
       if (gsl_finite(pres_wmo[istorm][iobs]) && pres_wmo[istorm][iobs] < pmin) {
 	pmin = pres_wmo[istorm][iobs];
 	time_max_pres[istorm] = time_wmo[istorm][iobs];
@@ -172,10 +171,10 @@ int main(
   }
 
   /* Find time of maximum intensity (maximum wind)... */
-  for (istorm = 0; istorm < nstorm; istorm++) {
-    wmax = -1e100;
+  for (size_t istorm = 0; istorm < nstorm; istorm++) {
+    double wmax = -1e100;
     time_max_wind[istorm] = GSL_NAN;
-    for (iobs = 0; iobs < nobs[istorm]; iobs++)
+    for (int iobs = 0; iobs < nobs[istorm]; iobs++)
       if (gsl_finite(wind_wmo[istorm][iobs]) && wind_wmo[istorm][iobs] > wmax) {
 	wmax = wind_wmo[istorm][iobs];
 	time_max_wind[istorm] = time_wmo[istorm][iobs];
@@ -215,7 +214,7 @@ int main(
 	  "# $16 = number of footprints\n\n");
 
   /* Loop over perturbation files... */
-  for (iarg = 4; iarg < argc; iarg++) {
+  for (int iarg = 4; iarg < argc; iarg++) {
 
     /* Read perturbation data... */
     if (!(in = fopen(argv[iarg], "r")))
@@ -226,16 +225,16 @@ int main(
     }
 
     /* Get Cartesian coordinates... */
-    for (itrack2 = 0; itrack2 < pert->ntrack; itrack2++)
-      for (ixtrack2 = 0; ixtrack2 < pert->nxtrack; ixtrack2++)
+    for (int itrack2 = 0; itrack2 < pert->ntrack; itrack2++)
+      for (int ixtrack2 = 0; ixtrack2 < pert->nxtrack; ixtrack2++)
 	geo2cart(0, pert->lon[itrack2][ixtrack2],
 		 pert->lat[itrack2][ixtrack2], xf[itrack2][ixtrack2]);
 
     /* Loop over storms... */
-    for (istorm = 0; istorm < nstorm; istorm++) {
+    for (size_t istorm = 0; istorm < nstorm; istorm++) {
 
       /* Loop along AIRS center track... */
-      for (itrack = 0; itrack < pert->ntrack; itrack++) {
+      for (int itrack = 0; itrack < pert->ntrack; itrack++) {
 
 	/* Get storm position... */
 	if (get_storm_pos(nobs[istorm], time_wmo[istorm], lon_wmo[istorm],
@@ -244,7 +243,7 @@ int main(
 			  &wind, &dwind, &pres, &dpres)) {
 
 	  /* Get distance... */
-	  r2 = DIST2(xs, xf[itrack][pert->nxtrack / 2]);
+	  double r2 = DIST2(xs, xf[itrack][pert->nxtrack / 2]);
 
 	  /* Find best match... */
 	  if (r2 < r2best) {
@@ -265,10 +264,10 @@ int main(
 	    bt8_min = 1e100;
 	    bt4_mean = 0;
 	    bt4_var = 0;
-	    for (itrack2 = GSL_MAX(itrack - ((int) (rmax / 17) + 1), 0);
+	    for (int itrack2 = GSL_MAX(itrack - ((int)(rmax / 17) + 1), 0);
 		 itrack2 <= GSL_MIN(itrack + ((int) (rmax / 17) + 1),
 				    pert->ntrack - 1); itrack2++)
-	      for (ixtrack2 = 0; ixtrack2 < pert->nxtrack; ixtrack2++) {
+	      for (int ixtrack2 = 0; ixtrack2 < pert->nxtrack; ixtrack2++) {
 
 		/* Check data... */
 		if (pert->time[itrack2][ixtrack2] < 0
@@ -313,7 +312,7 @@ int main(
 	if (fabs(pert->lat[itrack][pert->nxtrack / 2]) > 80.) {
 
 	  /* Get and check ascending/descending flag... */
-	  asc =
+	  const int asc =
 	    (pert->lat[itrack > 0 ? itrack : itrack + 1][pert->nxtrack / 2]
 	     > pert->lat[itrack >
 			 0 ? itrack - 1 : itrack][pert->nxtrack / 2]);
@@ -326,9 +325,10 @@ int main(
 
 	      /* Estimate noise... */
 	      if (dt230 > 0) {
-		nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
-		nedt = BRIGHT(PLANCK(bt4_mean / n, nu) + nesr,
-			      nu) - bt4_mean / n;
+		const double nesr =
+		  PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
+		nedt =
+		  BRIGHT(PLANCK(bt4_mean / n, nu) + nesr, nu) - bt4_mean / n;
 	      }
 
 	      /* Write output... */
@@ -378,17 +378,15 @@ int get_storm_pos(
   double *pres,
   double *dpres) {
 
-  double w, x0[3], x1[3];
-
-  int i;
+  double x0[3], x1[3];
 
   /* Check time range... */
   if (t < time_wmo[0] || t > time_wmo[nobs - 1])
     return 0;
 
   /* Interpolate position... */
-  i = locate_irr(time_wmo, nobs, t);
-  w = (t - time_wmo[i]) / (time_wmo[i + 1] - time_wmo[i]);
+  int i = locate_irr(time_wmo, nobs, t);
+  double w = (t - time_wmo[i]) / (time_wmo[i + 1] - time_wmo[i]);
   geo2cart(0, lon_wmo[i], lat_wmo[i], x0);
   geo2cart(0, lon_wmo[i + 1], lat_wmo[i + 1], x1);
   x[0] = (1 - w) * x0[0] + w * x1[0];
@@ -419,11 +417,11 @@ void read_var(
 
   int varid;
 
-  size_t count[2], istorm, start[2];
+  size_t count[2], start[2];
 
   /* Read pressure... */
   NC(nc_inq_varid(ncid, varname, &varid));
-  for (istorm = 0; istorm < nstorm; istorm++) {
+  for (size_t istorm = 0; istorm < nstorm; istorm++) {
     start[0] = istorm;
     start[1] = 0;
     count[0] = 1;

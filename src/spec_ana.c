@@ -44,24 +44,28 @@ int main(
 
   /* Get control parameters... */
   scan_ctl(argc, argv, "PERTNAME", -1, "4mu", pertname);
-  int track0 = (int) scan_ctl(argc, argv, "TRACK0", -1, "", NULL);
-  int track1 = (int) scan_ctl(argc, argv, "TRACK1", -1, "", NULL);
-  int xtrack0 = (int) scan_ctl(argc, argv, "XTRACK0", -1, "0", NULL);
-  int xtrack1 = (int) scan_ctl(argc, argv, "XTRACK1", -1, "89", NULL);
-  int strack = (int) scan_ctl(argc, argv, "STRACK", -1, "15", NULL);
-  int sxtrack = (int) scan_ctl(argc, argv, "SXTRACK", -1, "15", NULL);
-  int dtrack = (int) scan_ctl(argc, argv, "DTRACK", -1, "5", NULL);
-  int dxtrack = (int) scan_ctl(argc, argv, "DXTRACK", -1, "5", NULL);
-  int inter_x = (int) scan_ctl(argc, argv, "INTER_X", -1, "0", NULL);
-  int bg_poly_x = (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "5", NULL);
-  int bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
-  int bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
-  int bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
-  double var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "100.0", NULL);
-  double lxymax = scan_ctl(argc, argv, "LXYMAX", -1, "1000.0", NULL);
-  double dlxy = scan_ctl(argc, argv, "DLXY", -1, "10.0", NULL);
+  const int track0 = (int) scan_ctl(argc, argv, "TRACK0", -1, "", NULL);
+  const int track1 = (int) scan_ctl(argc, argv, "TRACK1", -1, "", NULL);
+  const int xtrack0 = (int) scan_ctl(argc, argv, "XTRACK0", -1, "0", NULL);
+  const int xtrack1 = (int) scan_ctl(argc, argv, "XTRACK1", -1, "89", NULL);
+  const int strack = (int) scan_ctl(argc, argv, "STRACK", -1, "15", NULL);
+  const int sxtrack = (int) scan_ctl(argc, argv, "SXTRACK", -1, "15", NULL);
+  const int dtrack = (int) scan_ctl(argc, argv, "DTRACK", -1, "5", NULL);
+  const int dxtrack = (int) scan_ctl(argc, argv, "DXTRACK", -1, "5", NULL);
+  const int inter_x = (int) scan_ctl(argc, argv, "INTER_X", -1, "0", NULL);
+  const int bg_poly_x =
+    (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "5", NULL);
+  const int bg_poly_y =
+    (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
+  const int bg_smooth_x =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
+  const int bg_smooth_y =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  const double var_dh = scan_ctl(argc, argv, "VAR_DH", -1, "100.0", NULL);
+  const double lxymax = scan_ctl(argc, argv, "LXYMAX", -1, "1000.0", NULL);
+  const double dlxy = scan_ctl(argc, argv, "DLXY", -1, "10.0", NULL);
   scan_ctl(argc, argv, "METHOD", -1, "P", method);
-  int output = (int) scan_ctl(argc, argv, "OUTPUT", -1, "1", NULL);
+  const int output = (int) scan_ctl(argc, argv, "OUTPUT", -1, "1", NULL);
 
   /* Allocate... */
   ALLOC(pert, pert_t, 1);

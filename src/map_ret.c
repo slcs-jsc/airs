@@ -31,14 +31,13 @@ int main(
   static ret_t ret;
   static wave_t wave;
 
-  static double tbg[NDS], tabg[NDS], z0;
+  static double tbg[NDS], tabg[NDS];
 
   FILE *out;
 
   char set[LEN];
 
-  int asc, bg_poly_x, bg_poly_y, bg_smooth_x, bg_smooth_y,
-    ids, ip, ix, iy, npscan;
+  int ip;
 
   /* Check arguments... */
   if (argc < 4)
@@ -46,12 +45,16 @@ int main(
 
   /* Get control parameters... */
   scan_ctl(argc, argv, "SET", -1, "full", set);
-  z0 = scan_ctl(argc, argv, "Z0", -1, "", NULL);
-  bg_poly_x = (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "5", NULL);
-  bg_poly_y = (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
-  bg_smooth_x = (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
-  bg_smooth_y = (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
-  npscan = (int) scan_ctl(argc, argv, "NPSCAN", -1, "90", NULL);
+  const double z0 = scan_ctl(argc, argv, "Z0", -1, "", NULL);
+  const int bg_poly_x =
+    (int) scan_ctl(argc, argv, "BG_POLY_X", -1, "5", NULL);
+  const int bg_poly_y =
+    (int) scan_ctl(argc, argv, "BG_POLY_Y", -1, "0", NULL);
+  const int bg_smooth_x =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_X", -1, "0", NULL);
+  const int bg_smooth_y =
+    (int) scan_ctl(argc, argv, "BG_SMOOTH_Y", -1, "0", NULL);
+  const int npscan = (int) scan_ctl(argc, argv, "NPSCAN", -1, "90", NULL);
 
   /* Read AIRS data... */
   read_retr(argv[2], &ret);
@@ -68,14 +71,14 @@ int main(
   ret2wave(&ret, &wave, 1, ip);
   background_poly(&wave, bg_poly_x, bg_poly_y);
   background_smooth(&wave, bg_smooth_x, bg_smooth_y);
-  for (ix = 0; ix < wave.nx; ix++)
-    for (iy = 0; iy < wave.ny; iy++)
+  for (int ix = 0; ix < wave.nx; ix++)
+    for (int iy = 0; iy < wave.ny; iy++)
       tbg[iy * npscan + ix] = wave.bg[ix][iy];
   ret2wave(&ret, &wave, 2, ip);
   background_poly(&wave, bg_poly_x, bg_poly_y);
   background_smooth(&wave, bg_smooth_x, bg_smooth_y);
-  for (ix = 0; ix < wave.nx; ix++)
-    for (iy = 0; iy < wave.ny; iy++)
+  for (int ix = 0; ix < wave.nx; ix++)
+    for (int iy = 0; iy < wave.ny; iy++)
       tabg[iy * npscan + ix] = wave.bg[ix][iy];
 
   /* Create output file... */
@@ -102,7 +105,7 @@ int main(
 	  "# $14 = temperature (resolution)\n" "# $15 = normalized chi^2\n");
 
   /* Write data... */
-  for (ids = 0; ids < ret.nds; ids++) {
+  for (int ids = 0; ids < ret.nds; ids++) {
 
     /* Write new line... */
     if (ids % npscan == 0)
@@ -115,8 +118,8 @@ int main(
       continue;
 
     /* Get ascending/descending flag... */
-    asc = (ret.lat[ids > npscan ? ids : ids + npscan][0]
-	   > ret.lat[ids > npscan ? ids - npscan : ids][0]);
+    int asc = (ret.lat[ids > npscan ? ids : ids + npscan][0]
+	       > ret.lat[ids > npscan ? ids - npscan : ids][0]);
 
     /* Write data... */
     if (set[0] == 'f' || (set[0] == 'a' && asc) || (set[0] == 'd' && !asc))

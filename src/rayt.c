@@ -64,12 +64,13 @@ int main(
 
   FILE *in;
 
-  static double f0, k, omin, z[NZ], u[NZ], urel[NZ], v[NZ], bf[NZ], bf2[NZ],
-    H[NZ], frel[NZ], osign[NZ], f1[NZ], f2[NZ], delta[NZ], a2[NZ], m[NZ],
-    dxdz[NZ], cgz[NZ], dz, path[NZ], tim[NZ], costh, p[NZ], t[NZ], z0, w,
-    wsum, dzw = 5 * 1e3, fgb, m0, alpha, lat;
+  const double dzw = 5 * 1e3;
 
-  static int iz, iz2, izcrit, izrefl, nz;
+  static double f0, z[NZ], u[NZ], urel[NZ], v[NZ], bf[NZ], bf2[NZ], H[NZ],
+    frel[NZ], osign[NZ], f1[NZ], f2[NZ], delta[NZ], a2[NZ], m[NZ], dxdz[NZ],
+    cgz[NZ], dz, path[NZ], tim[NZ], p[NZ], t[NZ], wsum, fgb;
+
+  static int izcrit, izrefl, nz;
 
   /* Check arguments... */
   if (argc != 8)
@@ -77,9 +78,9 @@ int main(
 	   "<t_gb | lz_launch> <lx> <lat> <direct>");
 
   /* Get launch level... */
-  z0 = atof(argv[2]);
-  lat = atof(argv[6]);
-  alpha = atof(argv[7]);
+  const double z0 = atof(argv[2]);
+  const double lat = atof(argv[6]);
+  const double alpha = atof(argv[7]);
 
   /* Read atmosphere above launch level... */
   if (!(in = fopen(argv[1], "r")))
@@ -96,7 +97,7 @@ int main(
   fclose(in);
 
   /* Compute scale height and buoyancy frequency... */
-  for (iz = 0; iz < nz; iz++) {
+  for (int iz = 0; iz < nz; iz++) {
     if (iz < nz - 1)
       bf[iz] = buoyancy(z[iz], p[iz], t[iz], z[iz + 1], p[iz + 1], t[iz + 1]);
     else
@@ -106,28 +107,28 @@ int main(
   }
 
   /* Smooth N profile... */
-  for (iz = 0; iz < nz; iz++) {
+  for (int iz = 0; iz < nz; iz++) {
     bf2[iz] = wsum = 0;
-    for (iz2 = 0; iz2 < nz; iz2++) {
+    for (int iz2 = 0; iz2 < nz; iz2++) {
       if (!gsl_finite(bf[iz2]) ||
 	  !gsl_finite(bf[GSL_MAX(iz2 - 1, 0)]) ||
 	  !gsl_finite(bf[GSL_MIN(iz2 + 1, nz - 1)]))
 	continue;
-      w =
+      const double w =
 	(fabs(z[iz] - z[iz2]) < dzw) ? 1.0 - fabs(z[iz] - z[iz2]) / dzw : 0.0;
       bf2[iz] += w * bf[iz2];
       wsum += w;
     }
     bf2[iz] /= wsum;
   }
-  for (iz = 0; iz < nz; iz++)
+  for (int iz = 0; iz < nz; iz++)
     bf[iz] = bf2[iz];
 
   /* Get horizontal wavenumber... */
-  k = 2 * M_PI / (atof(argv[5]) * 1e3);
+  const double k = 2 * M_PI / (atof(argv[5]) * 1e3);
 
   /* Get minimum gravity wave frequency (Coriolis parameter)... */
-  omin = 2 * 2 * M_PI / 86400. * sin(lat / 180. * M_PI);
+  const double omin = 2 * 2 * M_PI / 86400. * sin(lat / 180. * M_PI);
 
   /* Get initial frequencies... */
   if (argv[3][0] == 't') {
@@ -141,7 +142,7 @@ int main(
   } else if (argv[3][0] == 'l') {
 
     /* Get vertical wavenumber... */
-    m0 = 2 * M_PI / (atof(argv[4]) * 1e3);
+    const double m0 = 2 * M_PI / (atof(argv[4]) * 1e3);
 
     /* Get intrinsic frequency at launch level... */
     f0 =
@@ -156,7 +157,7 @@ int main(
     ERRMSG("Set <mode> to 't_gb' or 'lz_launch'!");
 
   /* Loop over layers... */
-  for (iz = 0; iz < nz; iz++) {
+  for (int iz = 0; iz < nz; iz++) {
     urel[iz] = u[iz] - u[0];
     frel[iz] = f0 - k * urel[iz];
     osign[iz] = frel[iz] / fabs(frel[iz]);
@@ -171,7 +172,7 @@ int main(
   }
 
   /* Integrate via trapezoidal rule... */
-  for (iz = 1; iz < nz; iz++) {
+  for (int iz = 1; iz < nz; iz++) {
     path[iz] = path[iz - 1] + dz * .5 * (dxdz[iz - 1] + dxdz[iz]);
     tim[iz] = tim[iz - 1] + dz * 2. / (cgz[iz - 1] + cgz[iz]);
   }
@@ -183,7 +184,7 @@ int main(
 
   /* Find trapping/reflection level... */
   for (izrefl = 0; izrefl < nz; izrefl++) {
-    costh = fabs(f0 - k * urel[izrefl])
+    const double costh = fabs(f0 - k * urel[izrefl])
       / sqrt(bf[izrefl] * bf[izrefl]
 	     * (1 -
 		(1 -
@@ -195,7 +196,7 @@ int main(
   }
 
   /* Filter data... */
-  for (iz = 0; iz < nz; iz++)
+  for (int iz = 0; iz < nz; iz++)
     if (iz >= izcrit || iz >= izrefl)
       path[iz] = tim[iz] = m[iz] = frel[iz] = cgz[iz] = sqrt(-1.0);
 
@@ -213,7 +214,7 @@ int main(
 	 "# $11 = vertical wavelength [km]\n"
 	 "# $12 = wave period [min]\n"
 	 "# $13 = vertical group velocity [m/s]\n\n");
-  for (iz = 0; iz < nz; iz++)
+  for (int iz = 0; iz < nz; iz++)
     printf("%g %g %g %g %g %g %g %g %g %g %g %g %g\n",
 	   lat, z[iz] / 1e3, p[iz], t[iz], temp2theta(p[iz], t[iz]), u[iz],
 	   bf[iz], H[iz] / 1e3, path[iz] / 1e3, tim[iz] / 60,
@@ -234,11 +235,9 @@ double buoyancy(
   double p1,
   double t1) {
 
-  double theta0, theta1;
-
   /* Get potential temperature... */
-  theta0 = temp2theta(p0, t0);
-  theta1 = temp2theta(p1, t1);
+  const double theta0 = temp2theta(p0, t0);
+  const double theta1 = temp2theta(p1, t1);
 
   /* Get buoyancy frequency... */
   return sqrt(G0 / (0.5 * (theta0 + theta1)) * (theta1 - theta0) /

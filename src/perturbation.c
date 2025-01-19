@@ -70,11 +70,10 @@ int main(
   static int list_15mu_high[N15_HIGH]
   = { 74, 75 };
 
-  static int ix, iy, dimid[2], i, n, ncid, track, track0, xtrack,
-    time_varid, lon_varid, lat_varid, bt_4mu_varid, bt_4mu_pt_varid,
-    bt_4mu_var_varid, bt_8mu_varid, bt_15mu_low_varid, bt_15mu_low_pt_varid,
-    bt_15mu_low_var_varid, bt_15mu_high_varid, bt_15mu_high_pt_varid,
-    bt_15mu_high_var_varid, iarg;
+  static int dimid[2], n, ncid, track0, time_varid, lon_varid, lat_varid,
+    bt_4mu_varid, bt_4mu_pt_varid, bt_4mu_var_varid, bt_8mu_varid,
+    bt_15mu_low_varid, bt_15mu_low_pt_varid, bt_15mu_low_var_varid,
+    bt_15mu_high_varid, bt_15mu_high_pt_varid, bt_15mu_high_var_varid;
 
   static size_t start[2], count[2];
 
@@ -92,16 +91,16 @@ int main(
      ------------------------------------------------------------ */
 
   /* Loop over HDF files... */
-  for (iarg = 2; iarg < argc; iarg++) {
+  for (int iarg = 2; iarg < argc; iarg++) {
 
     /* Read AIRS data... */
     printf("Read AIRS Level-1B data file: %s\n", argv[iarg]);
     airs_rad_rdr(argv[iarg], &airs_rad_gran);
 
     /* Flag bad observations... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
-	for (i = 0; i < AIRS_RAD_CHANNEL; i++)
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
+	for (int i = 0; i < AIRS_RAD_CHANNEL; i++)
 	  if ((airs_rad_gran.state[track][xtrack] != 0)
 	      || (airs_rad_gran.ExcludedChans[i] > 2)
 	      || (airs_rad_gran.CalChanSummary[i] & 8)
@@ -122,8 +121,8 @@ int main(
     pert_4mu->nxtrack = AIRS_RAD_GEOXTRACK;
     if (pert_4mu->nxtrack > PERT_NXTRACK)
       ERRMSG("Too many tracks!");
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 	pert_4mu->time[track0 + track][xtrack]
 	  = airs_rad_gran.Time[track][xtrack] - 220838400.;
 	pert_4mu->lon[track0 + track][xtrack]
@@ -138,8 +137,8 @@ int main(
     pert_15mu_low->nxtrack = AIRS_RAD_GEOXTRACK;
     if (pert_15mu_low->nxtrack > PERT_NXTRACK)
       ERRMSG("Too many tracks!");
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 	pert_15mu_low->time[track0 + track][xtrack]
 	  = airs_rad_gran.Time[track][xtrack] - 220838400.;
 	pert_15mu_low->lon[track0 + track][xtrack]
@@ -154,8 +153,8 @@ int main(
     pert_15mu_high->nxtrack = AIRS_RAD_GEOXTRACK;
     if (pert_15mu_high->nxtrack > PERT_NXTRACK)
       ERRMSG("Too many tracks!");
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 	pert_15mu_high->time[track0 + track][xtrack]
 	  = airs_rad_gran.Time[track][xtrack] - 220838400.;
 	pert_15mu_high->lon[track0 + track][xtrack]
@@ -165,17 +164,17 @@ int main(
       }
 
     /* Get 8.1 micron brightness temperature... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
 	pert_4mu->dc[track0 + track][xtrack]
 	  = BRIGHT(airs_rad_gran.radiances[track][xtrack][1290],
 		   airs_rad_gran.nominal_freq[1290]);
 
     /* Get 4.3 micron brightness temperature... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 	n = 0;
-	for (i = 0; i < N4; i++)
+	for (int i = 0; i < N4; i++)
 	  if (gsl_finite(airs_rad_gran.radiances[track][xtrack][list_4mu[i]])) {
 	    pert_4mu->bt[track0 + track][xtrack]
 	      += BRIGHT(airs_rad_gran.radiances[track][xtrack][list_4mu[i]],
@@ -189,10 +188,10 @@ int main(
       }
 
     /* Get 15 micron brightness temperature (low altitudes)... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 	n = 0;
-	for (i = 0; i < N15_LOW; i++)
+	for (int i = 0; i < N15_LOW; i++)
 	  if (gsl_finite(airs_rad_gran.radiances
 			 [track][xtrack][list_15mu_low[i]])) {
 	    pert_15mu_low->bt[track0 + track][xtrack]
@@ -208,10 +207,10 @@ int main(
       }
 
     /* Get 15 micron brightness temperature (high altitudes)... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 	n = 0;
-	for (i = 0; i < N15_HIGH; i++)
+	for (int i = 0; i < N15_HIGH; i++)
 	  if (gsl_finite(airs_rad_gran.radiances
 			 [track][xtrack][list_15mu_high[i]])) {
 	    pert_15mu_high->bt[track0 + track][xtrack]
@@ -245,8 +244,8 @@ int main(
   variance(&wave, var_dh);
 
   /* Copy data... */
-  for (ix = 0; ix < wave.nx; ix++)
-    for (iy = 0; iy < wave.ny; iy++) {
+  for (int ix = 0; ix < wave.nx; ix++)
+    for (int iy = 0; iy < wave.ny; iy++) {
       pert_4mu->pt[iy][ix] = wave.pt[ix][iy];
       pert_4mu->var[iy][ix] = wave.var[ix][iy];
     }
@@ -262,8 +261,8 @@ int main(
   variance(&wave, var_dh);
 
   /* Copy data... */
-  for (ix = 0; ix < wave.nx; ix++)
-    for (iy = 0; iy < wave.ny; iy++) {
+  for (int ix = 0; ix < wave.nx; ix++)
+    for (int iy = 0; iy < wave.ny; iy++) {
       pert_15mu_low->pt[iy][ix] = wave.pt[ix][iy];
       pert_15mu_low->var[iy][ix] = wave.var[ix][iy];
     }
@@ -279,8 +278,8 @@ int main(
   variance(&wave, var_dh);
 
   /* Copy data... */
-  for (ix = 0; ix < wave.nx; ix++)
-    for (iy = 0; iy < wave.ny; iy++) {
+  for (int ix = 0; ix < wave.nx; ix++)
+    for (int iy = 0; iy < wave.ny; iy++) {
       pert_15mu_high->pt[iy][ix] = wave.pt[ix][iy];
       pert_15mu_high->var[iy][ix] = wave.var[ix][iy];
     }
@@ -347,7 +346,7 @@ int main(
   NC(nc_enddef(ncid));
 
   /* Loop over tracks... */
-  for (track = 0; track < pert_4mu->ntrack; track++) {
+  for (int track = 0; track < pert_4mu->ntrack; track++) {
 
     /* Set array sizes... */
     start[0] = (size_t) track;

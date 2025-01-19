@@ -58,8 +58,6 @@ int main(
   static airs_l1_t l1;
   static airs_l2_t l2;
 
-  int ichan, lay, track, xtrack;
-
   /* Check arguments... */
   if (argc != 4)
     ERRMSG("Give parameters: <airs_l1_file> <airs_l2_file> <out.nc>");
@@ -72,9 +70,9 @@ int main(
     airs_rad_rdr(argv[1], &airs_rad_gran);
 
     /* Flag bad data... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
-	for (ichan = 0; ichan < L1_NCHAN; ichan++)
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++)
+	for (int ichan = 0; ichan < L1_NCHAN; ichan++)
 	  if ((airs_rad_gran.state[track][xtrack] != 0)
 	      || (airs_rad_gran.ExcludedChans[airs_chan[ichan]] > 2)
 	      || (airs_rad_gran.CalChanSummary[airs_chan[ichan]] & 8)
@@ -84,8 +82,8 @@ int main(
 	      = GSL_NAN;
 
     /* Copy data to struct... */
-    for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+    for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
 	l1.time[track][xtrack]
 	  = airs_rad_gran.Time[track][xtrack] - 220838400.;
 	l1.lon[track][xtrack]
@@ -98,7 +96,7 @@ int main(
 	  = airs_rad_gran.sat_lon[track];
 	l1.sat_lat[track]
 	  = airs_rad_gran.sat_lat[track];
-	for (ichan = 0; ichan < L1_NCHAN; ichan++) {
+	for (int ichan = 0; ichan < L1_NCHAN; ichan++) {
 	  l1.nu[ichan]
 	    = airs_rad_gran.nominal_freq[airs_chan[ichan]];
 	  l1.rad[track][xtrack][ichan]
@@ -119,9 +117,9 @@ int main(
     airs_ret_rdr(argv[2], &airs_ret_gran);
 
     /* Flag bad data... */
-    for (track = 0; track < AIRS_RET_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RET_GEOXTRACK; xtrack++)
-	for (lay = 1; lay < AIRS_RET_STDPRESSURELAY; lay++)
+    for (int track = 0; track < AIRS_RET_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RET_GEOXTRACK; xtrack++)
+	for (int lay = 1; lay < AIRS_RET_STDPRESSURELAY; lay++)
 	  if (airs_ret_gran.GP_Height[track][xtrack][lay] <= -9000.
 	      || airs_ret_gran.TAirStd[track][xtrack][lay] <= -9000.) {
 	    airs_ret_gran.GP_Height[track][xtrack][lay] = GSL_NAN;
@@ -129,9 +127,9 @@ int main(
 	  }
 
     /* Save data in struct... */
-    for (track = 0; track < AIRS_RET_GEOTRACK; track++)
-      for (xtrack = 0; xtrack < AIRS_RET_GEOXTRACK; xtrack++)
-	for (lay = 1; lay < AIRS_RET_STDPRESSURELAY; lay++) {
+    for (int track = 0; track < AIRS_RET_GEOTRACK; track++)
+      for (int xtrack = 0; xtrack < AIRS_RET_GEOXTRACK; xtrack++)
+	for (int lay = 1; lay < AIRS_RET_STDPRESSURELAY; lay++) {
 	  l2.time[track][xtrack]
 	    = airs_ret_gran.Time[track][xtrack] - 220838400.;
 	  l2.z[track][xtrack][lay - 1]
@@ -147,9 +145,9 @@ int main(
 	}
 
     /* Convert geopotential heights to geometric heights... */
-    for (track = 0; track < L2_NTRACK; track++)
-      for (xtrack = 0; xtrack < L2_NXTRACK; xtrack++)
-	for (lay = 0; lay < L2_NLAY; lay++)
+    for (int track = 0; track < L2_NTRACK; track++)
+      for (int xtrack = 0; xtrack < L2_NXTRACK; xtrack++)
+	for (int lay = 0; lay < L2_NLAY; lay++)
 	  l2.z[track][xtrack][lay]
 	    = gph2z(l2.z[track][xtrack][lay]);
 

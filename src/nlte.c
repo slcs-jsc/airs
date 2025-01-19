@@ -279,11 +279,10 @@ int main(
 
   static char filename[LEN], filename2[2 * LEN];
 
-  static double chisq[L1_NTRACK][L1_NXTRACK], ni[L1_NTRACK][L1_NXTRACK], sx,
-    sy, z[NP];
+  static double chisq[L1_NTRACK][L1_NXTRACK], ni[L1_NTRACK][L1_NXTRACK],
+    z[NP];
 
-  static int channel[ND], i, id, ip, iz, n, nz, ntask = -1, rank, size,
-    track, track0, track1, xtrack, xtrack0, xtrack1;
+  static int channel[ND], n, ntask = -1, rank, size;
 
   /* ------------------------------------------------------------
      Init...
@@ -306,23 +305,24 @@ int main(
   read_ret_ctl(argc, argv, &ctl, &ret);
 
   /* Read retrieval grid... */
-  nz = (int) scan_ctl(argc, argv, "NZ", -1, "", NULL);
+  const int nz = (int) scan_ctl(argc, argv, "NZ", -1, "", NULL);
   if (nz > NP)
     ERRMSG("Too many altitudes!");
-  for (iz = 0; iz < nz; iz++)
+  for (int iz = 0; iz < nz; iz++)
     z[iz] = scan_ctl(argc, argv, "Z", iz, "", NULL);
 
   /* Read track range... */
-  track0 = (int) scan_ctl(argc, argv, "TRACK_MIN", -1, "0", NULL);
-  track1 = (int) scan_ctl(argc, argv, "TRACK_MAX", -1, "134", NULL);
+  const int track0 = (int) scan_ctl(argc, argv, "TRACK_MIN", -1, "0", NULL);
+  const int track1 = (int) scan_ctl(argc, argv, "TRACK_MAX", -1, "134", NULL);
 
   /* Read xtrack range... */
-  xtrack0 = (int) scan_ctl(argc, argv, "XTRACK_MIN", -1, "0", NULL);
-  xtrack1 = (int) scan_ctl(argc, argv, "XTRACK_MAX", -1, "89", NULL);
+  const int xtrack0 = (int) scan_ctl(argc, argv, "XTRACK_MIN", -1, "0", NULL);
+  const int xtrack1 =
+    (int) scan_ctl(argc, argv, "XTRACK_MAX", -1, "89", NULL);
 
   /* Background smoothing... */
-  sx = scan_ctl(argc, argv, "SX", -1, "8", NULL);
-  sy = scan_ctl(argc, argv, "SY", -1, "2", NULL);
+  const double sx = scan_ctl(argc, argv, "SX", -1, "8", NULL);
+  const double sy = scan_ctl(argc, argv, "SY", -1, "2", NULL);
 
   /* ------------------------------------------------------------
      Distribute granules...
@@ -352,9 +352,9 @@ int main(
     read_nc(filename, &ncd);
 
     /* Identify radiance channels... */
-    for (id = 0; id < ctl.nd; id++) {
+    for (int id = 0; id < ctl.nd; id++) {
       channel[id] = -999;
-      for (i = 0; i < L1_NCHAN; i++)
+      for (int i = 0; i < L1_NCHAN; i++)
 	if (fabs(ctl.nu[id] - ncd.l1_nu[i]) < 0.1)
 	  channel[id] = i;
       if (channel[id] < 0)
@@ -367,7 +367,7 @@ int main(
 
     /* Set climatological data for center of granule... */
     atm_clim.np = nz;
-    for (iz = 0; iz < nz; iz++)
+    for (int iz = 0; iz < nz; iz++)
       atm_clim.z[iz] = z[iz];
     climatology(&ctl, &atm_clim);
 
@@ -376,13 +376,13 @@ int main(
        ------------------------------------------------------------ */
 
     /* Loop over swaths... */
-    for (track = track0; track <= track1; track++) {
+    for (int track = track0; track <= track1; track++) {
 
       /* Measure CPU time... */
       TIMER("retrieval", 1);
 
       /* Loop over scan... */
-      for (xtrack = xtrack0; xtrack <= xtrack1; xtrack++) {
+      for (int xtrack = xtrack0; xtrack <= xtrack1; xtrack++) {
 
 	/* Store observation data... */
 	obs_meas.nr = 1;
@@ -392,17 +392,17 @@ int main(
 	obs_meas.obslat[0] = ncd.l1_sat_lat[track];
 	obs_meas.vplon[0] = ncd.l1_lon[track][xtrack];
 	obs_meas.vplat[0] = ncd.l1_lat[track][xtrack];
-	for (id = 0; id < ctl.nd; id++)
+	for (int id = 0; id < ctl.nd; id++)
 	  obs_meas.rad[id][0] = ncd.l1_rad[track][xtrack][channel[id]];
 
 	/* Flag out 4 micron channels... */
-	for (id = 0; id < ctl.nd; id++)
+	for (int id = 0; id < ctl.nd; id++)
 	  if (ctl.nu[id] >= 2000)
 	    obs_meas.rad[id][0] = GSL_NAN;
 
 	/* Prepare atmospheric data... */
 	copy_atm(&ctl, &atm_apr, &atm_clim, 0);
-	for (ip = 0; ip < atm_apr.np; ip++) {
+	for (int ip = 0; ip < atm_apr.np; ip++) {
 	  atm_apr.time[ip] = obs_meas.time[0];
 	  atm_apr.lon[ip] = obs_meas.vplon[0];
 	  atm_apr.lat[ip] = obs_meas.vplat[0];
@@ -416,7 +416,7 @@ int main(
 			   &atm_apr, &atm_i, &chisq[track][xtrack]);
 
 	/* Run forward model including 4 micron channels... */
-	for (id = 0; id < ctl.nd; id++)
+	for (int id = 0; id < ctl.nd; id++)
 	  obs_meas.rad[id][0] = obs_i.rad[id][0]
 	    = ncd.l1_rad[track][xtrack][channel[id]];
 	formod(&ctl, &atm_i, &obs_i);
@@ -424,7 +424,7 @@ int main(
 	/* Calculate non-LTE index... */
 	n = 0;
 	ni[track][xtrack] = 0;
-	for (id = 0; id < ctl.nd; id++)
+	for (int id = 0; id < ctl.nd; id++)
 	  if (ctl.nu[id] >= 2000 && gsl_finite(obs_meas.rad[id][0])) {
 	    ni[track][xtrack] +=
 	      (BRIGHT(obs_meas.rad[id][0], ncd.l1_nu[channel[id]])
@@ -459,9 +459,9 @@ int main(
 	    "# $5 = non-LTE index [K]\n" "# $6 = chi^2 of retrieval fit\n");
 
     /* Write data... */
-    for (track = track0; track <= track1; track++) {
+    for (int track = track0; track <= track1; track++) {
       fprintf(out, "\n");
-      for (xtrack = xtrack0; xtrack <= xtrack1; xtrack++)
+      for (int xtrack = xtrack0; xtrack <= xtrack1; xtrack++)
 	fprintf(out, "%.2f %g %g %g %g %g\n",
 		ncd.l1_time[track][xtrack],
 		ncd.l1_lon[track][xtrack],
@@ -570,28 +570,26 @@ void fill_gaps(
   double cx,
   double cy) {
 
-  double help[L2_NTRACK][L2_NXTRACK], w, wsum;
-
-  int lay, track, track2, xtrack, xtrack2;
+  double help[L2_NTRACK][L2_NXTRACK];
 
   /* Loop over layers... */
-  for (lay = 0; lay < L2_NLAY; lay++) {
+  for (int lay = 0; lay < L2_NLAY; lay++) {
 
     /* Loop over grid points... */
-    for (track = 0; track < L2_NTRACK; track++)
-      for (xtrack = 0; xtrack < L2_NXTRACK; xtrack++) {
+    for (int track = 0; track < L2_NTRACK; track++)
+      for (int xtrack = 0; xtrack < L2_NXTRACK; xtrack++) {
 
 	/* Init... */
 	help[track][xtrack] = 0;
-	wsum = 0;
+	double wsum = 0;
 
 	/* Averrage data points... */
-	for (track2 = 0; track2 < L2_NTRACK; track2++)
-	  for (xtrack2 = 0; xtrack2 < L2_NXTRACK; xtrack2++)
+	for (int track2 = 0; track2 < L2_NTRACK; track2++)
+	  for (int xtrack2 = 0; xtrack2 < L2_NXTRACK; xtrack2++)
 	    if (gsl_finite(x[track2][xtrack2][lay])
 		&& x[track2][xtrack2][lay] > 0) {
-	      w = exp(-gsl_pow_2((xtrack - xtrack2) / cx)
-		      - gsl_pow_2((track - track2) / cy));
+	      const double w = exp(-gsl_pow_2((xtrack - xtrack2) / cx)
+				   - gsl_pow_2((track - track2) / cy));
 	      help[track][xtrack] += w * x[track2][xtrack2][lay];
 	      wsum += w;
 	    }
@@ -604,8 +602,8 @@ void fill_gaps(
       }
 
     /* Copy grid points... */
-    for (track = 0; track < L2_NTRACK; track++)
-      for (xtrack = 0; xtrack < L2_NXTRACK; xtrack++)
+    for (int track = 0; track < L2_NTRACK; track++)
+      for (int xtrack = 0; xtrack < L2_NXTRACK; xtrack++)
 	x[track][xtrack][lay] = help[track][xtrack];
   }
 }
@@ -621,9 +619,7 @@ void init_l2(
 
   static atm_t atm_airs;
 
-  double k[NW], p, q[NG], t, w, zmax = 0, zmin = 1000;
-
-  int ip, lay;
+  double k[NW], p, q[NG], t, zmax = 0, zmin = 1000;
 
   /* Reset track- and xtrack-index to match Level-2 data... */
   track /= 3;
@@ -631,7 +627,7 @@ void init_l2(
 
   /* Store AIRS data in atmospheric data struct... */
   atm_airs.np = 0;
-  for (lay = 0; lay < L2_NLAY; lay++)
+  for (int lay = 0; lay < L2_NLAY; lay++)
     if (gsl_finite(ncd->l2_z[track][xtrack][lay])) {
       atm_airs.z[atm_airs.np] = ncd->l2_z[track][xtrack][lay];
       atm_airs.p[atm_airs.np] = ncd->l2_p[lay];
@@ -645,19 +641,19 @@ void init_l2(
     return;
 
   /* Get height range of AIRS data... */
-  for (ip = 0; ip < atm_airs.np; ip++) {
+  for (int ip = 0; ip < atm_airs.np; ip++) {
     zmax = GSL_MAX(zmax, atm_airs.z[ip]);
     zmin = GSL_MIN(zmin, atm_airs.z[ip]);
   }
 
   /* Merge AIRS data... */
-  for (ip = 0; ip < atm->np; ip++) {
+  for (int ip = 0; ip < atm->np; ip++) {
 
     /* Interpolate AIRS data... */
     intpol_atm(ctl, &atm_airs, atm->z[ip], &p, &t, q, k);
 
     /* Weighting factor... */
-    w = 1;
+    double w = 1;
     if (atm->z[ip] > zmax)
       w = GSL_MAX(1 - (atm->z[ip] - zmax) / 50, 0);
     if (atm->z[ip] < zmin)
@@ -674,14 +670,14 @@ void init_l2(
 void matrix_invert(
   gsl_matrix *a) {
 
-  size_t diag = 1, i, j, n;
+  size_t diag = 1;
 
   /* Get size... */
-  n = a->size1;
+  const size_t n = a->size1;
 
   /* Check if matrix is diagonal... */
-  for (i = 0; i < n && diag; i++)
-    for (j = i + 1; j < n; j++)
+  for (size_t i = 0; i < n && diag; i++)
+    for (size_t j = i + 1; j < n; j++)
       if (gsl_matrix_get(a, i, j) != 0) {
 	diag = 0;
 	break;
@@ -689,7 +685,7 @@ void matrix_invert(
 
   /* Quick inversion of diagonal matrix... */
   if (diag)
-    for (i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
       gsl_matrix_set(a, i, i, 1 / gsl_matrix_get(a, i, i));
 
   /* Matrix inversion by means of Cholesky decomposition... */
@@ -975,18 +971,16 @@ void read_ret_ctl(
   ctl_t *ctl,
   ret_t *ret) {
 
-  int id, ig, iw;
-
   /* Iteration control... */
   ret->kernel_recomp =
     (int) scan_ctl(argc, argv, "KERNEL_RECOMP", -1, "3", NULL);
   ret->conv_itmax = (int) scan_ctl(argc, argv, "CONV_ITMAX", -1, "30", NULL);
   ret->conv_dmin = scan_ctl(argc, argv, "CONV_DMIN", -1, "0.1", NULL);
 
-  for (id = 0; id < ctl->nd; id++)
+  for (int id = 0; id < ctl->nd; id++)
     ret->err_formod[id] = scan_ctl(argc, argv, "ERR_FORMOD", id, "0", NULL);
 
-  for (id = 0; id < ctl->nd; id++)
+  for (int id = 0; id < ctl->nd; id++)
     ret->err_noise[id] = scan_ctl(argc, argv, "ERR_NOISE", id, "0", NULL);
 
   ret->err_press = scan_ctl(argc, argv, "ERR_PRESS", -1, "0", NULL);
@@ -997,13 +991,13 @@ void read_ret_ctl(
   ret->err_temp_cz = scan_ctl(argc, argv, "ERR_TEMP_CZ", -1, "-999", NULL);
   ret->err_temp_ch = scan_ctl(argc, argv, "ERR_TEMP_CH", -1, "-999", NULL);
 
-  for (ig = 0; ig < ctl->ng; ig++) {
+  for (int ig = 0; ig < ctl->ng; ig++) {
     ret->err_q[ig] = scan_ctl(argc, argv, "ERR_Q", ig, "0", NULL);
     ret->err_q_cz[ig] = scan_ctl(argc, argv, "ERR_Q_CZ", ig, "-999", NULL);
     ret->err_q_ch[ig] = scan_ctl(argc, argv, "ERR_Q_CH", ig, "-999", NULL);
   }
 
-  for (iw = 0; iw < ctl->nw; iw++) {
+  for (int iw = 0; iw < ctl->nw; iw++) {
     ret->err_k[iw] = scan_ctl(argc, argv, "ERR_K", iw, "0", NULL);
     ret->err_k_cz[iw] = scan_ctl(argc, argv, "ERR_K_CZ", iw, "-999", NULL);
     ret->err_k_ch[iw] = scan_ctl(argc, argv, "ERR_K_CH", iw, "-999", NULL);
@@ -1020,50 +1014,44 @@ void set_cov_apr(
   int *ipa,
   gsl_matrix *s_a) {
 
-  double ch, cz, rho, x0[3], x1[3];
-
-  int ig, iw;
-
-  size_t i, j, n;
-
   /* Get sizes... */
-  n = s_a->size1;
+  const size_t n = s_a->size1;
 
   /* Allocate... */
   gsl_vector *x_a = gsl_vector_alloc(n);
 
   /* Get sigma vector... */
   atm2x(ctl, atm, x_a, NULL, NULL);
-  for (i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     if (iqa[i] == IDXP)
       gsl_vector_set(x_a, i, ret->err_press / 100 * gsl_vector_get(x_a, i));
     if (iqa[i] == IDXT)
       gsl_vector_set(x_a, i, ret->err_temp);
-    for (ig = 0; ig < ctl->ng; ig++)
+    for (int ig = 0; ig < ctl->ng; ig++)
       if (iqa[i] == IDXQ(ig))
 	gsl_vector_set(x_a, i, ret->err_q[ig] / 100 * gsl_vector_get(x_a, i));
-    for (iw = 0; iw < ctl->nw; iw++)
+    for (int iw = 0; iw < ctl->nw; iw++)
       if (iqa[i] == IDXK(iw))
 	gsl_vector_set(x_a, i, ret->err_k[iw]);
   }
 
   /* Check standard deviations... */
-  for (i = 0; i < n; i++)
+  for (size_t i = 0; i < n; i++)
     if (gsl_pow_2(gsl_vector_get(x_a, i)) <= 0)
       ERRMSG("Check a priori data (zero standard deviation)!");
 
   /* Initialize diagonal covariance... */
   gsl_matrix_set_zero(s_a);
-  for (i = 0; i < n; i++)
+  for (size_t i = 0; i < n; i++)
     gsl_matrix_set(s_a, i, i, gsl_pow_2(gsl_vector_get(x_a, i)));
 
   /* Loop over matrix elements... */
-  for (i = 0; i < n; i++)
-    for (j = 0; j < n; j++)
+  for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++)
       if (i != j && iqa[i] == iqa[j]) {
 
 	/* Initialize... */
-	cz = ch = 0;
+	double cz = 0, ch = 0;
 
 	/* Set correlation lengths for pressure... */
 	if (iqa[i] == IDXP) {
@@ -1078,14 +1066,14 @@ void set_cov_apr(
 	}
 
 	/* Set correlation lengths for volume mixing ratios... */
-	for (ig = 0; ig < ctl->ng; ig++)
+	for (int ig = 0; ig < ctl->ng; ig++)
 	  if (iqa[i] == IDXQ(ig)) {
 	    cz = ret->err_q_cz[ig];
 	    ch = ret->err_q_ch[ig];
 	  }
 
 	/* Set correlation lengths for extinction... */
-	for (iw = 0; iw < ctl->nw; iw++)
+	for (int iw = 0; iw < ctl->nw; iw++)
 	  if (iqa[i] == IDXK(iw)) {
 	    cz = ret->err_k_cz[iw];
 	    ch = ret->err_k_ch[iw];
@@ -1095,11 +1083,12 @@ void set_cov_apr(
 	if (cz > 0 && ch > 0) {
 
 	  /* Get Cartesian coordinates... */
+	  double x0[3], x1[3];
 	  geo2cart(0, atm->lon[ipa[i]], atm->lat[ipa[i]], x0);
 	  geo2cart(0, atm->lon[ipa[j]], atm->lat[ipa[j]], x1);
 
 	  /* Compute correlations... */
-	  rho =
+	  const double rho =
 	    exp(-DIST(x0, x1) / ch -
 		fabs(atm->z[ipa[i]] - atm->z[ipa[j]]) / cz);
 
@@ -1125,37 +1114,33 @@ void set_cov_meas(
 
   static obs_t obs_err;
 
-  int id, ir;
-
-  size_t i, m;
-
   /* Get size... */
-  m = sig_eps_inv->size;
+  const size_t m = sig_eps_inv->size;
 
   /* Noise error (always considered in retrieval fit)... */
   copy_obs(ctl, &obs_err, obs, 1);
-  for (ir = 0; ir < obs_err.nr; ir++)
-    for (id = 0; id < ctl->nd; id++)
+  for (int ir = 0; ir < obs_err.nr; ir++)
+    for (int id = 0; id < ctl->nd; id++)
       obs_err.rad[id][ir]
 	= (gsl_finite(obs->rad[id][ir]) ? ret->err_noise[id] : GSL_NAN);
   obs2y(ctl, &obs_err, sig_noise, NULL, NULL);
 
   /* Forward model error (always considered in retrieval fit)... */
   copy_obs(ctl, &obs_err, obs, 1);
-  for (ir = 0; ir < obs_err.nr; ir++)
-    for (id = 0; id < ctl->nd; id++)
+  for (int ir = 0; ir < obs_err.nr; ir++)
+    for (int id = 0; id < ctl->nd; id++)
       obs_err.rad[id][ir]
 	= fabs(ret->err_formod[id] / 100 * obs->rad[id][ir]);
   obs2y(ctl, &obs_err, sig_formod, NULL, NULL);
 
   /* Total error... */
-  for (i = 0; i < m; i++)
+  for (size_t i = 0; i < m; i++)
     gsl_vector_set(sig_eps_inv, i,
 		   1 / sqrt(gsl_pow_2(gsl_vector_get(sig_noise, i))
 			    + gsl_pow_2(gsl_vector_get(sig_formod, i))));
 
   /* Check standard deviations... */
-  for (i = 0; i < m; i++)
+  for (size_t i = 0; i < m; i++)
     if (gsl_vector_get(sig_eps_inv, i) <= 0)
       ERRMSG("Check measurement errors (zero standard deviation)!");
 }
