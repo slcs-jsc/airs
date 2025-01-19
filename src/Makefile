@@ -9,10 +9,10 @@ EXC = day2doy diff_apr diff_ret distance doy2day events extract hurricane island
 DESTDIR ?= ../bin
 
 # Library directories...
-LIBDIR += -L /usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu/hdf5/serial -L ../lib/build/lib 
+LIBDIR += -L ../libs/build/lib -L /usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu/hdf5/serial
 
 # Include directories...
-INCDIR += -I/usr/include -I/usr/include/hdf5/serial -I ../lib/build/include
+INCDIR += -I ../libs/build/include -I/usr/include -I/usr/include/hdf5/serial
 
 # Static compilation...
 STATIC ?= 1
@@ -96,7 +96,7 @@ dist:
 	zip airs_`date +"%y%m%d%H%M"`.zip Doxyfile Makefile *.c *.h
 
 doc:
-	mkdir -p ../doc && doxygen && cd ../doc/latex && make && mv refman.pdf ..
+	mkdir -p ../docs && doxygen && cd ../docs/latex && make && mv refman.pdf ..
 
 indent:
 	indent -br -brf -brs -bfda -ce -cdw -lp -npcs -npsl *.c *.h
