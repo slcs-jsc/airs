@@ -3,6 +3,19 @@
 This repository provides a collection of codes for the analysis of
 observations of NASA's Atmospheric InfraRed Sounder (AIRS).
 
+[![release (latest by date)](https://img.shields.io/github/v/release/slcs-jsc/airs)](https://github.com/slcs-jsc/airs/releases)
+[![commits since latest release (by SemVer)](https://img.shields.io/github/commits-since/slcs-jsc/airs/latest)](https://github.com/slcs-jsc/airs/commits/master)
+[![last commit](https://img.shields.io/github/last-commit/slcs-jsc/airs.svg)](https://github.com/slcs-jsc/airs/commits/master)
+[![top language](https://img.shields.io/github/languages/top/slcs-jsc/airs.svg)](https://github.com/slcs-jsc/airs/tree/master/src)
+[![code size](https://img.shields.io/github/languages/code-size/slcs-jsc/airs.svg)](https://github.com/slcs-jsc/airs/tree/master/src)
+[![repo size](https://img.shields.io/github/repo-size/slcs-jsc/airs.svg)](https://github.com/slcs-jsc/airs/tree/master/src)
+[![codacy](https://api.codacy.com/project/badge/Grade/a9de7b2239f843b884d2a4eb583726c9)](https://app.codacy.com/gh/slcs-jsc/airs?utm_source=github.com&utm_medium=referral&utm_content=slcs-jsc/airs&utm_campaign=Badge_Grade_Settings)
+[![codecov](https://codecov.io/gh/slcs-jsc/airs/branch/master/graph/badge.svg?token=4X6IEHWUBJ)](https://codecov.io/gh/slcs-jsc/airs)
+[![tests](https://img.shields.io/github/actions/workflow/status/slcs-jsc/airs/tests.yml?branch=master&label=tests)](https://github.com/slcs-jsc/airs/actions)
+[![docs](https://img.shields.io/github/actions/workflow/status/slcs-jsc/airs/docs.yml?branch=master&label=docs)](https://slcs-jsc.github.io/airs)
+[![license](https://img.shields.io/github/license/slcs-jsc/airs.svg)](https://github.com/slcs-jsc/airs/blob/master/COPYING)
+[![doi](https://zenodo.org/badge/DOI/10.5281/zenodo.4400597.svg)](https://doi.org/10.5281/zenodo.4400597)
+
 ## Installation
 
 This documentation describes the installation on a Linux system.
