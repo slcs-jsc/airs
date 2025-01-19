@@ -68,7 +68,7 @@ their own licenses and copyrights, please see corresponding documentation.
 
 ## Contact
 
-We are interested in sharing the AIRS code for research applications.
+We are interested in sharing the AIRS Code Collection for research applications.
 
 Please do not hesitate to contact us if you have any further questions:
 

@@ -291,7 +291,7 @@ int main(
 
   static wave_t *wave;
 
-  static FILE *in, *out;
+  static FILE *out;
 
   static char pertname[LEN], set[LEN];
 
@@ -353,6 +353,7 @@ int main(
   for (int iarg = 3; iarg < argc; iarg++) {
 
     /* Read perturbation data... */
+    FILE *in;
     if (!(in = fopen(argv[iarg], "r")))
       continue;
     else {

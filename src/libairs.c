@@ -130,46 +130,44 @@ void background_poly(
 
   double x[WX], x2[WY], y[WX], y2[WY];
 
-  int ix, iy;
-
   /* Check parameters... */
   if (dim_x <= 0 && dim_y <= 0)
     return;
 
   /* Copy temperatures to background... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++) {
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
       wave->bg[ix][iy] = wave->temp[ix][iy];
       wave->pt[ix][iy] = 0;
     }
 
   /* Compute fit in x-direction... */
   if (dim_x > 0)
-    for (iy = 0; iy < wave->ny; iy++) {
-      for (ix = 0; ix < wave->nx; ix++) {
+    for (int iy = 0; iy < wave->ny; iy++) {
+      for (int ix = 0; ix < wave->nx; ix++) {
 	x[ix] = (double) ix;
 	y[ix] = wave->bg[ix][iy];
       }
       background_poly_help(x, y, wave->nx, dim_x);
-      for (ix = 0; ix < wave->nx; ix++)
+      for (int ix = 0; ix < wave->nx; ix++)
 	wave->bg[ix][iy] = y[ix];
     }
 
   /* Compute fit in y-direction... */
   if (dim_y > 0)
-    for (ix = 0; ix < wave->nx; ix++) {
-      for (iy = 0; iy < wave->ny; iy++) {
+    for (int ix = 0; ix < wave->nx; ix++) {
+      for (int iy = 0; iy < wave->ny; iy++) {
 	x2[iy] = (int) iy;
 	y2[iy] = wave->bg[ix][iy];
       }
       background_poly_help(x2, y2, wave->ny, dim_y);
-      for (iy = 0; iy < wave->ny; iy++)
+      for (int iy = 0; iy < wave->ny; iy++)
 	wave->bg[ix][iy] = y2[iy];
     }
 
   /* Recompute perturbations... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++)
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++)
       wave->pt[ix][iy] = wave->temp[ix][iy] - wave->bg[ix][iy];
 }
 
@@ -180,29 +178,29 @@ void background_smooth(
   int npts_x,
   int npts_y) {
 
-  static double help[WX][WY], dmax = 2500.;
+  const double dmax = 2500.0;
 
-  int dx, dy, i, j, ix, iy, n;
+  static double help[WX][WY];
 
   /* Check parameters... */
   if (npts_x <= 0 && npts_y <= 0)
     return;
 
   /* Smooth background... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++) {
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
 
       /* Init... */
-      n = 0;
+      int n = 0;
       help[ix][iy] = 0;
 
       /* Set maximum range... */
-      dx = GSL_MIN(GSL_MIN(npts_x, ix), wave->nx - 1 - ix);
-      dy = GSL_MIN(GSL_MIN(npts_y, iy), wave->ny - 1 - iy);
+      const int dx = GSL_MIN(GSL_MIN(npts_x, ix), wave->nx - 1 - ix);
+      const int dy = GSL_MIN(GSL_MIN(npts_y, iy), wave->ny - 1 - iy);
 
       /* Average... */
-      for (i = ix - dx; i <= ix + dx; i++)
-	for (j = iy - dy; j <= iy + dy; j++)
+      for (int i = ix - dx; i <= ix + dx; i++)
+	for (int j = iy - dy; j <= iy + dy; j++)
 	  if (fabs(wave->x[ix] - wave->x[i]) < dmax &&
 	      fabs(wave->y[iy] - wave->y[j]) < dmax) {
 	    help[ix][iy] += wave->bg[i][j];
@@ -217,8 +215,8 @@ void background_smooth(
     }
 
   /* Recalculate perturbations... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++) {
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
       wave->bg[ix][iy] = help[ix][iy];
       wave->pt[ix][iy] = wave->temp[ix][iy] - wave->bg[ix][iy];
     }
@@ -229,11 +227,9 @@ void background_smooth(
 void create_background(
   wave_t *wave) {
 
-  int ix, iy;
-
   /* Loop over grid points... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++) {
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
 
       /* Set background for 4.3 micron BT measurements... */
       wave->bg[ix][iy] = 235.626 + 5.38165e-6 * gsl_pow_2(wave->x[ix]
@@ -284,11 +280,9 @@ void create_wave(
   double phi,
   double fwhm) {
 
-  int ix, iy;
-
   /* Loop over grid points... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++) {
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
 
       /* Set wave perturbation... */
       wave->pt[ix][iy] = amp * cos((lx != 0 ? 2 * M_PI / lx : 0) * wave->x[ix]
@@ -313,8 +307,10 @@ void day2doy(
   int day,
   int *doy) {
 
-  int d0[12] = { 1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335 };
-  int d0l[12] = { 1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336 };
+  const int d0[12] =
+    { 1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335 };
+  const int d0l[12] =
+    { 1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336 };
 
   /* Get day of year... */
   if (year % 400 == 0 || (year % 100 != 0 && year % 4 == 0))
@@ -331,8 +327,10 @@ void doy2day(
   int *mon,
   int *day) {
 
-  int d0[12] = { 1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335 };
-  int d0l[12] = { 1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336 };
+  const int d0[12] =
+    { 1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335 };
+  const int d0l[12] =
+    { 1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336 };
   int i;
 
   /* Get month and day... */
@@ -434,25 +432,23 @@ void fft(
 
   FILE *out;
 
-  int i, i2, imin, imax, j, j2, jmin, jmax, nx, ny;
-
   /* Find box... */
-  imin = jmin = 9999;
-  imax = jmax = -9999;
-  for (i = 0; i < wave->nx; i++)
-    for (j = 0; j < wave->ny; j++)
+  int imin = 9999, jmin = 9999;
+  int imax = -9999, jmax = -9999;
+  for (int i = 0; i < wave->nx; i++)
+    for (int j = 0; j < wave->ny; j++)
       if (gsl_finite(wave->var[i][j])) {
 	imin = GSL_MIN(imin, i);
 	imax = GSL_MAX(imax, i);
 	jmin = GSL_MIN(jmin, j);
 	jmax = GSL_MAX(jmax, j);
       }
-  nx = imax - imin + 1;
-  ny = jmax - jmin + 1;
+  const int nx = imax - imin + 1;
+  const int ny = jmax - jmin + 1;
 
   /* Copy data... */
-  for (i = imin; i <= imax; i++)
-    for (j = jmin; j <= jmax; j++) {
+  for (int i = imin; i <= imax; i++)
+    for (int j = jmin; j <= jmax; j++) {
       if (gsl_finite(wave->pt[i][j]))
 	boxReal[i - imin][j - jmin] = wave->pt[i][j];
       else
@@ -461,40 +457,40 @@ void fft(
     }
 
   /* FFT of the rows... */
-  for (i = 0; i < nx; i++) {
-    for (j = 0; j < ny; j++) {
+  for (int i = 0; i < nx; i++) {
+    for (int j = 0; j < ny; j++) {
       cutReal[j] = boxReal[i][j];
       cutImag[j] = boxImag[i][j];
     }
     fft_help(cutReal, cutImag, ny);
-    for (j = 0; j < ny; j++) {
+    for (int j = 0; j < ny; j++) {
       boxReal[i][j] = cutReal[j];
       boxImag[i][j] = cutImag[j];
     }
   }
 
   /* FFT of the columns... */
-  for (j = 0; j < ny; j++) {
-    for (i = 0; i < nx; i++) {
+  for (int j = 0; j < ny; j++) {
+    for (int i = 0; i < nx; i++) {
       cutReal[i] = boxReal[i][j];
       cutImag[i] = boxImag[i][j];
     }
     fft_help(cutReal, cutImag, nx);
-    for (i = 0; i < nx; i++) {
+    for (int i = 0; i < nx; i++) {
       boxReal[i][j] = cutReal[i];
       boxImag[i][j] = cutImag[i];
     }
   }
 
   /* Get frequencies, amplitude, and phase... */
-  for (i = 0; i < nx; i++)
+  for (int i = 0; i < nx; i++)
     kx[i] = 2. * M_PI * ((i < nx / 2) ? (double) i : -(double) (nx - i))
       / (nx * fabs(wave->x[imax] - wave->x[imin]) / (nx - 1.0));
-  for (j = 0; j < ny; j++)
+  for (int j = 0; j < ny; j++)
     ky[j] = 2. * M_PI * ((j < ny / 2) ? (double) j : -(double) (ny - j))
       / (ny * fabs(wave->y[jmax] - wave->y[jmin]) / (ny - 1.0));
-  for (i = 0; i < nx; i++)
-    for (j = 0; j < ny; j++) {
+  for (int i = 0; i < nx; i++)
+    for (int j = 0; j < ny; j++) {
       A[i][j]
 	= (i == 0 && j == 0 ? 1.0 : 2.0) / (nx * ny)
 	* sqrt(gsl_pow_2(boxReal[i][j]) + gsl_pow_2(boxImag[i][j]));
@@ -503,8 +499,8 @@ void fft(
     }
 
   /* Check frequencies... */
-  for (i = 0; i < nx; i++)
-    for (j = 0; j < ny; j++)
+  for (int i = 0; i < nx; i++)
+    for (int j = 0; j < ny; j++)
       if (kx[i] == 0 || ky[j] == 0) {
 	A[i][j] = GSL_NAN;
 	phi[i][j] = GSL_NAN;
@@ -512,8 +508,8 @@ void fft(
 
   /* Find maximum... */
   *Amax = 0;
-  for (i = 0; i < nx; i++)
-    for (j = 0; j < ny / 2; j++)
+  for (int i = 0; i < nx; i++)
+    for (int j = 0; j < ny / 2; j++)
       if (gsl_finite(A[i][j]) && A[i][j] > *Amax) {
 	*Amax = A[i][j];
 	*phimax = phi[i][j];
@@ -562,11 +558,11 @@ void fft(
 	    "# $6 = amplitude [K]\n" "# $7 = phase [rad]\n");
 
     /* Write data... */
-    for (i = nx - 1; i > 0; i--) {
+    for (int i = nx - 1; i > 0; i--) {
       fprintf(out, "\n");
-      for (j = ny / 2; j > 0; j--) {
-	i2 = (i == nx / 2 ? 0 : i);
-	j2 = (j == ny / 2 ? 0 : j);
+      for (int j = ny / 2; j > 0; j--) {
+	int i2 = (i == nx / 2 ? 0 : i);
+	int j2 = (j == ny / 2 ? 0 : j);
 	fprintf(out, "%g %g %g %g %g %g %g\n", wave->z,
 		(kx[i2] != 0 ? 2 * M_PI / kx[i2] : 0),
 		(ky[j2] != 0 ? 2 * M_PI / ky[j2] : 0),
@@ -585,32 +581,30 @@ void gauss(
   wave_t *wave,
   double fwhm) {
 
-  static double d2, help[WX][WY], sigma2, w, wsum;
-
-  int ix, ix2, iy, iy2;
+  static double help[WX][WY];
 
   /* Check parameters... */
   if (fwhm <= 0)
     return;
 
   /* Compute sigma^2... */
-  sigma2 = gsl_pow_2(fwhm / 2.3548);
+  const double sigma2 = gsl_pow_2(fwhm / 2.3548);
 
   /* Loop over data points... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++) {
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
 
       /* Init... */
-      wsum = 0;
+      double wsum = 0;
       help[ix][iy] = 0;
 
       /* Average... */
-      for (ix2 = 0; ix2 < wave->nx; ix2++)
-	for (iy2 = 0; iy2 < wave->ny; iy2++) {
-	  d2 = gsl_pow_2(wave->x[ix] - wave->x[ix2])
+      for (int ix2 = 0; ix2 < wave->nx; ix2++)
+	for (int iy2 = 0; iy2 < wave->ny; iy2++) {
+	  const double d2 = gsl_pow_2(wave->x[ix] - wave->x[ix2])
 	    + gsl_pow_2(wave->y[iy] - wave->y[iy2]);
 	  if (d2 <= 9 * sigma2) {
-	    w = exp(-d2 / (2 * sigma2));
+	    const double w = exp(-d2 / (2 * sigma2));
 	    wsum += w;
 	    help[ix][iy] += w * wave->pt[ix2][iy2];
 	  }
@@ -629,22 +623,20 @@ void hamming(
 
   static double help[WX][WY];
 
-  int iter, ix, iy;
-
   /* Iterations... */
-  for (iter = 0; iter < niter; iter++) {
+  for (int iter = 0; iter < niter; iter++) {
 
     /* Filter in x direction... */
-    for (ix = 0; ix < wave->nx; ix++)
-      for (iy = 0; iy < wave->ny; iy++)
+    for (int ix = 0; ix < wave->nx; ix++)
+      for (int iy = 0; iy < wave->ny; iy++)
 	help[ix][iy]
 	  = 0.23 * wave->pt[ix > 0 ? ix - 1 : ix][iy]
 	  + 0.54 * wave->pt[ix][iy]
 	  + 0.23 * wave->pt[ix < wave->nx - 1 ? ix + 1 : ix][iy];
 
     /* Filter in y direction... */
-    for (ix = 0; ix < wave->nx; ix++)
-      for (iy = 0; iy < wave->ny; iy++)
+    for (int ix = 0; ix < wave->nx; ix++)
+      for (int iy = 0; iy < wave->ny; iy++)
 	wave->pt[ix][iy]
 	  = 0.23 * help[ix][iy > 0 ? iy - 1 : iy]
 	  + 0.54 * help[ix][iy]
@@ -660,8 +652,6 @@ void intpol_x(
 
   double dummy, x[WX], xc[WX][3], xc2[WX][3], y[WX];
 
-  int i, ic, ix, iy;
-
   /* Check parameters... */
   if (n <= 0)
     return;
@@ -669,7 +659,7 @@ void intpol_x(
     ERRMSG("Too many data points!");
 
   /* Set new x-coordinates... */
-  for (i = 0; i < n; i++)
+  for (int i = 0; i < n; i++)
     x[i] = LIN(0.0, wave->x[0], n - 1.0, wave->x[wave->nx - 1], i);
 
   /* Allocate... */
@@ -678,47 +668,47 @@ void intpol_x(
     = gsl_spline_alloc(gsl_interp_cspline, (size_t) wave->nx);
 
   /* Loop over scans... */
-  for (iy = 0; iy < wave->ny; iy++) {
+  for (int iy = 0; iy < wave->ny; iy++) {
 
     /* Interpolate Cartesian coordinates... */
-    for (ix = 0; ix < wave->nx; ix++)
+    for (int ix = 0; ix < wave->nx; ix++)
       geo2cart(0, wave->lon[ix][iy], wave->lat[ix][iy], xc[ix]);
-    for (ic = 0; ic < 3; ic++) {
-      for (ix = 0; ix < wave->nx; ix++)
+    for (int ic = 0; ic < 3; ic++) {
+      for (int ix = 0; ix < wave->nx; ix++)
 	y[ix] = xc[ix][ic];
       gsl_spline_init(spline, wave->x, y, (size_t) wave->nx);
-      for (i = 0; i < n; i++)
+      for (int i = 0; i < n; i++)
 	xc2[i][ic] = gsl_spline_eval(spline, x[i], acc);
     }
-    for (i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
       cart2geo(xc2[i], &dummy, &wave->lon[i][iy], &wave->lat[i][iy]);
 
     /* Interpolate temperature... */
-    for (ix = 0; ix < wave->nx; ix++)
+    for (int ix = 0; ix < wave->nx; ix++)
       y[ix] = wave->temp[ix][iy];
     gsl_spline_init(spline, wave->x, y, (size_t) wave->nx);
-    for (i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
       wave->temp[i][iy] = gsl_spline_eval(spline, x[i], acc);
 
     /* Interpolate background... */
-    for (ix = 0; ix < wave->nx; ix++)
+    for (int ix = 0; ix < wave->nx; ix++)
       y[ix] = wave->bg[ix][iy];
     gsl_spline_init(spline, wave->x, y, (size_t) wave->nx);
-    for (i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
       wave->bg[i][iy] = gsl_spline_eval(spline, x[i], acc);
 
     /* Interpolate perturbations... */
-    for (ix = 0; ix < wave->nx; ix++)
+    for (int ix = 0; ix < wave->nx; ix++)
       y[ix] = wave->pt[ix][iy];
     gsl_spline_init(spline, wave->x, y, (size_t) wave->nx);
-    for (i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
       wave->pt[i][iy] = gsl_spline_eval(spline, x[i], acc);
 
     /* Interpolate variance... */
-    for (ix = 0; ix < wave->nx; ix++)
+    for (int ix = 0; ix < wave->nx; ix++)
       y[ix] = wave->var[ix][iy];
     gsl_spline_init(spline, wave->x, y, (size_t) wave->nx);
-    for (i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
       wave->var[i][iy] = gsl_spline_eval(spline, x[i], acc);
   }
 
@@ -727,7 +717,7 @@ void intpol_x(
   gsl_interp_accel_free(acc);
 
   /* Set new x-coordinates... */
-  for (i = 0; i < n; i++)
+  for (int i = 0; i < n; i++)
     wave->x[i] = x[i];
   wave->nx = n;
 }
@@ -740,26 +730,22 @@ void median(
 
   static double data[WX * WY], help[WX][WY];
 
-  int ix, ix2, iy, iy2;
-
-  size_t n;
-
   /* Check parameters... */
   if (dx <= 0)
     return;
 
   /* Loop over data points... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++) {
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
 
       /* Init... */
-      n = 0;
+      size_t n = 0;
 
       /* Get data... */
-      for (ix2 = GSL_MAX(ix - dx, 0); ix2 < GSL_MIN(ix + dx, wave->nx - 1);
-	   ix2++)
-	for (iy2 = GSL_MAX(iy - dx, 0); iy2 < GSL_MIN(iy + dx, wave->ny - 1);
-	     iy2++) {
+      for (int ix2 = GSL_MAX(ix - dx, 0);
+	   ix2 < GSL_MIN(ix + dx, wave->nx - 1); ix2++)
+	for (int iy2 = GSL_MAX(iy - dx, 0);
+	     iy2 < GSL_MIN(iy + dx, wave->ny - 1); iy2++) {
 	  data[n] = wave->pt[ix2][iy2];
 	  n++;
 	}
@@ -770,8 +756,8 @@ void median(
     }
 
   /* Loop over data points... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++)
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++)
       wave->pt[ix][iy] = help[ix][iy];
 }
 
@@ -781,10 +767,6 @@ void merge_y(
   wave_t *wave1,
   wave_t *wave2) {
 
-  double y;
-
-  int ix, iy;
-
   /* Check data... */
   if (wave1->nx != wave2->nx)
     ERRMSG("Across-track sizes do not match!");
@@ -792,13 +774,13 @@ void merge_y(
     ERRMSG("Too many data points!");
 
   /* Get offset in y direction... */
-  y =
+  double y =
     wave1->y[wave1->ny - 1] + (wave1->y[wave1->ny - 1] -
 			       wave1->y[0]) / (wave1->ny - 1);
 
   /* Merge data... */
-  for (ix = 0; ix < wave2->nx; ix++)
-    for (iy = 0; iy < wave2->ny; iy++) {
+  for (int ix = 0; ix < wave2->nx; ix++)
+    for (int iy = 0; iy < wave2->ny; iy++) {
       wave1->y[wave1->ny + iy] = y + wave2->y[iy];
       wave1->lon[ix][wave1->ny + iy] = wave2->lon[ix][iy];
       wave1->lat[ix][wave1->ny + iy] = wave2->lat[ix][iy];
@@ -819,20 +801,19 @@ void noise(
   double *mu,
   double *sig) {
 
-  int ix, ix2, iy, iy2, n = 0, okay;
-
   /* Init... */
+  int n = 0;
   *mu = 0;
   *sig = 0;
 
   /* Estimate noise (Immerkaer, 1996)... */
-  for (ix = 1; ix < wave->nx - 1; ix++)
-    for (iy = 1; iy < wave->ny - 1; iy++) {
+  for (int ix = 1; ix < wave->nx - 1; ix++)
+    for (int iy = 1; iy < wave->ny - 1; iy++) {
 
       /* Check data... */
-      okay = 1;
-      for (ix2 = ix - 1; ix2 <= ix + 1; ix2++)
-	for (iy2 = iy - 1; iy2 <= iy + 1; iy2++)
+      int okay = 1;
+      for (int ix2 = ix - 1; ix2 <= ix + 1; ix2++)
+	for (int iy2 = iy - 1; iy2 <= iy + 1; iy2++)
 	  if (!gsl_finite(wave->temp[ix2][iy2]))
 	    okay = 0;
       if (!okay)
@@ -874,25 +855,24 @@ void period(
 
   FILE *out;
 
-  static double kx[PMAX], ky[PMAX], kx_ny, ky_ny, A[PMAX][PMAX],
-    phi[PMAX][PMAX], cx[PMAX][WX], cy[PMAX][WY], sx[PMAX][WX], sy[PMAX][WY],
-    a, b, c, lx, ly;
+  static double kx[PMAX], ky[PMAX], A[PMAX][PMAX], phi[PMAX][PMAX],
+    cx[PMAX][WX], cy[PMAX][WY], sx[PMAX][WX], sy[PMAX][WY];
 
-  int i, imin, imax, j, jmin, jmax, l, lmax = 0, m, mmax = 0;
+  int imin, imax, jmin, jmax, lmax = 0, mmax = 0;
 
   /* Compute wavenumbers and periodogram coefficients... */
-  for (lx = -lxymax; lx <= lxymax; lx += dlxy) {
+  for (double lx = -lxymax; lx <= lxymax; lx += dlxy) {
     kx[lmax] = (lx != 0 ? 2 * M_PI / lx : 0);
-    for (i = 0; i < wave->nx; i++) {
+    for (int i = 0; i < wave->nx; i++) {
       cx[lmax][i] = cos(kx[lmax] * wave->x[i]);
       sx[lmax][i] = sin(kx[lmax] * wave->x[i]);
     }
     if ((++lmax) > PMAX)
       ERRMSG("Too many wavenumbers for periodogram!");
   }
-  for (ly = 0; ly <= lxymax; ly += dlxy) {
+  for (double ly = 0; ly <= lxymax; ly += dlxy) {
     ky[mmax] = (ly != 0 ? 2 * M_PI / ly : 0);
-    for (j = 0; j < wave->ny; j++) {
+    for (int j = 0; j < wave->ny; j++) {
       cy[mmax][j] = cos(ky[mmax] * wave->y[j]);
       sy[mmax][j] = sin(ky[mmax] * wave->y[j]);
     }
@@ -903,8 +883,8 @@ void period(
   /* Find area... */
   imin = jmin = 9999;
   imax = jmax = -9999;
-  for (i = 0; i < wave->nx; i++)
-    for (j = 0; j < wave->ny; j++)
+  for (int i = 0; i < wave->nx; i++)
+    for (int j = 0; j < wave->ny; j++)
       if (gsl_finite(wave->var[i][j])) {
 	imin = GSL_MIN(imin, i);
 	imax = GSL_MAX(imax, i);
@@ -913,16 +893,16 @@ void period(
       }
 
   /* Get Nyquist frequencies... */
-  kx_ny =
+  const double kx_ny =
     M_PI / fabs((wave->x[imax] - wave->x[imin]) /
 		((double) imax - (double) imin));
-  ky_ny =
+  const double ky_ny =
     M_PI / fabs((wave->y[jmax] - wave->y[jmin]) /
 		((double) jmax - (double) jmin));
 
   /* Loop over wavelengths... */
-  for (l = 0; l < lmax; l++)
-    for (m = 0; m < mmax; m++) {
+  for (int l = 0; l < lmax; l++)
+    for (int m = 0; m < mmax; m++) {
 
       /* Check frequencies... */
       if (kx[l] == 0 || fabs(kx[l]) > kx_ny ||
@@ -933,9 +913,9 @@ void period(
       }
 
       /* Compute periodogram... */
-      a = b = c = 0;
-      for (i = imin; i <= imax; i++)
-	for (j = jmin; j <= jmax; j++)
+      double a = 0, b = 0, c = 0;
+      for (int i = imin; i <= imax; i++)
+	for (int j = jmin; j <= jmax; j++)
 	  if (gsl_finite(wave->var[i][j])) {
 	    a += wave->pt[i][j] * (cx[l][i] * cy[m][j] - sx[l][i] * sy[m][j]);
 	    b += wave->pt[i][j] * (sx[l][i] * cy[m][j] + cx[l][i] * sy[m][j]);
@@ -951,8 +931,8 @@ void period(
 
   /* Find maximum... */
   *Amax = 0;
-  for (l = 0; l < lmax; l++)
-    for (m = 0; m < mmax; m++)
+  for (int l = 0; l < lmax; l++)
+    for (int m = 0; m < mmax; m++)
       if (gsl_finite(A[l][m]) && A[l][m] > *Amax) {
 	*Amax = A[l][m];
 	*phimax = phi[l][m];
@@ -1001,9 +981,9 @@ void period(
 	    "# $6 = amplitude [K]\n" "# $7 = phase [rad]\n");
 
     /* Write data... */
-    for (l = 0; l < lmax; l++) {
+    for (int l = 0; l < lmax; l++) {
       fprintf(out, "\n");
-      for (m = 0; m < mmax; m++)
+      for (int m = 0; m < mmax; m++)
 	fprintf(out, "%g %g %g %g %g %g %g\n", wave->z,
 		(kx[l] != 0 ? 2 * M_PI / kx[l] : 0),
 		(ky[m] != 0 ? 2 * M_PI / ky[m] : 0),
@@ -1027,8 +1007,6 @@ void pert2wave(
 
   double x0[3], x1[3];
 
-  int itrack, ixtrack;
-
   /* Check ranges... */
   track0 = GSL_MIN(GSL_MAX(track0, 0), pert->ntrack - 1);
   track1 = GSL_MIN(GSL_MAX(track1, 0), pert->ntrack - 1);
@@ -1044,8 +1022,8 @@ void pert2wave(
     ERRMSG("Too many along-track values!");
 
   /* Loop over footprints... */
-  for (itrack = track0; itrack <= track1; itrack++)
-    for (ixtrack = xtrack0; ixtrack <= xtrack1; ixtrack++) {
+  for (int itrack = track0; itrack <= track1; itrack++)
+    for (int ixtrack = xtrack0; ixtrack <= xtrack1; ixtrack++) {
 
       /* Get distances... */
       if (itrack == track0) {
@@ -1166,9 +1144,7 @@ void read_pert(
 
   static int dimid[2], ncid, varid;
 
-  static size_t itrack, ntrack, nxtrack, start[2] = { 0, 0 }, count[2] = {
-    1, 1
-  };
+  static size_t ntrack, nxtrack, start[2] = { 0, 0 }, count[2] = { 1, 1 };
 
   /* Write info... */
   printf("Read perturbation data: %s\n", filename);
@@ -1191,46 +1167,46 @@ void read_pert(
 
   /* Read data... */
   NC(nc_inq_varid(ncid, "time", &varid));
-  for (itrack = 0; itrack < ntrack; itrack++) {
+  for (size_t itrack = 0; itrack < ntrack; itrack++) {
     start[0] = itrack;
     NC(nc_get_vara_double(ncid, varid, start, count, pert->time[itrack]));
   }
 
   NC(nc_inq_varid(ncid, "lon", &varid));
-  for (itrack = 0; itrack < ntrack; itrack++) {
+  for (size_t itrack = 0; itrack < ntrack; itrack++) {
     start[0] = itrack;
     NC(nc_get_vara_double(ncid, varid, start, count, pert->lon[itrack]));
   }
 
   NC(nc_inq_varid(ncid, "lat", &varid));
-  for (itrack = 0; itrack < ntrack; itrack++) {
+  for (size_t itrack = 0; itrack < ntrack; itrack++) {
     start[0] = itrack;
     NC(nc_get_vara_double(ncid, varid, start, count, pert->lat[itrack]));
   }
 
   NC(nc_inq_varid(ncid, "bt_8mu", &varid));
-  for (itrack = 0; itrack < ntrack; itrack++) {
+  for (size_t itrack = 0; itrack < ntrack; itrack++) {
     start[0] = itrack;
     NC(nc_get_vara_double(ncid, varid, start, count, pert->dc[itrack]));
   }
 
   sprintf(varname, "bt_%s", pertname);
   NC(nc_inq_varid(ncid, varname, &varid));
-  for (itrack = 0; itrack < ntrack; itrack++) {
+  for (size_t itrack = 0; itrack < ntrack; itrack++) {
     start[0] = itrack;
     NC(nc_get_vara_double(ncid, varid, start, count, pert->bt[itrack]));
   }
 
   sprintf(varname, "bt_%s_pt", pertname);
   NC(nc_inq_varid(ncid, varname, &varid));
-  for (itrack = 0; itrack < ntrack; itrack++) {
+  for (size_t itrack = 0; itrack < ntrack; itrack++) {
     start[0] = itrack;
     NC(nc_get_vara_double(ncid, varid, start, count, pert->pt[itrack]));
   }
 
   sprintf(varname, "bt_%s_var", pertname);
   NC(nc_inq_varid(ncid, varname, &varid));
-  for (itrack = 0; itrack < ntrack; itrack++) {
+  for (size_t itrack = 0; itrack < ntrack; itrack++) {
     start[0] = itrack;
     NC(nc_get_vara_double(ncid, varid, start, count, pert->var[itrack]));
   }
@@ -1247,9 +1223,9 @@ void read_retr(
 
   static double help[NDS * NPG];
 
-  int dimid, ids = 0, ip, ncid, varid;
+  int dimid, ids = 0, ncid, varid;
 
-  size_t itrack, ixtrack, nds, np, ntrack, nxtrack;
+  size_t nds, np, ntrack, nxtrack;
 
   /* Write info... */
   printf("Read retrieval data: %s\n", filename);
@@ -1279,9 +1255,9 @@ void read_retr(
     NC(nc_inq_varid(ncid, "l1_time", &varid));
     NC(nc_get_var_double(ncid, varid, help));
     ids = 0;
-    for (itrack = 0; itrack < ntrack; itrack++)
-      for (ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
-	for (ip = 0; ip < ret->np; ip++)
+    for (size_t itrack = 0; itrack < ntrack; itrack++)
+      for (size_t ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
+	for (int ip = 0; ip < ret->np; ip++)
 	  ret->time[ids][ip] = help[ids];
 	ids++;
       }
@@ -1290,9 +1266,9 @@ void read_retr(
     NC(nc_inq_varid(ncid, "ret_z", &varid));
     NC(nc_get_var_double(ncid, varid, help));
     ids = 0;
-    for (itrack = 0; itrack < ntrack; itrack++)
-      for (ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
-	for (ip = 0; ip < ret->np; ip++)
+    for (size_t itrack = 0; itrack < ntrack; itrack++)
+      for (size_t ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
+	for (int ip = 0; ip < ret->np; ip++)
 	  ret->z[ids][ip] = help[ip];
 	ids++;
       }
@@ -1301,9 +1277,9 @@ void read_retr(
     NC(nc_inq_varid(ncid, "l1_lon", &varid));
     NC(nc_get_var_double(ncid, varid, help));
     ids = 0;
-    for (itrack = 0; itrack < ntrack; itrack++)
-      for (ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
-	for (ip = 0; ip < ret->np; ip++)
+    for (size_t itrack = 0; itrack < ntrack; itrack++)
+      for (size_t ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
+	for (int ip = 0; ip < ret->np; ip++)
 	  ret->lon[ids][ip] = help[ids];
 	ids++;
       }
@@ -1312,9 +1288,9 @@ void read_retr(
     NC(nc_inq_varid(ncid, "l1_lat", &varid));
     NC(nc_get_var_double(ncid, varid, help));
     ids = 0;
-    for (itrack = 0; itrack < ntrack; itrack++)
-      for (ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
-	for (ip = 0; ip < ret->np; ip++)
+    for (size_t itrack = 0; itrack < ntrack; itrack++)
+      for (size_t ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
+	for (int ip = 0; ip < ret->np; ip++)
 	  ret->lat[ids][ip] = help[ids];
 	ids++;
       }
@@ -1323,9 +1299,9 @@ void read_retr(
     NC(nc_inq_varid(ncid, "ret_temp", &varid));
     NC(nc_get_var_double(ncid, varid, help));
     ids = 0;
-    for (itrack = 0; itrack < ntrack; itrack++)
-      for (ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
-	for (ip = 0; ip < ret->np; ip++)
+    for (size_t itrack = 0; itrack < ntrack; itrack++)
+      for (size_t ixtrack = 0; ixtrack < nxtrack; ixtrack++) {
+	for (int ip = 0; ip < ret->np; ip++)
 	  ret->t[ids][ip] =
 	    help[(itrack * nxtrack + ixtrack) * (size_t) np + (size_t) ip];
 	ids++;
@@ -1413,10 +1389,10 @@ void read_retr_help(
   int np,
   double mat[NDS][NPG]) {
 
-  int ids, ip, n = 0;
+  int n = 0;
 
-  for (ip = 0; ip < np; ip++)
-    for (ids = 0; ids < nds; ids++)
+  for (int ip = 0; ip < np; ip++)
+    for (int ids = 0; ids < nds; ids++)
       mat[ids][ip] = help[n++];
 }
 
@@ -1491,10 +1467,10 @@ void rad2wave(
 
   double x0[3], x1[3];
 
-  int ichan[AIRS_RAD_CHANNEL], id, track, xtrack;
+  int ichan[AIRS_RAD_CHANNEL];
 
   /* Get channel numbers... */
-  for (id = 0; id < nd; id++) {
+  for (int id = 0; id < nd; id++) {
     for (ichan[id] = 0; ichan[id] < AIRS_RAD_CHANNEL; ichan[id]++)
       if (fabs(gran->nominal_freq[ichan[id]] - nu[id]) < 0.1)
 	break;
@@ -1510,11 +1486,11 @@ void rad2wave(
 
   /* Set Cartesian coordinates... */
   geo2cart(0, gran->Longitude[0][0], gran->Latitude[0][0], x0);
-  for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+  for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
     geo2cart(0, gran->Longitude[0][xtrack], gran->Latitude[0][xtrack], x1);
     wave->x[xtrack] = DIST(x0, x1);
   }
-  for (track = 0; track < AIRS_RAD_GEOTRACK; track++) {
+  for (int track = 0; track < AIRS_RAD_GEOTRACK; track++) {
     geo2cart(0, gran->Longitude[track][0], gran->Latitude[track][0], x1);
     wave->y[track] = DIST(x0, x1);
   }
@@ -1523,20 +1499,20 @@ void rad2wave(
   wave->time =
     gran->Time[AIRS_RAD_GEOTRACK / 2][AIRS_RAD_GEOXTRACK / 2] - 220838400;
   wave->z = 0;
-  for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-    for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+  for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+    for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
       wave->lon[xtrack][track] = gran->Longitude[track][xtrack];
       wave->lat[xtrack][track] = gran->Latitude[track][xtrack];
     }
 
   /* Set brightness temperature... */
-  for (track = 0; track < AIRS_RAD_GEOTRACK; track++)
-    for (xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
+  for (int track = 0; track < AIRS_RAD_GEOTRACK; track++)
+    for (int xtrack = 0; xtrack < AIRS_RAD_GEOXTRACK; xtrack++) {
       wave->temp[xtrack][track] = 0;
       wave->bg[xtrack][track] = 0;
       wave->pt[xtrack][track] = 0;
       wave->var[xtrack][track] = 0;
-      for (id = 0; id < nd; id++) {
+      for (int id = 0; id < nd; id++) {
 	if ((gran->state[track][xtrack] != 0)
 	    || (gran->ExcludedChans[ichan[id]] > 2)
 	    || (gran->CalChanSummary[ichan[id]] & 8)
@@ -1559,10 +1535,6 @@ void ret2wave(
   int dataset,
   int ip) {
 
-  double x0[3], x1[3];
-
-  int ids, ix, iy;
-
   /* Initialize... */
   wave->nx = 90;
   if (wave->nx > WX)
@@ -1574,13 +1546,14 @@ void ret2wave(
     ERRMSG("Altitude index out of range!");
 
   /* Loop over data sets and data points... */
-  for (ids = 0; ids < ret->nds; ids++) {
+  for (int ids = 0; ids < ret->nds; ids++) {
 
     /* Get horizontal indices... */
-    ix = ids % 90;
-    iy = ids / 90;
+    const int ix = ids % 90;
+    const int iy = ids / 90;
 
     /* Get distances... */
+    double x0[3], x1[3];
     if (iy == 0) {
       geo2cart(0.0, ret->lon[0][0], ret->lat[0][0], x0);
       geo2cart(0.0, ret->lon[ids][ip], ret->lat[ids][ip], x1);
@@ -1613,38 +1586,34 @@ void variance(
   wave_t *wave,
   double dh) {
 
-  double dh2, mu, help;
-
-  int dx, dy, ix, ix2, iy, iy2, n;
-
   /* Check parameters... */
   if (dh <= 0)
     return;
 
   /* Compute squared radius... */
-  dh2 = gsl_pow_2(dh);
+  const double dh2 = gsl_pow_2(dh);
 
   /* Get sampling distances... */
-  dx =
+  const int dx =
     (int) (dh / fabs(wave->x[wave->nx - 1] - wave->x[0]) * (wave->nx - 1.0) +
 	   1);
-  dy =
+  const int dy =
     (int) (dh / fabs(wave->y[wave->ny - 1] - wave->y[0]) * (wave->ny - 1.0) +
 	   1);
 
   /* Loop over data points... */
-  for (ix = 0; ix < wave->nx; ix++)
-    for (iy = 0; iy < wave->ny; iy++) {
+  for (int ix = 0; ix < wave->nx; ix++)
+    for (int iy = 0; iy < wave->ny; iy++) {
 
       /* Init... */
-      mu = help = 0;
-      n = 0;
+      double mu = 0, help = 0;
+      int n = 0;
 
       /* Get data... */
-      for (ix2 = GSL_MAX(ix - dx, 0); ix2 <= GSL_MIN(ix + dx, wave->nx - 1);
-	   ix2++)
-	for (iy2 = GSL_MAX(iy - dy, 0); iy2 <= GSL_MIN(iy + dy, wave->ny - 1);
-	     iy2++)
+      for (int ix2 = GSL_MAX(ix - dx, 0);
+	   ix2 <= GSL_MIN(ix + dx, wave->nx - 1); ix2++)
+	for (int iy2 = GSL_MAX(iy - dy, 0);
+	     iy2 <= GSL_MIN(iy + dy, wave->ny - 1); iy2++)
 	  if ((gsl_pow_2(wave->x[ix] - wave->x[ix2])
 	       + gsl_pow_2(wave->y[iy] - wave->y[iy2])) <= dh2)
 	    if (gsl_finite(wave->pt[ix2][iy2])) {
@@ -1776,8 +1745,6 @@ void write_wave(
 
   FILE *out;
 
-  int i, j;
-
   /* Write info... */
   printf("Write wave data: %s\n", filename);
 
@@ -1799,9 +1766,9 @@ void write_wave(
 	  "# $10 = variance [K^2]\n" "# $11 = fitting model [K]\n");
 
   /* Write data... */
-  for (j = 0; j < wave->ny; j++) {
+  for (int j = 0; j < wave->ny; j++) {
     fprintf(out, "\n");
-    for (i = 0; i < wave->nx; i++)
+    for (int i = 0; i < wave->nx; i++)
       fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g %g\n",
 	      wave->time, wave->z, wave->lon[i][j], wave->lat[i][j],
 	      wave->x[i], wave->y[j], wave->temp[i][j], wave->bg[i][j],

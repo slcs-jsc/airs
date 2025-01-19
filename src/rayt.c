@@ -68,7 +68,7 @@ int main(
 
   static double f0, z[NZ], u[NZ], urel[NZ], v[NZ], bf[NZ], bf2[NZ], H[NZ],
     frel[NZ], osign[NZ], f1[NZ], f2[NZ], delta[NZ], a2[NZ], m[NZ], dxdz[NZ],
-    cgz[NZ], dz, path[NZ], tim[NZ], p[NZ], t[NZ], wsum, fgb;
+    cgz[NZ], dz, path[NZ], tim[NZ], p[NZ], t[NZ], fgb;
 
   static int izcrit, izrefl, nz;
 
@@ -108,7 +108,8 @@ int main(
 
   /* Smooth N profile... */
   for (int iz = 0; iz < nz; iz++) {
-    bf2[iz] = wsum = 0;
+    bf2[iz] = 0;
+    double wsum = 0;
     for (int iz2 = 0; iz2 < nz; iz2++) {
       if (!gsl_finite(bf[iz2]) ||
 	  !gsl_finite(bf[GSL_MAX(iz2 - 1, 0)]) ||
