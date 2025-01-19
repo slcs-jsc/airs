@@ -306,7 +306,8 @@ int main(
 
   /* Read xtrack range... */
   const int xtrack0 = (int) scan_ctl(argc, argv, "XTRACK_MIN", -1, "0", NULL);
-  const int xtrack1 = (int) scan_ctl(argc, argv, "XTRACK_MAX", -1, "89", NULL);
+  const int xtrack1 =
+    (int) scan_ctl(argc, argv, "XTRACK_MAX", -1, "89", NULL);
 
   /* Read height range... */
   int np0 = (int) scan_ctl(argc, argv, "NP_MIN", -1, "0", NULL);
@@ -509,7 +510,7 @@ void buffer_nc(
   int xtrack,
   int np0,
   int np1) {
-  
+
   /* Set number of data points... */
   ncd->np = np1 - np0 + 1;
 
@@ -531,7 +532,7 @@ double cost_function(
   gsl_vector *sig_eps_inv) {
 
   double chisq_a, chisq_m = 0;
-  
+
   /* Get sizes... */
   const size_t m = dy->size;
   const size_t n = dx->size;
@@ -564,7 +565,7 @@ void fill_gaps(
   double cy) {
 
   double help[L2_NTRACK][L2_NXTRACK], w, wsum;
-  
+
   /* Loop over layers... */
   for (int lay = 0; lay < L2_NLAY; lay++) {
 
@@ -695,7 +696,7 @@ void matrix_product(
   gsl_vector *b,
   int transpose,
   gsl_matrix *c) {
-  
+
   /* Set sizes... */
   const size_t m = a->size1;
   const size_t n = a->size2;
@@ -745,9 +746,9 @@ void optimal_estimation(
   double *chisq) {
 
   static int ipa[N], iqa[N];
-  
+
   double chisq_old, disq = 0, lmpar = 0.001;
-  
+
   /* ------------------------------------------------------------
      Initialize...
      ------------------------------------------------------------ */
@@ -963,7 +964,7 @@ void read_ret_ctl(
   char *argv[],
   ctl_t *ctl,
   ret_t *ret) {
-  
+
   /* Iteration control... */
   ret->kernel_recomp =
     (int) scan_ctl(argc, argv, "KERNEL_RECOMP", -1, "3", NULL);
@@ -1008,7 +1009,7 @@ void set_cov_apr(
   gsl_matrix *s_a) {
 
   double x0[3], x1[3];
-  
+
   /* Get sizes... */
   const size_t n = s_a->size1;
 
@@ -1108,7 +1109,7 @@ void set_cov_meas(
   gsl_vector *sig_eps_inv) {
 
   static obs_t obs_err;
-  
+
   /* Get size... */
   const size_t m = sig_eps_inv->size;
 
