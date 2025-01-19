@@ -8,11 +8,11 @@ EXC = day2doy diff_apr diff_ret distance doy2day events extract hurricane island
 # Installation directory...
 DESTDIR ?= ../bin
 
-# Library directories...
-LIBDIR += -L ../libs/build/lib -L /usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu/hdf5/serial
-
 # Include directories...
 INCDIR += -I ../libs/build/include -I/usr/include -I/usr/include/hdf5/serial
+
+# Library directories...
+LIBDIR += -L ../libs/build/lib -L /usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu/hdf5/serial
 
 # Static compilation...
 STATIC ?= 1
@@ -26,12 +26,15 @@ INFO ?= 0
 # Compile for profiling...
 PROF ?= 0
 
+# Compile for coverage report...
+COV ?= 0
+
 # -----------------------------------------------------------------------------
 # Set flags for GNU compiler...
 # -----------------------------------------------------------------------------
 
 # Get git version...
-VERSION ?= $(shell git describe --abbrev=4 --dirty --always --tags)
+VERSION ?= $(shell git describe --abbrev=6 --dirty --always --tags)
 
 # Compiler...
 CC ?= gcc
@@ -56,6 +59,11 @@ ifeq ($(PROF),1)
   CFLAGS += -pg
 endif
 
+# Compile for coverage...
+ifeq ($(COV),1)
+  CFLAGS += --coverage
+endif
+
 # Static compilation...
 ifeq ($(STATIC),1)
   CFLAGS += -static
@@ -64,6 +72,8 @@ endif
 # -----------------------------------------------------------------------------
 # Targets...
 # -----------------------------------------------------------------------------
+
+.PHONY : all check clean coverage cppcheck dist doxygen indent install lizard mkdocs strip uninstall
 
 all: $(EXC) nlte retrieval
 	rm -f *~
@@ -84,22 +94,37 @@ retrieval: retrieval.c jurassic.o
 	$(MPICC) $(CFLAGS) -o retrieval retrieval.c jurassic.o $(LDFLAGS_RET)
 
 clean:
-	rm -f $(EXC) nlte retrieval *.o *~
+	rm -rf $(EXC) nlte retrieval *.o *.gcda *.gcno *.gcov coverage* *~
 
-check_cppcheck:
+coverage:
+	lcov --capture --directory . --output-file=coverage.info ; \
+	genhtml coverage.info --legend --frames --output-directory=coverage ; \
+	gcov -abcfu *.c || true
+
+cppcheck:
 	cppcheck --enable=all ./
 
-check_lizard:
-	lizard -s cyclomatic_complexity
-
 dist:
-	zip airs_`date +"%y%m%d%H%M"`.zip Doxyfile Makefile *.c *.h
+	cd ..  && tar cvfz airs_$(VERSION).tgz bin/* \
+          docs/Doxyfile example/* libs/build.sh libs/*gz src/*
 
-doc:
-	mkdir -p ../docs && doxygen && cd ../docs/latex && make && mv refman.pdf ..
+doxygen:
+	cd ../docs && doxygen
 
 indent:
 	indent -br -brf -brs -bfda -ce -cdw -lp -npcs -npsl *.c *.h
 
+install:
+	mkdir -p $(DESTDIR) && cp $(EXC) $(DESTDIR)
+
+lizard:
+	lizard -s cyclomatic_complexity
+
+mkdocs:
+	cd ../docs && mkdocs build
+
 strip:
 	strip $(EXC) nlte retrieval
+
+uninstall:
+	cd $(DESTDIR) && rm $(EXC)
