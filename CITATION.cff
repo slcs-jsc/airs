@@ -15,10 +15,7 @@ authors:
     orcid: 'https://orcid.org/0000-0003-3773-4377'
 identifiers:
   - type: doi
-    value: 10.5194/gmd-15-1855-2022
-    description: Reference paper.
-  - type: doi
-    value: 10.5281/zenodo.4572889
+    value: 10.5281/zenodo.14710848
     description: Latest release on Zenodo.
   - type: url
     value: 'https://github.com/slcs-jsc/airs'

@@ -14,7 +14,7 @@ observations of NASA's Atmospheric InfraRed Sounder (AIRS).
 [![tests](https://img.shields.io/github/actions/workflow/status/slcs-jsc/airs/tests.yml?branch=master&label=tests)](https://github.com/slcs-jsc/airs/actions)
 [![docs](https://img.shields.io/github/actions/workflow/status/slcs-jsc/airs/docs.yml?branch=master&label=docs)](https://slcs-jsc.github.io/airs)
 [![license](https://img.shields.io/github/license/slcs-jsc/airs.svg)](https://github.com/slcs-jsc/airs/blob/master/COPYING)
-[![doi](https://zenodo.org/badge/DOI/10.5281/zenodo.4400597.svg)](https://doi.org/10.5281/zenodo.4400597)
+[![doi](https://zenodo.org/badge/DOI/10.5281/zenodo.14710848.svg)](https://doi.org/10.5281/zenodo.14710848)
 
 ## Installation
 
