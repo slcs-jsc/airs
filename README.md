@@ -38,14 +38,14 @@ read AIRS data.  Copies of these libraries can be found in the
 repository, if they are not available on your system. A script is
 provided to build the libraries:
 
-    cd libs
+    cd [airs_directory]/libs
     ./build.sh
 
 Next, change to the source directory and edit the Makefile according to
 your needs. In particular, check the paths to the libraries
 (INCDIR and LIBDIR). Then try to compile the code:
 
-    cd ../src
+    cd [airs_directory]/src
     emacs Makefile
     make
 
