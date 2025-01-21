@@ -30,12 +30,13 @@ libraries, documentation, etc:
 
     cd airs
 
-The GNU Scientific Library (https://www.gnu.org/software/gsl)
-is required for numerical calculations and the Unidata netCDF library
-(http://www.unidata.ucar.edu/software/netcdf) is needed for file-I/O.
-Furthermore, the HDF4 and HDFEOS libraries are required to read AIRS data.
-Copies of these libraries can be found in the repository, if they are
-not available on your system. A script is provided to build the libraries:
+The [GNU Scientific Library](https://www.gnu.org/software/gsl) is
+required for numerical calculations and the [Unidata netCDF
+library](http://www.unidata.ucar.edu/software/netcdf) is needed for
+file-I/O.  Furthermore, the HDF4 and HDFEOS libraries are required to
+read AIRS data.  Copies of these libraries can be found in the
+repository, if they are not available on your system. A script is
+provided to build the libraries:
 
     cd libs
     ./build.sh
@@ -58,6 +59,24 @@ All warning messages will be turned into errors and no binaries will be
 produced. This behavior is enforced by the flag '-Werror'.
 
 The binaries will remain in the src/ directory.
+
+## Further information
+
+The AIRS gravity wave data sets can be found in this repository:
+
+* Hoffmann, Lars, 2021, "AIRS/Aqua Observations of Gravity Waves", https://doi.org/10.26165/JUELICH-DATA/LQAAJA, Jülich DATA, V1.
+
+These are the main scientific publications that provide information about the AIRS Code Collection:
+
+* Hoffmann, L., and Alexander, M. J., Retrieval of stratospheric temperatures from Atmospheric Infrared Sounder radiance measurements for gravity wave studies, J. Geophys. Res., 114, D07105, https://doi.org/10.1029/2008JD011241, 2009.
+
+* Hoffmann, L., X. Xue, and M. J. Alexander, A global view of stratospheric gravity wave hotspots located with Atmospheric Infrared Sounder observations, J. Geophys. Res. Atmos., 118, 416-434, https://doi.org/10.1029/2012JD018658, 2013.
+
+* Hoffmann, L., Alexander, M. J., Clerbaux, C., Grimsdell, A. W., Meyer, C. I., Rößler, T., and Tournier, B.: Intercomparison of stratospheric gravity wave observations with AIRS and IASI, Atmos. Meas. Tech., 7, 4517–4537, https://doi.org/10.5194/amt-7-4517-2014, 2014.
+
+* Hoffmann, L., Spang, R., Orr, A., Alexander, M. J., Holt, L. A., and Stein, O.: A decadal satellite record of gravity wave activity in the lower stratosphere to study polar stratospheric cloud formation, Atmos. Chem. Phys., 17, 2901-2920, https://doi.org/10.5194/acp-17-2901-2017, 2017.
+
+More detailed information for users of the AIRS Code Collection is provided in the [user manual](https://slcs-jsc.github.io/airs).
 
 ## License
 
