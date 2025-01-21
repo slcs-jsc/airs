@@ -8,4 +8,4 @@ These links provide further information for users of the AIRS Code Collection:
 
 * [Doxygen manual](https://slcs-jsc.github.io/airs/doxygen)
 
-* [License](https://github.com/slcs-jsc/jurassic/blob/master/COPYING)
+* [License](https://github.com/slcs-jsc/airs/blob/master/COPYING)
