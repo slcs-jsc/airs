@@ -1,7 +1,8 @@
 # Welcome to the AIRS Code Collection!
 
-This repository provides a collection of codes for the analysis of
-observations of NASA's Atmospheric InfraRed Sounder (AIRS).
+The AIRS Code Collection enables data processing and analysis
+for remote sensing observations captured by NASA's
+Atmospheric InfraRed Sounder.
 
 ## Features
 
