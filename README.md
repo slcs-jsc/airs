@@ -1,6 +1,8 @@
 # AIRS Code Collection
 
-The AIRS Code Collection enables data processing and analysis for remote sensing observations captured by NASA's Atmospheric InfraRed Sounder.
+The AIRS Code Collection enables data processing and analysis for
+remote sensing observations captured by NASA's Atmospheric InfraRed
+Sounder.
 
 [![release (latest by date)](https://img.shields.io/github/v/release/slcs-jsc/airs)](https://github.com/slcs-jsc/airs/releases)
 [![commits since latest release (by SemVer)](https://img.shields.io/github/commits-since/slcs-jsc/airs/latest)](https://github.com/slcs-jsc/airs/commits/master)
