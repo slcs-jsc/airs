@@ -5,6 +5,9 @@
 # Executables...
 EXC = day2doy diff_apr diff_ret distance doy2day events extract hurricane island issifm map_pert map_rad map_ret noise_pert noise_ret optimize_btd orbit overpass perturbation rayt ret2tab sampling select_ret spec2tab spec_ana spec_qual spec_synth sza var1d variance volcano zm_ret
 
+# List of tests...
+TESTS = pert_test
+
 # Installation directory...
 DESTDIR ?= ../bin
 
@@ -26,7 +29,7 @@ INFO ?= 0
 # Compile for profiling...
 PROF ?= 0
 
-# Compile for coverage report...
+# Compile for coverage testing...
 COV ?= 0
 
 # -----------------------------------------------------------------------------
@@ -93,6 +96,14 @@ nlte: nlte.c jurassic.o
 retrieval: retrieval.c jurassic.o
 	$(MPICC) $(CFLAGS) -o retrieval retrieval.c jurassic.o $(LDFLAGS_RET)
 
+check: $(TESTS)
+
+$(TESTS): all
+	@(echo "\n===== Running \"$@\" ... =====") ; \
+	  cd ../tests/$@ ; ./run.sh \
+	  && (echo "\n===== Test \"$@\" passed! =====") \
+	  || (echo "\n===== Test \"$@\" failed! =====" ; exit 1)
+
 clean:
 	rm -rf $(EXC) nlte retrieval *.o *.gcda *.gcno *.gcov coverage* *~
 
@@ -106,7 +117,7 @@ cppcheck:
 
 dist:
 	cd ..  && tar cvfz airs_$(VERSION).tgz bin/* \
-          docs/Doxyfile example/* libs/build.sh libs/*gz src/*
+          docs/Doxyfile example/* libs/build.sh libs/*gz src/* tests/*
 
 doxygen:
 	cd ../docs && doxygen

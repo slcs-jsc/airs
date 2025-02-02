@@ -1,0 +1,8 @@
+# $1 = longitude [deg]
+# $2 = latitude [deg]
+# $3 = mean brightness temperature [K]
+# $4 = noise estimate [K]
+
+134.813 7.96605 249.008 0.298934
+131.723 -6.54831 249.638 0.368227
+128.504 -21.0327 250.663 0.338768

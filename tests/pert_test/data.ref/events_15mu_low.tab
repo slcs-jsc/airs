@@ -1,0 +1,5 @@
+# $1 = time [s]
+# $2 = longitude [deg]
+# $3 = latitude [deg]
+# $4 = maximum variance [K^2]
+

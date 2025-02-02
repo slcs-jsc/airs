@@ -38,3 +38,4 @@ src/var1d
 src/variance
 src/volcano
 src/zm_ret
+tests/pert_test/data/
