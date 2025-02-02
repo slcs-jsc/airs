@@ -39,3 +39,4 @@ src/variance
 src/volcano
 src/zm_ret
 tests/pert_test/data/
+tests/rad_test/data/
