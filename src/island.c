@@ -41,7 +41,7 @@ int main(
     aux;
 
   static int orb_old =
-    -1, en, wn, ncid, dimid[2], time_varid, track_varid, np_east_varid,
+    -1, en, wn, ncid, time_varid, track_varid, np_east_varid,
     var_east_varid, np_west_varid, var_west_varid, year_varid, doy_varid,
     track, year, mon, day, doy, iaux;
 
@@ -102,6 +102,7 @@ int main(
     NC(nc_create(ncfile, NC_CLOBBER, &ncid));
 
     /* Set dimensions... */
+    static int dimid[2];
     NC(nc_def_dim(ncid, "NP", NC_UNLIMITED, &dimid[0]));
 
     /* Add attributes... */

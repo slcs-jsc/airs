@@ -74,7 +74,7 @@ int main(
 
   static pert_t *pert;
 
-  static FILE *in, *out;
+  static FILE *out;
 
   static char filter[LEN], pertname[LEN], set[LEN];
 
@@ -217,6 +217,7 @@ int main(
   for (int iarg = 4; iarg < argc; iarg++) {
 
     /* Read perturbation data... */
+    FILE *in;
     if (!(in = fopen(argv[iarg], "r")))
       continue;
     else {

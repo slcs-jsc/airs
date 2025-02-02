@@ -128,8 +128,6 @@ void background_poly(
   int dim_x,
   int dim_y) {
 
-  double x[WX], x2[WY], y[WX], y2[WY];
-
   /* Check parameters... */
   if (dim_x <= 0 && dim_y <= 0)
     return;
@@ -144,6 +142,7 @@ void background_poly(
   /* Compute fit in x-direction... */
   if (dim_x > 0)
     for (int iy = 0; iy < wave->ny; iy++) {
+      double x[WX], y[WX];
       for (int ix = 0; ix < wave->nx; ix++) {
 	x[ix] = (double) ix;
 	y[ix] = wave->bg[ix][iy];
@@ -156,13 +155,14 @@ void background_poly(
   /* Compute fit in y-direction... */
   if (dim_y > 0)
     for (int ix = 0; ix < wave->nx; ix++) {
+      double x[WY], y[WY];
       for (int iy = 0; iy < wave->ny; iy++) {
-	x2[iy] = (int) iy;
-	y2[iy] = wave->bg[ix][iy];
+	x[iy] = (int) iy;
+	y[iy] = wave->bg[ix][iy];
       }
-      background_poly_help(x2, y2, wave->ny, dim_y);
+      background_poly_help(x, y, wave->ny, dim_y);
       for (int iy = 0; iy < wave->ny; iy++)
-	wave->bg[ix][iy] = y2[iy];
+	wave->bg[ix][iy] = y[iy];
     }
 
   /* Recompute perturbations... */
@@ -430,8 +430,6 @@ void fft(
   static double A[PMAX][PMAX], phi[PMAX][PMAX], kx[PMAX], ky[PMAX],
     cutReal[PMAX], cutImag[PMAX], boxImag[PMAX][PMAX], boxReal[PMAX][PMAX];
 
-  FILE *out;
-
   /* Find box... */
   int imin = 9999, jmin = 9999;
   int imax = -9999, jmax = -9999;
@@ -545,6 +543,7 @@ void fft(
     printf("Write FFT data: %s\n", filename);
 
     /* Create file... */
+    FILE *out;
     if (!(out = fopen(filename, "w")))
       ERRMSG("Cannot create file!");
 
@@ -1223,7 +1222,7 @@ void read_retr(
 
   static double help[NDS * NPG];
 
-  int dimid, ids = 0, ncid, varid;
+  int dimid, ids, ncid, varid;
 
   size_t nds, np, ntrack, nxtrack;
 
@@ -1446,7 +1445,7 @@ void read_wave(
       wave->bg[wave->nx][wave->ny] = rbg;
       wave->pt[wave->nx][wave->ny] = rpt;
       wave->var[wave->nx][wave->ny] = rvar;
-      wave->var[wave->nx][wave->ny] = rfit;
+      wave->fit[wave->nx][wave->ny] = rfit;
     }
 
   /* Increment counters... */

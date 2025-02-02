@@ -33,8 +33,6 @@ int main(
 
   FILE *out;
 
-  double dmin = 1e100, x0[3], x1[3];
-
   int track = -1, xtrack = -1;
 
   /* Check arguments... */
@@ -54,6 +52,7 @@ int main(
 
   /* Find nearest footprint... */
   else {
+    double dmin = 1e100, x0[3], x1[3];
     geo2cart(0, atof(argv[3]), atof(argv[4]), x0);
     for (int track2 = 0; track2 < AIRS_RAD_GEOTRACK; track2++)
       for (int xtrack2 = 0; xtrack2 < AIRS_RAD_GEOXTRACK; xtrack2++) {

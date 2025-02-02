@@ -36,7 +36,7 @@ int main(
 
   char pertname[LEN];
 
-  double mu, nedt = -1e99, nedt_old;
+  double mu, nedt = -1e99;
 
   /* Check arguments... */
   if (argc < 4)
@@ -77,7 +77,7 @@ int main(
 	      pert->nxtrack / 2 - bsize / 2, pert->nxtrack / 2 + bsize / 2);
 
     /* Estimate noise... */
-    nedt_old = nedt;
+    double nedt_old = nedt;
     noise(&wave, &mu, &nedt);
 
     /* Write output... */

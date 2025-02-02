@@ -772,7 +772,7 @@ void optimal_estimation(
 
   static int ipa[N], iqa[N];
 
-  double chisq_old, disq = 0, lmpar = 0.001;
+  double disq = 0, lmpar = 0.001;
 
   /* ------------------------------------------------------------
      Initialize...
@@ -781,7 +781,7 @@ void optimal_estimation(
   /* Get sizes... */
   const size_t m = obs2y(ctl, obs_meas, NULL, NULL, NULL);
   const size_t n = atm2x(ctl, atm_apr, NULL, iqa, ipa);
-  if (m <= 0 || n <= 0) {
+  if (m == 0 || n == 0) {
     *chisq = GSL_NAN;
     return;
   }
@@ -843,7 +843,7 @@ void optimal_estimation(
   for (int it = 1; it <= ret->conv_itmax; it++) {
 
     /* Store current cost function value... */
-    chisq_old = *chisq;
+    double chisq_old = *chisq;
 
     /* Compute kernel matrix K_i... */
     if (it > 1 && it % ret->kernel_recomp == 0)

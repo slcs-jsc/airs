@@ -291,8 +291,6 @@ int main(
 
   static wave_t *wave;
 
-  static FILE *out;
-
   static char pertname[LEN], set[LEN];
 
   const double dc_hlat = 25, dc_tlim = 250;
@@ -590,8 +588,11 @@ int main(
   /* Write ASCII file... */
   if (output == 1) {
 
-    /* Create file... */
+    /* Write info... */
     printf("Write variance statistics: %s\n", argv[2]);
+
+    /* Create file... */
+    FILE *out;
     if (!(out = fopen(argv[2], "w")))
       ERRMSG("Cannot create file!");
 

@@ -319,11 +319,11 @@ typedef struct {
   /*! Perturbation [K]. */
   double pt[WX][WY];
 
-  /*! Fit [K]. */
-  double fit[WX][WY];
-
   /*! Variance [K]. */
   double var[WX][WY];
+
+  /*! Fit [K]. */
+  double fit[WX][WY];
 
 } wave_t;
 
