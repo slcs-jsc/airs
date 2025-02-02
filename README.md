@@ -111,4 +111,4 @@ Dr. Lars Hoffmann
 
 Jülich Supercomputing Centre, Forschungszentrum Jülich  
 
-e-mail: l.hoffmann@fz-juelich.de
+e-mail: <l.hoffmann@fz-juelich.de>
