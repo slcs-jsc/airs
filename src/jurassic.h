@@ -360,7 +360,7 @@
 
 /*! Maximum number of atmospheric data points. */
 #ifndef NP
-#define NP 256
+#define NP 512
 #endif
 
 /*! Maximum number of ray paths. */

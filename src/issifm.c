@@ -504,7 +504,7 @@ int main(
 	  else if (atm->z[atm->np] > 90)
 	    break;
 	  else if ((++atm->np) >= NP)
-	    ERRMSG("Too many altitudes!");
+	    ERRMSG("Too many ray path data points!");
 	}
       } else {
 	atm->np = 0;
@@ -514,7 +514,7 @@ int main(
 	  atm->lon[atm->np] = pert->lon[itrack][ixtrack];
 	  atm->lat[atm->np] = pert->lat[itrack][ixtrack];
 	  if ((++atm->np) >= NP)
-	    ERRMSG("Too many altitudes!");
+	    ERRMSG("Too many ray path data points!");
 	}
       }
 
