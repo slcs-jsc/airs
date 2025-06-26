@@ -59,6 +59,14 @@ cd $target/src/$dir \
     && make -j$THREADS && make check && make install \
     || exit
 
+# libnsl...
+dir=libnsl
+infomsg $dir
+cd $target/src/$dir \
+    && ./autogen.sh && ./configure --prefix=$target \
+    && make -j$THREADS && make check && make install \
+    || exit
+
 # HDF4...
 dir=hdf-4.2.16
 infomsg $dir
@@ -99,4 +107,11 @@ infomsg $dir
 cd $target/src/$dir \
     && ./configure --prefix=$target --enable-c-only --disable-dap \
     && make -j$THREADS && make check && make install \
+    || exit
+
+# GSL...
+dir=gsl-2.7.1
+cd $target/src/$dir \
+    && ./configure --prefix=$target \
+    && make -j && make check && make install && make clean \
     || exit
