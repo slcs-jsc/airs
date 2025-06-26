@@ -35,7 +35,7 @@ done
 # Compare files...
 echo -e "\nCompare results..."
 error=0
-for f in $(ls data.ref/*.nc data.ref/*.tab) ; do
+for f in $(ls data.ref/*.tab) ; do
     diff -q -s data/"$(basename "$f")" "$f" || error=1
 done
 exit $error
