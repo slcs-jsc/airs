@@ -12,6 +12,7 @@ src/extract
 src/hurricane
 src/island
 src/issifm
+src/jsec2time
 src/jurassic.o
 src/libairs.o
 src/map_pert
@@ -34,6 +35,7 @@ src/spec_ana
 src/spec_qual
 src/spec_synth
 src/sza
+src/time2jsec
 src/var1d
 src/variance
 src/volcano
