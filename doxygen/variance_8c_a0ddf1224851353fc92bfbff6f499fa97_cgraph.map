@@ -1,0 +1,13 @@
+<map id="main" name="main">
+<area shape="rect" id="node1" title=" " alt="" coords="5,183,56,209"/>
+<area shape="rect" id="node2" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="114,5,233,32"/>
+<area shape="rect" id="node4" href="$libairs_8c.html#a4c4c301958209cf49f0ecc1537206112" title="Smooth background." alt="" coords="104,56,243,83"/>
+<area shape="rect" id="node5" href="$libairs_8c.html#ae19d3fecff331deab50112b7a1a3c0e7" title="Apply Gaussian filter to perturbations..." alt="" coords="145,107,202,133"/>
+<area shape="rect" id="node6" href="$jurassic_8c.html#a4e1b87dc3c93a23c89f739adf10b60dc" title="Find array index for irregular grid." alt="" coords="136,157,211,184"/>
+<area shape="rect" id="node7" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="132,208,215,235"/>
+<area shape="rect" id="node9" href="$libairs_8c.html#ae152247236688ec44cf9a3bceae691e7" title="Read radiance perturbation data." alt="" coords="135,259,211,285"/>
+<area shape="rect" id="node10" href="$jurassic_8c.html#ace274e4068072c682e6070021525b515" title="Search control parameter file for variable entry." alt="" coords="138,309,209,336"/>
+<area shape="rect" id="node11" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="138,360,209,387"/>
+<area shape="rect" id="node3" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="291,5,441,32"/>
+<area shape="rect" id="node8" href="$jurassic_8c.html#ae3aea782dfca9019f3f2d169f8cc0f6d" title="Convert geolocation to Cartesian coordinates." alt="" coords="330,208,402,235"/>
+</map>

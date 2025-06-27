@@ -1,0 +1,5 @@
+<map id="init_l2" name="init_l2">
+<area shape="rect" id="node1" title="Initialize with AIRS Level&#45;2 data." alt="" coords="5,5,61,32"/>
+<area shape="rect" id="node2" href="$jurassic_8c.html#a82151ea4448e70f46f7f3b770bb77612" title="Interpolate atmospheric data." alt="" coords="109,5,192,32"/>
+<area shape="rect" id="node3" href="$jurassic_8c.html#a4e1b87dc3c93a23c89f739adf10b60dc" title="Find array index for irregular grid." alt="" coords="240,5,315,32"/>
+</map>

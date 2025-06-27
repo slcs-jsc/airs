@@ -1,0 +1,15 @@
+<map id="main" name="main">
+<area shape="rect" id="node1" title=" " alt="" coords="5,233,56,260"/>
+<area shape="rect" id="node2" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="141,5,206,32"/>
+<area shape="rect" id="node3" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="114,56,233,83"/>
+<area shape="rect" id="node5" href="$libairs_8c.html#a4c4c301958209cf49f0ecc1537206112" title="Smooth background." alt="" coords="104,107,243,133"/>
+<area shape="rect" id="node6" href="$libairs_8c.html#a556279802ef57635f9e81a062d8b6ce1" title="Get day of year from date." alt="" coords="139,157,208,184"/>
+<area shape="rect" id="node7" href="$libairs_8c.html#ae19d3fecff331deab50112b7a1a3c0e7" title="Apply Gaussian filter to perturbations..." alt="" coords="145,208,202,235"/>
+<area shape="rect" id="node8" href="$jurassic_8c.html#acc0c1829ca7770d2dd6342f2cdf10bb9" title="Convert seconds to date." alt="" coords="134,259,213,285"/>
+<area shape="rect" id="node9" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="132,309,215,336"/>
+<area shape="rect" id="node11" href="$libairs_8c.html#ae152247236688ec44cf9a3bceae691e7" title="Read radiance perturbation data." alt="" coords="135,360,211,387"/>
+<area shape="rect" id="node12" href="$jurassic_8c.html#ace274e4068072c682e6070021525b515" title="Search control parameter file for variable entry." alt="" coords="138,411,209,437"/>
+<area shape="rect" id="node13" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="138,461,209,488"/>
+<area shape="rect" id="node4" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="291,56,441,83"/>
+<area shape="rect" id="node10" href="$jurassic_8c.html#ae3aea782dfca9019f3f2d169f8cc0f6d" title="Convert geolocation to Cartesian coordinates." alt="" coords="330,309,402,336"/>
+</map>
