@@ -14,6 +14,7 @@ Sounder.
 [![codecov](https://codecov.io/gh/slcs-jsc/airs/branch/master/graph/badge.svg?token=4X6IEHWUBJ)](https://codecov.io/gh/slcs-jsc/airs)
 [![tests](https://img.shields.io/github/actions/workflow/status/slcs-jsc/airs/tests.yml?branch=master&label=tests)](https://github.com/slcs-jsc/airs/actions)
 [![docs](https://img.shields.io/github/actions/workflow/status/slcs-jsc/airs/docs.yml?branch=master&label=docs)](https://slcs-jsc.github.io/airs)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/slcs-jsc/airs)
 [![license](https://img.shields.io/github/license/slcs-jsc/airs.svg)](https://github.com/slcs-jsc/airs/blob/master/COPYING)
 [![doi](https://zenodo.org/badge/DOI/10.5281/zenodo.14710848.svg)](https://doi.org/10.5281/zenodo.14710848)
 
