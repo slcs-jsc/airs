@@ -8,4 +8,6 @@ These links provide further information for users of the AIRS Code Collection:
 
 * [Doxygen manual](https://slcs-jsc.github.io/airs/doxygen)
 
+* [AI documentation](https://www.deepwiki.com/slcs-jsc/airs)
+
 * [License](https://github.com/slcs-jsc/airs/blob/master/COPYING)
