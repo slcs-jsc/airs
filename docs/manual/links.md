@@ -10,4 +10,6 @@ These links provide further information for users of the AIRS Code Collection:
 
 * [AI documentation](https://www.deepwiki.com/slcs-jsc/airs)
 
+* [Citation file](https://github.com/slcs-jsc/airs/blob/master/CITATION.cff)
+
 * [License](https://github.com/slcs-jsc/airs/blob/master/COPYING)
