@@ -10,6 +10,16 @@ mkdir -p $target/src $target/bin $target/include $target/lib $target/man/man1 \
     && for f in $(ls *tar.gz) ; do tar xvzf $f ; done \
 	|| exit
 
+# Build only AIRS reader...
+if [ "$1" = "-airs" ] ; then
+    cd $target/src/airs-v6 \
+	&& export CFLAGS="-I$target/include -I/usr/include/hdf -I/usr/include/x86_64-linux-gnu/hdf" \
+	&& make \
+	&& cp *.h $target/include \
+	&& cp lib* $target/lib
+    exit
+fi
+
 # libjpeg...
 dir=jpeg-6b
 cd $target/src/$dir \

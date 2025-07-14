@@ -47,7 +47,7 @@ MPICC ?= mpicc.openmpi
 CFLAGS ?= $(INCDIR) $(DEFINES) -DVERSION=\"$(VERSION)\" $(OPT) -DHAVE_INLINE -DGSL_DISABLE_DEPRACTED -pedantic -Werror -Wall -W -Wmissing-prototypes -Wstrict-prototypes -Wconversion -Wshadow -Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs -Wno-long-long -Wmissing-declarations -Wredundant-decls -Winline -fno-common -fshort-enums $(OPT) -g -fopenmp -mcmodel=medium
 
 # LDFLAGS...
-LDFLAGS ?= $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lGctp -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm -ltirpc
+LDFLAGS ?= $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm -ltirpc
 
 # LDFLAGS for retrieval...
 LDFLAGS_RET ?= $(LIBDIR) -lgsl -lgslcblas -lm -lnetcdf -lm
@@ -82,7 +82,7 @@ all: $(EXC) nlte retrieval
 	rm -f *~
 
 $(EXC): %: %.c libairs.o jurassic.o
-	$(CC) $(CFLAGS) -o $@ $< libairs.o jurassic.o $(LDFLAGS) -static
+	$(CC) $(CFLAGS) -o $@ $< libairs.o jurassic.o $(LDFLAGS)
 
 libairs.o: libairs.c libairs.h Makefile
 	$(CC) $(CFLAGS) -c -o libairs.o libairs.c
