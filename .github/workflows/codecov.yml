@@ -9,7 +9,9 @@ jobs:
     - name: fetch
       uses: actions/checkout@v4
     - name: install
-      run: sudo apt-get update ; sudo apt-get install gnuplot lcov libgsl-dev libnetcdf-dev libhdf5-dev
+      run: sudo apt-get update ; sudo apt-get install gnuplot lcov libgsl-dev libnetcdf-dev libhdf5-dev libhdf4-dev libhdfeos-dev libgctp-dev libnsl-dev libopenmpi-dev openmpi-bin
+    - name: build
+      run: cd libs ; ./build.sh -airs
     - name: make
       run: cd ./src ; STATIC=0 COV=1 make
     - name: make check
