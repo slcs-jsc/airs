@@ -109,7 +109,8 @@ clean:
 
 coverage:
 	lcov --capture --directory . --output-file=coverage.info ; \
-	genhtml coverage.info --legend --frames --output-directory=coverage ; \
+	lcov --remove coverage.info '*/jurassic.c' -o coverage_filtered.info ; \
+	genhtml coverage_filtered.info --legend --frames --output-directory=coverage ; \
 	gcov -abcfu *.c || true
 
 cppcheck:
