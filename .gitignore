@@ -40,5 +40,9 @@ src/var1d
 src/variance
 src/volcano
 src/zm_ret
+src/*.gcno
+src/*.gcda
+src/*.gcov
+src/coverage*
 tests/pert_test/data/
 tests/rad_test/data/
