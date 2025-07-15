@@ -1,0 +1,8 @@
+<map id="optimal_estimation" name="optimal_estimation">
+<area shape="rect" id="node1" title="Carry out optimal estimation retrieval." alt="" coords="5,107,136,133"/>
+<area shape="rect" id="node2" href="$retrieval_8c.html#adaa089f4620c734cbac9e25c346ae9e2" title="Compute cost function." alt="" coords="187,5,287,32"/>
+<area shape="rect" id="node3" href="$retrieval_8c.html#ab86061d2a35e1ebf8c06ba0d13cf652b" title="Invert symmetric matrix." alt="" coords="189,56,285,83"/>
+<area shape="rect" id="node4" href="$retrieval_8c.html#a061658db2cabc72897fc539ebda4968c" title="Compute matrix product A^TBA or ABA^T for diagonal matrix B." alt="" coords="184,107,291,133"/>
+<area shape="rect" id="node5" href="$retrieval_8c.html#a26cdbbd65bf4cee84f18772c45d279be" title="Set a priori covariance." alt="" coords="191,157,284,184"/>
+<area shape="rect" id="node6" href="$retrieval_8c.html#a99ed087242ef671b84e59e70284e63a3" title="Set measurement errors." alt="" coords="184,208,291,235"/>
+</map>
