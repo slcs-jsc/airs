@@ -148,7 +148,10 @@ int main(
 
   /* Set control parameters... */
   ctl.write_bbt = 1;
-
+  
+  /* Initialize look-up tables... */
+  tbl_t *tbl = read_tbl(&ctl);
+  
   /* ------------------------------------------------------------
      Read model data...
      ------------------------------------------------------------ */
@@ -563,7 +566,7 @@ int main(
 	else {
 
 	  /* Run forward model... */
-	  formod(&ctl, atm, obs);
+	  formod(&ctl, tbl, atm, obs);
 
 	  /* Get mean brightness temperature... */
 	  pert->bt[itrack][ixtrack] = 0;
@@ -606,7 +609,8 @@ int main(
   free(obs);
   free(pert);
   free(wave);
-
+  free(tbl);
+  
   return EXIT_SUCCESS;
 }
 

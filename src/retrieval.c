@@ -235,6 +235,7 @@ void matrix_product(
 void optimal_estimation(
   ret_t * ret,
   ctl_t * ctl,
+  tbl_t * tbl,
   obs_t * obs_meas,
   obs_t * obs_i,
   atm_t * atm_apr,
@@ -317,6 +318,9 @@ int main(
   /* Read control parameters... */
   read_ctl(argc, argv, &ctl);
   read_ret_ctl(argc, argv, &ctl, &ret);
+
+  /* Initialize look-up tables... */
+  tbl_t *tbl = read_tbl(&ctl);
 
   /* Read retrieval grid... */
   const int nz = (int) scan_ctl(argc, argv, "NZ", -1, "", NULL);
@@ -442,7 +446,7 @@ int main(
 	init_l2(&ncd, track, xtrack, &ctl, &atm_apr);
 
 	/* Retrieval... */
-	optimal_estimation(&ret, &ctl, &obs_meas, &obs_i,
+	optimal_estimation(&ret, &ctl, tbl, &obs_meas, &obs_i,
 			   &atm_apr, &atm_i, &chisq);
 
 	/* Get chi^2 statistics... */
@@ -764,6 +768,7 @@ void matrix_product(
 void optimal_estimation(
   ret_t *ret,
   ctl_t *ctl,
+  tbl_t *tbl,
   obs_t *obs_meas,
   obs_t *obs_i,
   atm_t *atm_apr,
@@ -808,7 +813,7 @@ void optimal_estimation(
   /* Set initial state... */
   copy_atm(ctl, atm_i, atm_apr, 0);
   copy_obs(ctl, obs_i, obs_meas, 0);
-  formod(ctl, atm_i, obs_i);
+  formod(ctl, tbl, atm_i, obs_i);
 
   /* Set state vectors and observation vectors... */
   atm2x(ctl, atm_apr, x_a, NULL, NULL);
@@ -833,7 +838,7 @@ void optimal_estimation(
   *chisq = cost_function(dx, dy, s_a_inv, sig_eps_inv);
 
   /* Compute initial kernel... */
-  kernel(ctl, atm_i, obs_i, k_i);
+  kernel(ctl, tbl, atm_i, obs_i, k_i);
 
   /* ------------------------------------------------------------
      Levenberg-Marquardt minimization...
@@ -847,7 +852,7 @@ void optimal_estimation(
 
     /* Compute kernel matrix K_i... */
     if (it > 1 && it % ret->kernel_recomp == 0)
-      kernel(ctl, atm_i, obs_i, k_i);
+      kernel(ctl, tbl, atm_i, obs_i, k_i);
 
     /* Compute K_i^T * S_eps^{-1} * K_i ... */
     if (it == 1 || it % ret->kernel_recomp == 0)
@@ -889,7 +894,7 @@ void optimal_estimation(
       }
 
       /* Forward calculation... */
-      formod(ctl, atm_i, obs_i);
+      formod(ctl, tbl, atm_i, obs_i);
       obs2y(ctl, obs_i, y_i, NULL, NULL);
 
       /* Determine dx = x_i - x_a and dy = y - F(x_i) ... */

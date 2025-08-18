@@ -100,6 +100,7 @@
 #ifndef JURASSIC_H
 #define JURASSIC_H
 
+#include <errno.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_linalg.h>
@@ -294,6 +295,21 @@
 #define NA 6.02214199e23
 #endif
 
+/*! Nitrogen concentration. */
+#ifndef N2
+#define N2 0.78084
+#endif
+
+/*! Oxygen concentration. */
+#ifndef O2
+#define O2 0.20946
+#endif
+
+/*! Standard pressure [hPa]. */
+#ifndef P0
+#define P0 1013.25
+#endif
+
 /*! Mean radius of Earth [km]. */
 #ifndef RE
 #define RE 6367.421
@@ -302,11 +318,6 @@
 /*! Ideal gas constant [J/(mol K)]. */
 #ifndef RI
 #define RI 8.3144598
-#endif
-
-/*! Standard pressure [hPa]. */
-#ifndef P0
-#define P0 1013.25
 #endif
 
 /*! Standard temperature [K]. */
@@ -360,7 +371,7 @@
 
 /*! Maximum number of atmospheric data points. */
 #ifndef NP
-#define NP 1024
+#define NP 256
 #endif
 
 /*! Maximum number of ray paths. */
@@ -436,11 +447,6 @@
 /*! Maximum number of RFM spectral grid points. */
 #ifndef RFMNPTS
 #define RFMNPTS 10000000
-#endif
-
-/*! Maximum length of RFM data lines. */
-#ifndef RFMLINE
-#define RFMLINE 100000
 #endif
 
 /* ------------------------------------------------------------
@@ -546,6 +552,18 @@ typedef struct {
   /*! Name of each emitter. */
   char emitter[NG][LEN];
 
+  /*! Emitter index of CO2. */
+  int ig_co2;
+
+  /*! Emitter index of H2O. */
+  int ig_h2o;
+
+  /*! Emitter index of N2. */
+  int ig_n2;
+
+  /*! Emitter index of O2. */
+  int ig_o2;
+
   /*! Number of radiance channels. */
   int nd;
 
@@ -608,6 +626,15 @@ typedef struct {
 
   /*! Field-of-view data file. */
   char fov[LEN];
+
+  /*! Field-of-view vertical distance [km]. */
+  double fov_dz[NSHAPE];
+
+  /*! Field-of-view weighting factor. */
+  double fov_w[NSHAPE];
+
+  /*! Field-of-view number of data points. */
+  int fov_n;
 
   /*! Minimum altitude for pressure retrieval [km]. */
   double retp_zmin;
@@ -889,6 +916,7 @@ int find_emitter(
 /*! Determine ray paths and compute radiative transfer. */
 void formod(
   const ctl_t * ctl,
+  const tbl_t * tbl,
   atm_t * atm,
   obs_t * obs);
 
@@ -907,6 +935,7 @@ void formod_fov(
 /*! Compute radiative transfer for a pencil beam. */
 void formod_pencil(
   const ctl_t * ctl,
+  const tbl_t * tbl,
   const atm_t * atm,
   obs_t * obs,
   const int ir);
@@ -1006,7 +1035,8 @@ void jsec2time(
 
 /*! Compute Jacobians. */
 void kernel(
-  ctl_t * ctl,
+  const ctl_t * ctl,
+  const tbl_t * tbl,
   atm_t * atm,
   obs_t * obs,
   gsl_matrix * k);
@@ -1094,16 +1124,15 @@ void read_shape(
   int *n);
 
 /*! Read look-up table data. */
-void read_tbl(
-  const ctl_t * ctl,
-  tbl_t * tbl);
+tbl_t *read_tbl(
+  const ctl_t * ctl);
 
 /*! Search control parameter file for variable entry. */
 double scan_ctl(
   int argc,
   char *argv[],
   const char *varname,
-  int arridx,
+  const int arridx,
   const char *defvalue,
   char *value);
 
