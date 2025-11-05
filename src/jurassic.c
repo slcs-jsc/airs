@@ -26,6 +26,87 @@
 
 /*****************************************************************************/
 
+void analyze_avk(
+  ret_t *ret,
+  ctl_t *ctl,
+  atm_t *atm,
+  int *iqa,
+  int *ipa,
+  gsl_matrix *avk) {
+
+  static atm_t atm_cont, atm_res;
+
+  size_t i, n0[NQ], n1[NQ];
+
+  /* Get sizes... */
+  const size_t n = avk->size1;
+
+  /* Find sub-matrices for different quantities... */
+  for (int iq = 0; iq < NQ; iq++) {
+    n0[iq] = N;
+    for (i = 0; i < n; i++) {
+      if (iqa[i] == iq && n0[iq] == N)
+	n0[iq] = i;
+      if (iqa[i] == iq)
+	n1[iq] = i - n0[iq] + 1;
+    }
+  }
+
+  /* Initialize... */
+  copy_atm(ctl, &atm_cont, atm, 1);
+  copy_atm(ctl, &atm_res, atm, 1);
+
+  /* Analyze quantities... */
+  analyze_avk_quantity(avk, IDXP, ipa, n0, n1, atm_cont.p, atm_res.p);
+  analyze_avk_quantity(avk, IDXT, ipa, n0, n1, atm_cont.t, atm_res.t);
+  for (int ig = 0; ig < ctl->ng; ig++)
+    analyze_avk_quantity(avk, IDXQ(ig), ipa, n0, n1,
+			 atm_cont.q[ig], atm_res.q[ig]);
+  for (int iw = 0; iw < ctl->nw; iw++)
+    analyze_avk_quantity(avk, IDXK(iw), ipa, n0, n1,
+			 atm_cont.k[iw], atm_res.k[iw]);
+  analyze_avk_quantity(avk, IDXCLZ, ipa, n0, n1, &atm_cont.clz, &atm_res.clz);
+  analyze_avk_quantity(avk, IDXCLDZ, ipa, n0, n1, &atm_cont.cldz,
+		       &atm_res.cldz);
+  for (int icl = 0; icl < ctl->ncl; icl++)
+    analyze_avk_quantity(avk, IDXCLK(icl), ipa, n0, n1,
+			 &atm_cont.clk[icl], &atm_res.clk[icl]);
+  analyze_avk_quantity(avk, IDXSFT, ipa, n0, n1, &atm_cont.sft, &atm_res.sft);
+  for (int isf = 0; isf < ctl->nsf; isf++)
+    analyze_avk_quantity(avk, IDXSFEPS(isf), ipa, n0, n1,
+			 &atm_cont.sfeps[isf], &atm_res.sfeps[isf]);
+
+  /* Write results to disk... */
+  write_atm(ret->dir, "atm_cont.tab", ctl, &atm_cont);
+  write_atm(ret->dir, "atm_res.tab", ctl, &atm_res);
+}
+
+/*****************************************************************************/
+
+void analyze_avk_quantity(
+  gsl_matrix *avk,
+  int iq,
+  int *ipa,
+  size_t *n0,
+  size_t *n1,
+  double *cont,
+  double *res) {
+
+  /* Loop over state vector elements... */
+  if (n0[iq] < N)
+    for (size_t i = 0; i < n1[iq]; i++) {
+
+      /* Get area of averaging kernel... */
+      for (size_t j = 0; j < n1[iq]; j++)
+	cont[ipa[n0[iq] + i]] += gsl_matrix_get(avk, n0[iq] + i, n0[iq] + j);
+
+      /* Get information density... */
+      res[ipa[n0[iq] + i]] = 1 / gsl_matrix_get(avk, n0[iq] + i, n0[iq] + i);
+    }
+}
+
+/*****************************************************************************/
+
 size_t atm2x(
   const ctl_t *ctl,
   const atm_t *atm,
@@ -1050,6 +1131,39 @@ void climatology(
     for (int isf = 0; isf < ctl->nsf; isf++)
       atm->sfeps[isf] = 1;
   }
+}
+
+/*****************************************************************************/
+
+double cost_function(
+  gsl_vector *dx,
+  gsl_vector *dy,
+  gsl_matrix *s_a_inv,
+  gsl_vector *sig_eps_inv) {
+
+  double chisq_a, chisq_m = 0;
+
+  /* Get sizes... */
+  const size_t m = dy->size;
+  const size_t n = dx->size;
+
+  /* Allocate... */
+  gsl_vector *x_aux = gsl_vector_alloc(n);
+  gsl_vector *y_aux = gsl_vector_alloc(m);
+
+  /* Determine normalized cost function...
+     (chi^2 = 1/m * [dy^T * S_eps^{-1} * dy + dx^T * S_a^{-1} * dx]) */
+  for (size_t i = 0; i < m; i++)
+    chisq_m += POW2(gsl_vector_get(dy, i) * gsl_vector_get(sig_eps_inv, i));
+  gsl_blas_dgemv(CblasNoTrans, 1.0, s_a_inv, dx, 0.0, x_aux);
+  gsl_blas_ddot(dx, x_aux, &chisq_a);
+
+  /* Free... */
+  gsl_vector_free(x_aux);
+  gsl_vector_free(y_aux);
+
+  /* Return cost function value... */
+  return (chisq_m + chisq_a) / (double) m;
 }
 
 /*****************************************************************************/
@@ -4291,6 +4405,81 @@ inline int locate_tbl(
 
 /*****************************************************************************/
 
+void matrix_invert(
+  gsl_matrix *a) {
+
+  size_t diag = 1;
+
+  /* Get size... */
+  const size_t n = a->size1;
+
+  /* Check if matrix is diagonal... */
+  for (size_t i = 0; i < n && diag; i++)
+    for (size_t j = i + 1; j < n; j++)
+      if (gsl_matrix_get(a, i, j) != 0) {
+	diag = 0;
+	break;
+      }
+
+  /* Quick inversion of diagonal matrix... */
+  if (diag)
+    for (size_t i = 0; i < n; i++)
+      gsl_matrix_set(a, i, i, 1 / gsl_matrix_get(a, i, i));
+
+  /* Matrix inversion by means of Cholesky decomposition... */
+  else {
+    gsl_linalg_cholesky_decomp(a);
+    gsl_linalg_cholesky_invert(a);
+  }
+}
+
+/*****************************************************************************/
+
+void matrix_product(
+  gsl_matrix *a,
+  gsl_vector *b,
+  int transpose,
+  gsl_matrix *c) {
+
+  /* Set sizes... */
+  const size_t m = a->size1;
+  const size_t n = a->size2;
+
+  /* Allocate... */
+  gsl_matrix *aux = gsl_matrix_alloc(m, n);
+
+  /* Compute A^T B A... */
+  if (transpose == 1) {
+
+    /* Compute B^1/2 A... */
+    for (size_t i = 0; i < m; i++)
+      for (size_t j = 0; j < n; j++)
+	gsl_matrix_set(aux, i, j,
+		       gsl_vector_get(b, i) * gsl_matrix_get(a, i, j));
+
+    /* Compute A^T B A = (B^1/2 A)^T (B^1/2 A)... */
+    gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, aux, aux, 0.0, c);
+  }
+
+  /* Compute A B A^T... */
+  else if (transpose == 2) {
+
+    /* Compute A B^1/2... */
+    for (size_t i = 0; i < m; i++)
+      for (size_t j = 0; j < n; j++)
+	gsl_matrix_set(aux, i, j,
+		       gsl_matrix_get(a, i, j) * gsl_vector_get(b, j));
+
+    /* Compute A B A^T = (A B^1/2) (A B^1/2)^T... */
+    gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, aux, aux, 0.0, c);
+  }
+
+  /* Free... */
+  gsl_matrix_free(aux);
+}
+
+/*****************************************************************************/
+
 size_t obs2y(
   const ctl_t *ctl,
   const obs_t *obs,
@@ -4338,18 +4527,18 @@ void raytrace(
   obs->tpz[ir] = obs->vpz[ir];
   obs->tplon[ir] = obs->vplon[ir];
   obs->tplat[ir] = obs->vplat[ir];
-  
+
   /* Get altitude range of atmospheric data... */
   gsl_stats_minmax(&zmin, &zmax, atm->z, 1, (size_t) atm->np);
-  
+
   /* Ensure that altitude grid includes the local geometric surface... */
   if (zmin > 1e-3 || zmin < -1e-3)
     ERRMSG("Atmospheric profiles must include surface level (z = 0 km)!");
-  
+
   /* Check observer altitude... */
   if (obs->obsz[ir] < zmin)
     ERRMSG("Observer below surface!");
-  
+
   /* Check view point altitude... */
   if (obs->vpz[ir] > zmax)
     return;
@@ -4969,6 +5158,59 @@ double read_obs_rfm(
 
 /*****************************************************************************/
 
+void read_ret(
+  int argc,
+  char *argv[],
+  ctl_t *ctl,
+  ret_t *ret) {
+
+  /* Iteration control... */
+  ret->kernel_recomp =
+    (int) scan_ctl(argc, argv, "KERNEL_RECOMP", -1, "3", NULL);
+  ret->conv_itmax = (int) scan_ctl(argc, argv, "CONV_ITMAX", -1, "30", NULL);
+  ret->conv_dmin = scan_ctl(argc, argv, "CONV_DMIN", -1, "0.1", NULL);
+
+  /* Error analysis... */
+  ret->err_ana = (int) scan_ctl(argc, argv, "ERR_ANA", -1, "1", NULL);
+
+  for (int id = 0; id < ctl->nd; id++)
+    ret->err_formod[id] = scan_ctl(argc, argv, "ERR_FORMOD", id, "0", NULL);
+
+  for (int id = 0; id < ctl->nd; id++)
+    ret->err_noise[id] = scan_ctl(argc, argv, "ERR_NOISE", id, "0", NULL);
+
+  ret->err_press = scan_ctl(argc, argv, "ERR_PRESS", -1, "0", NULL);
+  ret->err_press_cz = scan_ctl(argc, argv, "ERR_PRESS_CZ", -1, "-999", NULL);
+  ret->err_press_ch = scan_ctl(argc, argv, "ERR_PRESS_CH", -1, "-999", NULL);
+
+  ret->err_temp = scan_ctl(argc, argv, "ERR_TEMP", -1, "0", NULL);
+  ret->err_temp_cz = scan_ctl(argc, argv, "ERR_TEMP_CZ", -1, "-999", NULL);
+  ret->err_temp_ch = scan_ctl(argc, argv, "ERR_TEMP_CH", -1, "-999", NULL);
+
+  for (int ig = 0; ig < ctl->ng; ig++) {
+    ret->err_q[ig] = scan_ctl(argc, argv, "ERR_Q", ig, "0", NULL);
+    ret->err_q_cz[ig] = scan_ctl(argc, argv, "ERR_Q_CZ", ig, "-999", NULL);
+    ret->err_q_ch[ig] = scan_ctl(argc, argv, "ERR_Q_CH", ig, "-999", NULL);
+  }
+
+  for (int iw = 0; iw < ctl->nw; iw++) {
+    ret->err_k[iw] = scan_ctl(argc, argv, "ERR_K", iw, "0", NULL);
+    ret->err_k_cz[iw] = scan_ctl(argc, argv, "ERR_K_CZ", iw, "-999", NULL);
+    ret->err_k_ch[iw] = scan_ctl(argc, argv, "ERR_K_CH", iw, "-999", NULL);
+  }
+
+  ret->err_clz = scan_ctl(argc, argv, "ERR_CLZ", -1, "0", NULL);
+  ret->err_cldz = scan_ctl(argc, argv, "ERR_CLDZ", -1, "0", NULL);
+  for (int icl = 0; icl < ctl->ncl; icl++)
+    ret->err_clk[icl] = scan_ctl(argc, argv, "ERR_CLK", icl, "0", NULL);
+
+  ret->err_sft = scan_ctl(argc, argv, "ERR_SFT", -1, "0", NULL);
+  for (int isf = 0; isf < ctl->nsf; isf++)
+    ret->err_sfeps[isf] = scan_ctl(argc, argv, "ERR_SFEPS", isf, "0", NULL);
+}
+
+/*****************************************************************************/
+
 void read_rfm_spec(
   const char *filename,
   double *nu,
@@ -5351,6 +5593,161 @@ double sza(
 
   /* Return solar zenith angle [deg]... */
   return RAD2DEG(acos(sin(latr) * sin(dec) + cos(latr) * cos(dec) * cos(h)));
+}
+
+/*****************************************************************************/
+
+void set_cov_apr(
+  ret_t *ret,
+  ctl_t *ctl,
+  atm_t *atm,
+  int *iqa,
+  int *ipa,
+  gsl_matrix *s_a) {
+
+  /* Get sizes... */
+  const size_t n = s_a->size1;
+
+  /* Allocate... */
+  gsl_vector *x_a = gsl_vector_alloc(n);
+
+  /* Get sigma vector... */
+  atm2x(ctl, atm, x_a, NULL, NULL);
+  for (size_t i = 0; i < n; i++) {
+    if (iqa[i] == IDXP)
+      gsl_vector_set(x_a, i, ret->err_press / 100 * gsl_vector_get(x_a, i));
+    if (iqa[i] == IDXT)
+      gsl_vector_set(x_a, i, ret->err_temp);
+    for (int ig = 0; ig < ctl->ng; ig++)
+      if (iqa[i] == IDXQ(ig))
+	gsl_vector_set(x_a, i, ret->err_q[ig] / 100 * gsl_vector_get(x_a, i));
+    for (int iw = 0; iw < ctl->nw; iw++)
+      if (iqa[i] == IDXK(iw))
+	gsl_vector_set(x_a, i, ret->err_k[iw]);
+    if (iqa[i] == IDXCLZ)
+      gsl_vector_set(x_a, i, ret->err_clz);
+    if (iqa[i] == IDXCLDZ)
+      gsl_vector_set(x_a, i, ret->err_cldz);
+    for (int icl = 0; icl < ctl->ncl; icl++)
+      if (iqa[i] == IDXCLK(icl))
+	gsl_vector_set(x_a, i, ret->err_clk[icl]);
+    if (iqa[i] == IDXSFT)
+      gsl_vector_set(x_a, i, ret->err_sft);
+    for (int isf = 0; isf < ctl->nsf; isf++)
+      if (iqa[i] == IDXSFEPS(isf))
+	gsl_vector_set(x_a, i, ret->err_sfeps[isf]);
+  }
+
+  /* Check standard deviations... */
+  for (size_t i = 0; i < n; i++)
+    if (POW2(gsl_vector_get(x_a, i)) <= 0)
+      ERRMSG("Check a priori data (zero standard deviation)!");
+
+  /* Initialize diagonal covariance... */
+  gsl_matrix_set_zero(s_a);
+  for (size_t i = 0; i < n; i++)
+    gsl_matrix_set(s_a, i, i, POW2(gsl_vector_get(x_a, i)));
+
+  /* Loop over matrix elements... */
+  for (size_t i = 0; i < n; i++)
+    for (size_t j = 0; j < n; j++)
+      if (i != j && iqa[i] == iqa[j]) {
+
+	/* Initialize... */
+	double cz = 0;
+	double ch = 0;
+
+	/* Set correlation lengths for pressure... */
+	if (iqa[i] == IDXP) {
+	  cz = ret->err_press_cz;
+	  ch = ret->err_press_ch;
+	}
+
+	/* Set correlation lengths for temperature... */
+	if (iqa[i] == IDXT) {
+	  cz = ret->err_temp_cz;
+	  ch = ret->err_temp_ch;
+	}
+
+	/* Set correlation lengths for volume mixing ratios... */
+	for (int ig = 0; ig < ctl->ng; ig++)
+	  if (iqa[i] == IDXQ(ig)) {
+	    cz = ret->err_q_cz[ig];
+	    ch = ret->err_q_ch[ig];
+	  }
+
+	/* Set correlation lengths for extinction... */
+	for (int iw = 0; iw < ctl->nw; iw++)
+	  if (iqa[i] == IDXK(iw)) {
+	    cz = ret->err_k_cz[iw];
+	    ch = ret->err_k_ch[iw];
+	  }
+
+	/* Compute correlations... */
+	if (cz > 0 && ch > 0) {
+
+	  /* Get Cartesian coordinates... */
+	  double x0[3], x1[3];
+	  geo2cart(0, atm->lon[ipa[i]], atm->lat[ipa[i]], x0);
+	  geo2cart(0, atm->lon[ipa[j]], atm->lat[ipa[j]], x1);
+
+	  /* Compute correlations... */
+	  const double rho =
+	    exp(-DIST(x0, x1) / ch -
+		fabs(atm->z[ipa[i]] - atm->z[ipa[j]]) / cz);
+
+	  /* Set covariance... */
+	  gsl_matrix_set(s_a, i, j, gsl_vector_get(x_a, i)
+			 * gsl_vector_get(x_a, j) * rho);
+	}
+      }
+
+  /* Free... */
+  gsl_vector_free(x_a);
+}
+
+/*****************************************************************************/
+
+void set_cov_meas(
+  ret_t *ret,
+  ctl_t *ctl,
+  obs_t *obs,
+  gsl_vector *sig_noise,
+  gsl_vector *sig_formod,
+  gsl_vector *sig_eps_inv) {
+
+  static obs_t obs_err;
+
+  /* Get size... */
+  const size_t m = sig_eps_inv->size;
+
+  /* Noise error (always considered in retrieval fit)... */
+  copy_obs(ctl, &obs_err, obs, 1);
+  for (int ir = 0; ir < obs_err.nr; ir++)
+    for (int id = 0; id < ctl->nd; id++)
+      obs_err.rad[id][ir]
+	= (isfinite(obs->rad[id][ir]) ? ret->err_noise[id] : NAN);
+  obs2y(ctl, &obs_err, sig_noise, NULL, NULL);
+
+  /* Forward model error (always considered in retrieval fit)... */
+  copy_obs(ctl, &obs_err, obs, 1);
+  for (int ir = 0; ir < obs_err.nr; ir++)
+    for (int id = 0; id < ctl->nd; id++)
+      obs_err.rad[id][ir]
+	= fabs(ret->err_formod[id] / 100 * obs->rad[id][ir]);
+  obs2y(ctl, &obs_err, sig_formod, NULL, NULL);
+
+  /* Total error... */
+  for (size_t i = 0; i < m; i++)
+    gsl_vector_set(sig_eps_inv, i, 1 / sqrt(POW2(gsl_vector_get(sig_noise, i))
+					    +
+					    POW2(gsl_vector_get
+						 (sig_formod, i))));
+
+  /* Check standard deviations... */
+  for (size_t i = 0; i < m; i++)
+    if (gsl_vector_get(sig_eps_inv, i) <= 0)
+      ERRMSG("Check measurement errors (zero standard deviation)!");
 }
 
 /*****************************************************************************/
@@ -5937,6 +6334,39 @@ void write_shape(
 
   /* Close file... */
   fclose(out);
+}
+
+/*****************************************************************************/
+
+void write_stddev(
+  const char *quantity,
+  ret_t *ret,
+  ctl_t *ctl,
+  atm_t *atm,
+  gsl_matrix *s) {
+
+  static atm_t atm_aux;
+
+  char filename[LEN];
+
+  /* Get sizes... */
+  const size_t n = s->size1;
+
+  /* Allocate... */
+  gsl_vector *x_aux = gsl_vector_alloc(n);
+
+  /* Compute standard deviation... */
+  for (size_t i = 0; i < n; i++)
+    gsl_vector_set(x_aux, i, sqrt(gsl_matrix_get(s, i, i)));
+
+  /* Write to disk... */
+  copy_atm(ctl, &atm_aux, atm, 1);
+  x2atm(ctl, x_aux, &atm_aux);
+  sprintf(filename, "atm_err_%s.tab", quantity);
+  write_atm(ret->dir, filename, ctl, &atm_aux);
+
+  /* Free... */
+  gsl_vector_free(x_aux);
 }
 
 /*****************************************************************************/

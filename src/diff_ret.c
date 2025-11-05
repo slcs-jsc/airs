@@ -29,7 +29,7 @@ int main(
   int argc,
   char *argv[]) {
 
-  static ret_t ret, ret2;
+  static retr_t ret, ret2;
 
   static FILE *out;
 

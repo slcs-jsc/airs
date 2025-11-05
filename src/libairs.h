@@ -281,7 +281,7 @@ typedef struct {
   /*! Chi^2. */
   double chisq[NDS];
 
-} ret_t;
+} retr_t;
 
 /*! Wave analysis data. */
 typedef struct {
@@ -500,7 +500,7 @@ void read_pert(
 /*! Read AIRS retrieval data. */
 void read_retr(
   char *filename,
-  ret_t * ret);
+  retr_t * ret);
 
 /*! Convert array. */
 void read_retr_help(
@@ -523,7 +523,7 @@ void rad2wave(
 
 /*! Convert AIRS retrieval results to wave analysis struct. */
 void ret2wave(
-  ret_t * ret,
+  retr_t * ret,
   wave_t * wave,
   int dataset,
   int ip);

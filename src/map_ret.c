@@ -28,7 +28,7 @@ int main(
   int argc,
   char *argv[]) {
 
-  static ret_t ret;
+  static retr_t ret;
   static wave_t wave;
 
   static double tbg[NDS], tabg[NDS];

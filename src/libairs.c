@@ -1218,7 +1218,7 @@ void read_pert(
 
 void read_retr(
   char *filename,
-  ret_t *ret) {
+  retr_t *ret) {
 
   static double help[NDS * NPG];
 
@@ -1529,7 +1529,7 @@ void rad2wave(
 /*****************************************************************************/
 
 void ret2wave(
-  ret_t *ret,
+  retr_t *ret,
   wave_t *wave,
   int dataset,
   int ip) {

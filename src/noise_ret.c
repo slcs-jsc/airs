@@ -29,7 +29,7 @@ int main(
   int argc,
   char *argv[]) {
 
-  static ret_t ret;
+  static retr_t ret;
 
   wave_t *wave, *wave2;
 

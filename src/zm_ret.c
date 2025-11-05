@@ -40,7 +40,7 @@ int main(
   int argc,
   char *argv[]) {
 
-  static ret_t ret;
+  static retr_t ret;
   static wave_t wave;
 
   static double apr_tm[NPG][NLAT], apr_var[NPG][NLAT], apr_noise[NPG][NLAT],
