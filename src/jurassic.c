@@ -11,7 +11,7 @@
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
   
-  You should have received a copy of the GNU eneral Public License
+  You should have received a copy of the GNU General Public License
   along with JURASSIC. If not, see <http://www.gnu.org/licenses/>.
   
   Copyright (C) 2003-2025 Forschungszentrum Juelich GmbH
@@ -69,10 +69,6 @@ size_t atm2x(
       atm2x_help(atm->clk[icl], IDXCLK(icl), 0, x, iqa, ipa, &n);
 
   /* Add surface parameters... */
-  if (ctl->ret_sfz)
-    atm2x_help(atm->sfz, IDXSFZ, 0, x, iqa, ipa, &n);
-  if (ctl->ret_sfp)
-    atm2x_help(atm->sfp, IDXSFP, 0, x, iqa, ipa, &n);
   if (ctl->ret_sft)
     atm2x_help(atm->sft, IDXSFT, 0, x, iqa, ipa, &n);
   if (ctl->ret_sfeps)
@@ -1050,7 +1046,7 @@ void climatology(
       atm->clk[icl] = 0;
 
     /* Set surface layer... */
-    atm->sfz = atm->sfp = atm->sft = 0;
+    atm->sft = 0;
     for (int isf = 0; isf < ctl->nsf; isf++)
       atm->sfeps[isf] = 1;
   }
@@ -3129,8 +3125,6 @@ void copy_atm(
   atm_dest->cldz = atm_src->cldz;
   for (int icl = 0; icl < ctl->ncl; icl++)
     atm_dest->clk[icl] = atm_src->clk[icl];
-  atm_dest->sfz = atm_src->sfz;
-  atm_dest->sfp = atm_src->sfp;
   atm_dest->sft = atm_src->sft;
   for (int isf = 0; isf < ctl->nsf; isf++)
     atm_dest->sfeps[isf] = atm_src->sfeps[isf];
@@ -3148,8 +3142,6 @@ void copy_atm(
       atm_dest->cldz = 0;
       for (int icl = 0; icl < ctl->ncl; icl++)
 	atm_dest->clk[icl] = 0;
-      atm_dest->sfz = 0;
-      atm_dest->sfp = 0;
       atm_dest->sft = 0;
       for (int isf = 0; isf < ctl->nsf; isf++)
 	atm_dest->sfeps[isf] = 1;
@@ -3762,12 +3754,6 @@ void idx2name(
     if (idx == IDXCLK(icl))
       sprintf(quantity, "CLOUD_EXTINCT_%.4f", ctl->clnu[icl]);
 
-  if (idx == IDXSFZ)
-    sprintf(quantity, "SURFACE_HEIGHT");
-
-  if (idx == IDXSFP)
-    sprintf(quantity, "SURFACE_PRESSURE");
-
   if (idx == IDXSFT)
     sprintf(quantity, "SURFACE_TEMPERATURE");
 
@@ -3927,7 +3913,7 @@ void intpol_tbl_cga(
 	  eps00 = LOGX(tbl->p[id][ig][ipr], eps00,
 		       tbl->p[id][ig][ipr + 1], eps11, los->cgp[ip][ig]);
 
-	  /* Check emssivity range... */
+	  /* Check emissivity range... */
 	  eps00 = MAX(MIN(eps00, 1), 0);
 
 	  /* Determine segment emissivity... */
@@ -4023,7 +4009,7 @@ void intpol_tbl_ega(
 	  eps00 = LIN(tbl->p[id][ig][ipr], eps00,
 		      tbl->p[id][ig][ipr + 1], eps11, los->p[ip]);
 
-	  /* Check emssivity range... */
+	  /* Check emissivity range... */
 	  eps00 = MAX(MIN(eps00, 1), 0);
 
 	  /* Determine segment emissivity... */
@@ -4042,7 +4028,7 @@ void intpol_tbl_ega(
 
 /*****************************************************************************/
 
-double intpol_tbl_eps(
+inline double intpol_tbl_eps(
   const tbl_t *tbl,
   const int ig,
   const int id,
@@ -4057,24 +4043,24 @@ double intpol_tbl_eps(
   const double u_min = u_arr[0];
   const double u_max = u_arr[nu - 1];
 
-  /* Lower extrapolation */
+  /* Lower boundary extrapolation... */
   if (u < u_min)
-    return LIN(0.0, 0.0, u_min, eps_arr[0], u);
+    return eps_arr[0] * u / u_min;
 
-  /* Upper extrapolation */
+  /* Upper boundary extrapolation... */
   if (u > u_max) {
     const double a = log(1.0 - eps_arr[nu - 1]) / u_max;
     return 1.0 - exp(a * u);
   }
 
-  /* Interpolation */
+  /* Interpolation... */
   const int idx = locate_tbl(u_arr, nu, u);
   return LIN(u_arr[idx], eps_arr[idx], u_arr[idx + 1], eps_arr[idx + 1], u);
 }
 
 /*****************************************************************************/
 
-double intpol_tbl_u(
+inline double intpol_tbl_u(
   const tbl_t *tbl,
   const int ig,
   const int id,
@@ -4089,17 +4075,17 @@ double intpol_tbl_u(
   const double eps_min = eps_arr[0];
   const double eps_max = eps_arr[nu - 1];
 
-  /* Lower boundary extrapolation */
+  /* Lower boundary extrapolation... */
   if (eps < eps_min)
-    return LIN(0.0, 0.0, eps_min, u_arr[0], eps);
+    return u_arr[0] * eps / eps_min;
 
-  /* Upper boundary extrapolation (log-inverse) */
+  /* Upper boundary extrapolation... */
   if (eps > eps_max) {
     const double a = log(1.0 - eps_max) / u_arr[nu - 1];
     return log(1.0 - eps) / a;
   }
 
-  /* Interpolation */
+  /* Interpolation... */
   const int idx = locate_tbl(eps_arr, nu, eps);
   return LIN(eps_arr[idx], u_arr[idx], eps_arr[idx + 1], u_arr[idx + 1], eps);
 }
@@ -4194,10 +4180,6 @@ void kernel(
       h = 1.0;
     else if (iqa[j] >= IDXCLK(0) && iqa[j] < IDXCLK(ctl->ncl))
       h = 1e-4;
-    else if (iqa[j] == IDXSFZ)
-      h = 0.1;
-    else if (iqa[j] == IDXSFP)
-      h = 10.0;
     else if (iqa[j] == IDXSFT)
       h = 1.0;
     else if (iqa[j] >= IDXSFEPS(0) && iqa[j] < IDXSFEPS(ctl->nsf))
@@ -4287,7 +4269,7 @@ int locate_reg(
 
 /*****************************************************************************/
 
-int locate_tbl(
+inline int locate_tbl(
   const float *xx,
   const int n,
   const double x) {
@@ -4356,24 +4338,18 @@ void raytrace(
   obs->tpz[ir] = obs->vpz[ir];
   obs->tplon[ir] = obs->vplon[ir];
   obs->tplat[ir] = obs->vplat[ir];
-
+  
   /* Get altitude range of atmospheric data... */
   gsl_stats_minmax(&zmin, &zmax, atm->z, 1, (size_t) atm->np);
-  if (ctl->nsf > 0) {
-    zmin = MAX(atm->sfz, zmin);
-    if (atm->sfp > 0) {
-      const int ip = locate_irr(atm->p, atm->np, atm->sfp);
-      const double zip =
-	LIN(log(atm->p[ip]), atm->z[ip], log(atm->p[ip + 1]), atm->z[ip + 1],
-	    log(atm->sfp));
-      zmin = MAX(zip, zmin);
-    }
-  }
-
+  
+  /* Ensure that altitude grid includes the local geometric surface... */
+  if (zmin > 1e-3 || zmin < -1e-3)
+    ERRMSG("Atmospheric profiles must include surface level (z = 0 km)!");
+  
   /* Check observer altitude... */
   if (obs->obsz[ir] < zmin)
     ERRMSG("Observer below surface!");
-
+  
   /* Check view point altitude... */
   if (obs->vpz[ir] > zmax)
     return;
@@ -4625,8 +4601,6 @@ void read_atm(
 	TOK(NULL, tok, "%lg", atm->clk[icl]);
     }
     if (ctl->nsf > 0 && atm->np == 0) {
-      TOK(NULL, tok, "%lg", atm->sfz);
-      TOK(NULL, tok, "%lg", atm->sfp);
       TOK(NULL, tok, "%lg", atm->sft);
       for (int isf = 0; isf < ctl->nsf; isf++)
 	TOK(NULL, tok, "%lg", atm->sfeps[isf]);
@@ -4674,9 +4648,8 @@ void read_atm(
     LOG(2, "Cloud layer: none");
   if (ctl->nsf > 0 && atm->np == 0) {
     LOG(2,
-	"Surface layer: z_s= %g km | p_s= %g hPa | T_s = %g K | eps= %g ... %g",
-	atm->sfz, atm->sfp, atm->sft, atm->sfeps[0],
-	atm->sfeps[ctl->nsf - 1]);
+	"Surface layer: T_s = %g K | eps= %g ... %g",
+	atm->sft, atm->sfeps[0], atm->sfeps[ctl->nsf - 1]);
   } else
     LOG(2, "Surface layer: none");
 }
@@ -4779,8 +4752,6 @@ void read_ctl(
   ctl->ret_clz = (int) scan_ctl(argc, argv, "RET_CLZ", -1, "0", NULL);
   ctl->ret_cldz = (int) scan_ctl(argc, argv, "RET_CLDZ", -1, "0", NULL);
   ctl->ret_clk = (int) scan_ctl(argc, argv, "RET_CLK", -1, "0", NULL);
-  ctl->ret_sfz = (int) scan_ctl(argc, argv, "RET_SFZ", -1, "0", NULL);
-  ctl->ret_sfp = (int) scan_ctl(argc, argv, "RET_SFP", -1, "0", NULL);
   ctl->ret_sft = (int) scan_ctl(argc, argv, "RET_SFT", -1, "0", NULL);
   ctl->ret_sfeps = (int) scan_ctl(argc, argv, "RET_SFEPS", -1, "0", NULL);
 
@@ -5566,7 +5537,7 @@ void write_atm(
 	fprintf(out, " %g", atm->clk[icl]);
     }
     if (ctl->nsf > 0) {
-      fprintf(out, " %g %g %g", atm->sfz, atm->sfp, atm->sft);
+      fprintf(out, " %g", atm->sft);
       for (int isf = 0; isf < ctl->nsf; isf++)
 	fprintf(out, " %g", atm->sfeps[isf]);
     }
@@ -5606,9 +5577,8 @@ void write_atm(
     LOG(2, "Cloud layer: none");
   if (ctl->nsf > 0 && atm->np == 0) {
     LOG(2,
-	"Surface layer: z_s= %g km | p_s= %g hPa | T_s = %g K | eps= %g ... %g",
-	atm->sfz, atm->sfp, atm->sft, atm->sfeps[0],
-	atm->sfeps[ctl->nsf - 1]);
+	"Surface layer: T_s = %g K | eps= %g ... %g",
+	atm->sft, atm->sfeps[0], atm->sfeps[ctl->nsf - 1]);
   } else
     LOG(2, "Surface layer: none");
 }
@@ -6098,10 +6068,6 @@ void x2atm(
       x2atm_help(&atm->clk[icl], x, &n);
 
   /* Get surface data... */
-  if (ctl->ret_sfz)
-    x2atm_help(&atm->sfz, x, &n);
-  if (ctl->ret_sfp)
-    x2atm_help(&atm->sfp, x, &n);
   if (ctl->ret_sft)
     x2atm_help(&atm->sft, x, &n);
   if (ctl->ret_sfeps)

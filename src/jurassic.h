@@ -401,12 +401,12 @@
 
 /*! Maximum size of state vector. */
 #ifndef N
-#define N ((2+NG+NW)*NP+NCL+NSF+5)
+#define N ((2+NG+NW)*NP+NCL+NSF+3)
 #endif
 
 /*! Maximum number of quantities. */
 #ifndef NQ
-#define NQ (7+NG+NW+NCL+NSF)
+#define NQ (2+NG+NW+NCL+NSF+3)
 #endif
 
 /*! Maximum number of LOS points. */
