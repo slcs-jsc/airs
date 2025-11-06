@@ -17,6 +17,7 @@ Sounder.
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/slcs-jsc/airs)
 [![license](https://img.shields.io/github/license/slcs-jsc/airs.svg)](https://github.com/slcs-jsc/airs/blob/master/COPYING)
 [![doi](https://zenodo.org/badge/DOI/10.5281/zenodo.14710848.svg)](https://doi.org/10.5281/zenodo.14710848)
+[![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/slcs-jsc/airs/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/slcs-jsc/airs)
 
 ## Installation
 
