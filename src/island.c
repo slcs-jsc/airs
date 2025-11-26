@@ -227,12 +227,11 @@ int main(
 
 	    /* Estimate noise... */
 	    if (dt230 > 0) {
-	      const double nesr =
-		PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
-	      enoise = BRIGHT(PLANCK(ebt / en, nu) + nesr, nu) - ebt / en;
-	      wnoise = BRIGHT(PLANCK(wbt / wn, nu) + nesr, nu) - wbt / wn;
+	      const double nesr = NESR(230.0, dt230, nu);
+	      enoise = NEDT(ebt / en, nesr, nu);
+	      wnoise = NEDT(wbt / wn, nesr, nu);
 	    }
-
+	    
 	    /* Write output... */
 	    fprintf(out, "%.2f %d %d %g %g %g %d %g %g %g\n", etime / en, orb,
 		    en, evar / en - gsl_pow_2(emu / en), ebt / en, enoise,
@@ -313,11 +312,11 @@ int main(
 
       /* Estimate noise... */
       if (dt230 > 0) {
-	const double nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
-	enoise = BRIGHT(PLANCK(ebt / en, nu) + nesr, nu) - ebt / en;
-	wnoise = BRIGHT(PLANCK(wbt / wn, nu) + nesr, nu) - wbt / wn;
+	const double nesr = NESR(230.0, dt230, nu);
+	enoise = NEDT(ebt / en, nesr, nu);
+	wnoise = NEDT(wbt / wn, nesr, nu);
       }
-
+      
       /* Write output... */
       fprintf(out, "%.2f %d %d %g %g %g %d %g %g %g\n", etime / en, orb,
 	      en, evar / en - gsl_pow_2(emu / en), ebt / en, enoise,

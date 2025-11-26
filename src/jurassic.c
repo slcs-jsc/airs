@@ -27,12 +27,12 @@
 /*****************************************************************************/
 
 void analyze_avk(
-  ret_t *ret,
-  ctl_t *ctl,
-  atm_t *atm,
-  int *iqa,
-  int *ipa,
-  gsl_matrix *avk) {
+  const ret_t *ret,
+  const ctl_t *ctl,
+  const atm_t *atm,
+  const int *iqa,
+  const int *ipa,
+  const gsl_matrix *avk) {
 
   static atm_t atm_cont, atm_res;
 
@@ -84,11 +84,11 @@ void analyze_avk(
 /*****************************************************************************/
 
 void analyze_avk_quantity(
-  gsl_matrix *avk,
-  int iq,
-  int *ipa,
-  size_t *n0,
-  size_t *n1,
+  const gsl_matrix *avk,
+  const int iq,
+  const int *ipa,
+  const size_t *n0,
+  const size_t *n1,
   double *cont,
   double *res) {
 
@@ -1135,11 +1135,52 @@ void climatology(
 
 /*****************************************************************************/
 
+double cos_sza(
+  const double sec,
+  const double lon,
+  const double lat) {
+
+  /* Number of days and fraction with respect to 2000-01-01T12:00Z... */
+  const double D = sec / 86400 - 0.5;
+
+  /* Geocentric apparent ecliptic longitude [rad]... */
+  const double g = DEG2RAD(357.529 + 0.98560028 * D);
+  const double q = 280.459 + 0.98564736 * D;
+  const double L = DEG2RAD(q + 1.915 * sin(g) + 0.020 * sin(2 * g));
+
+  /* Mean obliquity of the ecliptic [rad]... */
+  const double e = DEG2RAD(23.439 - 0.00000036 * D);
+
+  /* Declination [rad]... */
+  const double sindec = sin(e) * sin(L);
+
+  /* Right ascension [rad]... */
+  const double ra = atan2(cos(e) * sin(L), cos(L));
+
+  /* Greenwich Mean Sidereal Time [h]... */
+  const double GMST = 18.697374558 + 24.06570982441908 * D;
+
+  /* Local Sidereal Time [h]... */
+  const double LST = GMST + lon / 15;
+
+  /* Hour angle [rad]... */
+  const double h = LST / 12 * M_PI - ra;
+
+  /* Convert latitude... */
+  const double lat_help = DEG2RAD(lat);
+
+  /* Return cosine of solar zenith angle... */
+  return sin(lat_help) * sindec + cos(lat_help)
+    * sqrt(1 - POW2(sindec)) * cos(h);
+}
+
+/*****************************************************************************/
+
 double cost_function(
-  gsl_vector *dx,
-  gsl_vector *dy,
-  gsl_matrix *s_a_inv,
-  gsl_vector *sig_eps_inv) {
+  const gsl_vector *dx,
+  const gsl_vector *dy,
+  const gsl_matrix *s_a_inv,
+  const gsl_vector *sig_eps_inv) {
 
   double chisq_a, chisq_m = 0;
 
@@ -3558,18 +3599,18 @@ void formod_pencil(
       /* Add solar term... */
       if (ctl->sftype >= 3) {
 
-	/* Get solar zenith angle... */
-	double sza2;
+	/* Get cosine of solar zenith angle... */
+	double cos_sza_val;
 	if (ctl->sfsza < 0)
-	  sza2 =
-	    sza(obs->time[ir], los->lon[los->np - 1], los->lat[los->np - 1]);
+	  cos_sza_val = cos_sza(obs->time[ir],
+				los->lon[los->np - 1], los->lat[los->np - 1]);
 	else
-	  sza2 = ctl->sfsza;
+	  cos_sza_val = cos(DEG2RAD(ctl->sfsza));
 
-	/* Check solar zenith angle... */
-	if (sza2 < 89.999) {
+	/* Check validity (avoid division by zero)... */
+	if (cos_sza_val > 1e-6) {
 
-	  /* Get angle of incidence... */
+	  /* Compute incidence direction cosine... */
 	  geo2cart(los->z[los->np - 1], los->lon[los->np - 1],
 		   los->lat[los->np - 1], x0);
 	  geo2cart(los->z[0], los->lon[0], los->lat[0], x1);
@@ -3577,10 +3618,10 @@ void formod_pencil(
 	    x1[i] -= x0[i];
 	  const double cosa = DOTP(x0, x1) / NORM(x0) / NORM(x1);
 
-	  /* Get ratio of SZA and incident radiation... */
-	  const double rcos = cosa / cos(DEG2RAD(sza2));
+	  /* Ratio of incident direction to solar zenith direction... */
+	  const double rcos = cosa / cos_sza_val;
 
-	  /* Add solar radiation... */
+	  /* Add solar radiance contribution... */
 	  for (int id = 0; id < ctl->nd; id++)
 	    rad[id] += 6.764e-5 / (2. * M_PI) * PLANCK(TSUN, ctl->nu[id])
 	      * tau_refl[id] * (1 - los->sfeps[id]) * tau[id] * rcos;
@@ -4225,7 +4266,7 @@ void jsec2time(
   t0.tm_min = 0;
   t0.tm_sec = 0;
 
-  time_t jsec0 = (time_t) jsec + timegm(&t0);
+  const time_t jsec0 = (time_t) jsec + timegm(&t0);
   t1 = gmtime(&jsec0);
 
   *year = t1->tm_year + 1900;
@@ -4436,9 +4477,9 @@ void matrix_invert(
 /*****************************************************************************/
 
 void matrix_product(
-  gsl_matrix *a,
-  gsl_vector *b,
-  int transpose,
+  const gsl_matrix *a,
+  const gsl_vector *b,
+  const int transpose,
   gsl_matrix *c) {
 
   /* Set sizes... */
@@ -5103,9 +5144,9 @@ void read_obs(
 double read_obs_rfm(
   const char *basename,
   const double z,
-  double *nu,
-  double *f,
-  int n) {
+  const double *nu,
+  const double *f,
+  const int n) {
 
   FILE *in;
 
@@ -5161,7 +5202,7 @@ double read_obs_rfm(
 void read_ret(
   int argc,
   char *argv[],
-  ctl_t *ctl,
+  const ctl_t *ctl,
   ret_t *ret) {
 
   /* Iteration control... */
@@ -5317,12 +5358,6 @@ void read_shape(
 tbl_t *read_tbl(
   const ctl_t *ctl) {
 
-  FILE *in;
-
-  char filename[2 * LEN], line[LEN];
-
-  double eps, press, temp, u;
-
   /* Allocate... */
   tbl_t *tbl;
   ALLOC(tbl, tbl_t, 1);
@@ -5333,138 +5368,22 @@ tbl_t *read_tbl(
 
       /* Initialize... */
       tbl->np[id][ig] = -1;
-      double eps_old = -999;
-      double press_old = -999;
-      double temp_old = -999;
-      double u_old = -999;
-      int nrange = 0;
 
-      /* Set filename... */
-      sprintf(filename, "%s_%.4f_%s.%s", ctl->tblbase,
-	      ctl->nu[id], ctl->emitter[ig],
-	      ctl->tblfmt == 1 ? "tab" : "bin");
+      /* Read ASCII look-up tables... */
+      if (ctl->tblfmt == 1)
+	read_tbl_asc(ctl, tbl, id, ig);
 
-      /* Write info... */
-      LOG(1, "Read emissivity table: %s", filename);
+      /* Read binary look-up tables... */
+      else if (ctl->tblfmt == 2)
+	read_tbl_bin(ctl, tbl, id, ig);
 
-      /* Try to open file... */
-      if (!(in = fopen(filename, "r"))) {
-	WARN("Missing emissivity table: %s", filename);
-	continue;
-      }
-
-      /* Read ASCII tables... */
-      if (ctl->tblfmt == 1) {
-
-	/* Read data... */
-	while (fgets(line, LEN, in)) {
-
-	  /* Parse line... */
-	  if (sscanf(line, "%lg %lg %lg %lg", &press, &temp, &u, &eps) != 4)
-	    continue;
-
-	  /* Check ranges... */
-	  if (u < UMIN || u > UMAX || eps < EPSMIN || eps > EPSMAX) {
-	    nrange++;
-	    continue;
-	  }
-
-	  /* Determine pressure index... */
-	  if (press != press_old) {
-	    press_old = press;
-	    if ((++tbl->np[id][ig]) >= TBLNP)
-	      ERRMSG("Too many pressure levels!");
-	    tbl->nt[id][ig][tbl->np[id][ig]] = -1;
-	  }
-
-	  /* Determine temperature index... */
-	  if (temp != temp_old) {
-	    temp_old = temp;
-	    if ((++tbl->nt[id][ig][tbl->np[id][ig]]) >= TBLNT)
-	      ERRMSG("Too many temperatures!");
-	    tbl->nu[id][ig][tbl->np[id][ig]]
-	      [tbl->nt[id][ig][tbl->np[id][ig]]] = -1;
-	  }
-
-	  /* Determine column density index... */
-	  if ((eps > eps_old && u > u_old) || tbl->nu[id][ig][tbl->np[id][ig]]
-	      [tbl->nt[id][ig][tbl->np[id][ig]]] < 0) {
-	    eps_old = eps;
-	    u_old = u;
-	    if ((++tbl->nu[id][ig][tbl->np[id][ig]]
-		 [tbl->nt[id][ig][tbl->np[id][ig]]]) >= TBLNU)
-	      ERRMSG("Too many column densities!");
-	  }
-
-	  /* Store data... */
-	  tbl->p[id][ig][tbl->np[id][ig]] = press;
-	  tbl->t[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
-	    = temp;
-	  tbl->u[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
-	    [tbl->nu[id][ig][tbl->np[id][ig]]
-	     [tbl->nt[id][ig][tbl->np[id][ig]]]] = (float) u;
-	  tbl->eps[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
-	    [tbl->nu[id][ig][tbl->np[id][ig]]
-	     [tbl->nt[id][ig][tbl->np[id][ig]]]] = (float) eps;
-	}
-
-	/* Increment counters... */
-	tbl->np[id][ig]++;
-	for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
-	  tbl->nt[id][ig][ip]++;
-	  for (int it = 0; it < tbl->nt[id][ig][ip]; it++)
-	    tbl->nu[id][ig][ip][it]++;
-	}
-      }
-
-      /* Read binary data... */
-      else if (ctl->tblfmt == 2) {
-
-	/* Read data... */
-	FREAD(&tbl->np[id][ig], int,
-	      1,
-	      in);
-	if (tbl->np[id][ig] > TBLNP)
-	  ERRMSG("Too many pressure levels!");
-	FREAD(tbl->p[id][ig], double,
-	        (size_t) tbl->np[id][ig],
-	      in);
-	for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
-	  FREAD(&tbl->nt[id][ig][ip], int,
-		1,
-		in);
-	  if (tbl->nt[id][ig][ip] > TBLNT)
-	    ERRMSG("Too many temperatures!");
-	  FREAD(tbl->t[id][ig][ip], double,
-		  (size_t) tbl->nt[id][ig][ip],
-		in);
-	  for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
-	    FREAD(&tbl->nu[id][ig][ip][it], int,
-		  1,
-		  in);
-	    if (tbl->nu[id][ig][ip][it] > TBLNU)
-	      ERRMSG("Too many column densities!");
-	    FREAD(tbl->u[id][ig][ip][it], float,
-		    (size_t) tbl->nu[id][ig][ip][it],
-		  in);
-	    FREAD(tbl->eps[id][ig][ip][it], float,
-		    (size_t) tbl->nu[id][ig][ip][it],
-		  in);
-	  }
-	}
-      }
+      /* Read per-gas look-up tables... */
+      else if (ctl->tblfmt == 3)
+	read_tbl_gas(ctl, tbl, id, ig);
 
       /* Error message... */
       else
 	ERRMSG("Unknown look-up table format!");
-
-      /* Check ranges... */
-      if (nrange > 0)
-	WARN("Column density or emissivity out of range (%d data points)!",
-	     nrange);
-
-      /* Close file... */
-      fclose(in);
 
       /* Write info... */
       for (int ip = 0; ip < tbl->np[id][ig]; ip++)
@@ -5484,6 +5403,334 @@ tbl_t *read_tbl(
 
   /* Return pointer... */
   return tbl;
+}
+
+/*****************************************************************************/
+
+void read_tbl_asc(
+  const ctl_t *ctl,
+  tbl_t *tbl,
+  const int id,
+  const int ig) {
+
+  /* Initialize... */
+  double eps, eps_old = -999, press, press_old = -999, temp, temp_old =
+    -999, u, u_old = -999;
+  int nrange = 0;
+
+  /* Set filename... */
+  char filename[2 * LEN];
+  sprintf(filename, "%s_%.4f_%s.tab", ctl->tblbase,
+	  ctl->nu[id], ctl->emitter[ig]);
+
+  /* Write info... */
+  LOG(1, "Read emissivity table: %s", filename);
+
+  /* Try to open file... */
+  FILE *in;
+  if (!(in = fopen(filename, "r"))) {
+    WARN("Missing emissivity table: %s", filename);
+    return;
+  }
+
+  /* Read data... */
+  char line[LEN];
+  while (fgets(line, LEN, in)) {
+
+    /* Parse line... */
+    if (sscanf(line, "%lg %lg %lg %lg", &press, &temp, &u, &eps) != 4)
+      continue;
+
+    /* Check ranges... */
+    if (u < UMIN || u > UMAX || eps < EPSMIN || eps > EPSMAX) {
+      nrange++;
+      continue;
+    }
+
+    /* Determine pressure index... */
+    if (press != press_old) {
+      press_old = press;
+      if ((++tbl->np[id][ig]) >= TBLNP)
+	ERRMSG("Too many pressure levels!");
+      tbl->nt[id][ig][tbl->np[id][ig]] = -1;
+    }
+
+    /* Determine temperature index... */
+    if (temp != temp_old) {
+      temp_old = temp;
+      if ((++tbl->nt[id][ig][tbl->np[id][ig]]) >= TBLNT)
+	ERRMSG("Too many temperatures!");
+      tbl->nu[id][ig][tbl->np[id][ig]]
+	[tbl->nt[id][ig][tbl->np[id][ig]]] = -1;
+    }
+
+    /* Determine column density index... */
+    if ((eps > eps_old && u > u_old) || tbl->nu[id][ig][tbl->np[id][ig]]
+	[tbl->nt[id][ig][tbl->np[id][ig]]] < 0) {
+      eps_old = eps;
+      u_old = u;
+      if ((++tbl->nu[id][ig][tbl->np[id][ig]]
+	   [tbl->nt[id][ig][tbl->np[id][ig]]]) >= TBLNU)
+	ERRMSG("Too many column densities!");
+    }
+
+    /* Store data... */
+    tbl->p[id][ig][tbl->np[id][ig]] = press;
+    tbl->t[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
+      = temp;
+    tbl->u[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
+      [tbl->nu[id][ig][tbl->np[id][ig]]
+       [tbl->nt[id][ig][tbl->np[id][ig]]]] = (float) u;
+    tbl->eps[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
+      [tbl->nu[id][ig][tbl->np[id][ig]]
+       [tbl->nt[id][ig][tbl->np[id][ig]]]] = (float) eps;
+  }
+
+  /* Increment counters... */
+  tbl->np[id][ig]++;
+  for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
+    tbl->nt[id][ig][ip]++;
+    for (int it = 0; it < tbl->nt[id][ig][ip]; it++)
+      tbl->nu[id][ig][ip][it]++;
+  }
+
+  /* Check ranges... */
+  if (nrange > 0)
+    WARN("Column density or emissivity out of range (%d data points)!",
+	 nrange);
+
+  /* Close file... */
+  fclose(in);
+}
+
+/*****************************************************************************/
+
+void read_tbl_bin(
+  const ctl_t *ctl,
+  tbl_t *tbl,
+  const int id,
+  const int ig) {
+
+  /* Set filename... */
+  char filename[2 * LEN];
+  sprintf(filename, "%s_%.4f_%s.bin", ctl->tblbase,
+	  ctl->nu[id], ctl->emitter[ig]);
+
+  /* Write info... */
+  LOG(1, "Read emissivity table: %s", filename);
+
+  /* Try to open file... */
+  FILE *in;
+  if (!(in = fopen(filename, "r"))) {
+    WARN("Missing emissivity table: %s", filename);
+    return;
+  }
+
+  /* Read data... */
+  FREAD(&tbl->np[id][ig], int,
+	1,
+	in);
+  if (tbl->np[id][ig] > TBLNP)
+    ERRMSG("Too many pressure levels!");
+  FREAD(tbl->p[id][ig], double,
+	  (size_t) tbl->np[id][ig],
+	in);
+  for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
+    FREAD(&tbl->nt[id][ig][ip], int,
+	  1,
+	  in);
+    if (tbl->nt[id][ig][ip] > TBLNT)
+      ERRMSG("Too many temperatures!");
+    FREAD(tbl->t[id][ig][ip], double,
+	    (size_t) tbl->nt[id][ig][ip],
+	  in);
+    for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
+      FREAD(&tbl->nu[id][ig][ip][it], int,
+	    1,
+	    in);
+      if (tbl->nu[id][ig][ip][it] > TBLNU)
+	ERRMSG("Too many column densities!");
+      FREAD(tbl->u[id][ig][ip][it], float,
+	      (size_t) tbl->nu[id][ig][ip][it],
+	    in);
+      FREAD(tbl->eps[id][ig][ip][it], float,
+	      (size_t) tbl->nu[id][ig][ip][it],
+	    in);
+    }
+  }
+
+  /* Close file... */
+  fclose(in);
+}
+
+/*****************************************************************************/
+
+void read_tbl_gas(
+  const ctl_t *ctl,
+  tbl_t *tbl,
+  const int id,
+  const int ig) {
+
+  /* Set filename... */
+  char filename[2 * LEN];
+  sprintf(filename, "%s_%s.tbl", ctl->tblbase, ctl->emitter[ig]);
+
+  /* Write info... */
+  LOG(1, "Read emissivity table: %s", filename);
+
+  /* Open file... */
+  tbl_gas_t gas;
+  if (read_tbl_gas_open(filename, &gas) != 0) {
+    WARN("Missing emissivity table: %s", filename);
+    return;
+  }
+
+  /* Read table... */
+  if (read_tbl_gas_single(&gas, ctl->nu[id], tbl, id, ig) != 0)
+    WARN("Frequency %.6f missing in %s", ctl->nu[id], filename);
+
+  /* Close file... */
+  read_tbl_gas_close(&gas);
+}
+
+/*****************************************************************************/
+
+int read_tbl_gas_close(
+  tbl_gas_t *g) {
+
+  if (!g || !g->fp)
+    return -1;
+
+  if (g->dirty) {
+
+    /* Rewind to header... */
+    fseek(g->fp, 0, SEEK_SET);
+
+    /* Write header... */
+    const char magic[4] = { 'G', 'T', 'L', '1' };
+    FWRITE(magic, char,
+	   4,
+	   g->fp);
+    FWRITE(&g->ntables, int32_t, 1, g->fp);
+
+    /* Write updated index... */
+    FWRITE(g->index, tbl_gas_index_t, MAX_TABLES, g->fp);
+    fflush(g->fp);
+  }
+
+  /* Close file... */
+  fclose(g->fp);
+  free(g->index);
+  memset(g, 0, sizeof(*g));
+
+  return 0;
+}
+
+/*****************************************************************************/
+
+int read_tbl_gas_open(
+  const char *path,
+  tbl_gas_t *g) {
+
+  /* Open file... */
+  memset(g, 0, sizeof(*g));
+  g->fp = fopen(path, "rb+");	/* MUST be rb+ for writing later */
+  if (!g->fp)
+    return -1;
+  char magic[4];
+
+  /* Read header... */
+  FREAD(magic, char,
+	4,
+	g->fp);
+  if (memcmp(magic, "GTL1", 4) != 0)
+    ERRMSG("Invalid gas-table file format!");
+  FREAD(&g->ntables, int32_t, 1, g->fp);
+
+  /* Read index... */
+  ALLOC(g->index, tbl_gas_index_t, MAX_TABLES);
+  FREAD(g->index, tbl_gas_index_t, MAX_TABLES, g->fp);
+  g->dirty = 0;
+
+  return 0;
+}
+
+/*****************************************************************************/
+
+int read_tbl_gas_single(
+  const tbl_gas_t *g,
+  const double freq,
+  tbl_t *tbl,
+  const int id,
+  const int ig) {
+
+  /* Find freq in index */
+  int idx = -1;
+  for (int i = 0; i < g->ntables; i++) {
+    if (g->index[i].freq == freq) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    WARN("Frequency %.4f not found in gas table", freq);
+    return -1;
+  }
+
+  /* Seek to table block... */
+  if (fseek(g->fp, (long) g->index[idx].offset, SEEK_SET) != 0)
+    ERRMSG("Seek error in read_tbl_gas_single!");
+
+  /* Read number of pressures... */
+  FREAD(&tbl->np[id][ig], int,
+	1,
+	g->fp);
+  if (tbl->np[id][ig] > TBLNP)
+    ERRMSG("Too many pressure levels!");
+
+  /* Read pressure grid... */
+  FREAD(tbl->p[id][ig], double,
+	  (size_t) tbl->np[id][ig],
+	g->fp);
+
+  /* Loop over pressure levels... */
+  for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
+
+    /* Read number of temperatures... */
+    FREAD(&tbl->nt[id][ig][ip], int,
+	  1,
+	  g->fp);
+    if (tbl->nt[id][ig][ip] > TBLNT)
+      ERRMSG("Too many temperatures!");
+
+    /* Read temperature grid... */
+    FREAD(tbl->t[id][ig][ip], double,
+	    (size_t) tbl->nt[id][ig][ip],
+	  g->fp);
+
+    /* Loop over temperature levels... */
+    for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
+
+      /* Read number of u points... */
+      FREAD(&tbl->nu[id][ig][ip][it], int,
+	    1,
+	    g->fp);
+      if (tbl->nu[id][ig][ip][it] > TBLNU)
+	ERRMSG("Too many column densities!");
+
+      /* Read u grid... */
+      FREAD(tbl->u[id][ig][ip][it], float,
+	      (size_t) tbl->nu[id][ig][ip][it],
+	    g->fp);
+
+      /* Read emissivity grid... */
+      FREAD(tbl->eps[id][ig][ip][it], float,
+	      (size_t) tbl->nu[id][ig][ip][it],
+	    g->fp);
+    }
+  }
+
+  return 0;
 }
 
 /*****************************************************************************/
@@ -5557,52 +5804,12 @@ double scan_ctl(
 
 /*****************************************************************************/
 
-double sza(
-  const double sec,
-  const double lon,
-  const double lat) {
-
-  /* Number of days and fraction with respect to 2000-01-01T12:00Z... */
-  const double D = sec / 86400 - 0.5;
-
-  /* Geocentric apparent ecliptic longitude [rad]... */
-  const double g = DEG2RAD(357.529 + 0.98560028 * D);
-  const double q = 280.459 + 0.98564736 * D;
-  const double L = DEG2RAD(q + 1.915 * sin(g) + 0.020 * sin(2 * g));
-
-  /* Mean obliquity of the ecliptic [rad]... */
-  const double e = DEG2RAD(23.439 - 0.00000036 * D);
-
-  /* Declination [rad]... */
-  const double dec = asin(sin(e) * sin(L));
-
-  /* Right ascension [rad]... */
-  const double ra = atan2(cos(e) * sin(L), cos(L));
-
-  /* Greenwich Mean Sidereal Time [h]... */
-  const double GMST = 18.697374558 + 24.06570982441908 * D;
-
-  /* Local Sidereal Time [h]... */
-  const double LST = GMST + lon / 15;
-
-  /* Hour angle [rad]... */
-  const double h = LST / 12 * M_PI - ra;
-
-  /* Convert latitude... */
-  const double latr = DEG2RAD(lat);
-
-  /* Return solar zenith angle [deg]... */
-  return RAD2DEG(acos(sin(latr) * sin(dec) + cos(latr) * cos(dec) * cos(h)));
-}
-
-/*****************************************************************************/
-
 void set_cov_apr(
-  ret_t *ret,
-  ctl_t *ctl,
-  atm_t *atm,
-  int *iqa,
-  int *ipa,
+  const ret_t *ret,
+  const ctl_t *ctl,
+  const atm_t *atm,
+  const int *iqa,
+  const int *ipa,
   gsl_matrix *s_a) {
 
   /* Get sizes... */
@@ -5709,9 +5916,9 @@ void set_cov_apr(
 /*****************************************************************************/
 
 void set_cov_meas(
-  ret_t *ret,
-  ctl_t *ctl,
-  obs_t *obs,
+  const ret_t *ret,
+  const ctl_t *ctl,
+  const obs_t *obs,
   gsl_vector *sig_noise,
   gsl_vector *sig_formod,
   gsl_vector *sig_eps_inv) {
@@ -6340,10 +6547,10 @@ void write_shape(
 
 void write_stddev(
   const char *quantity,
-  ret_t *ret,
-  ctl_t *ctl,
-  atm_t *atm,
-  gsl_matrix *s) {
+  const ret_t *ret,
+  const ctl_t *ctl,
+  const atm_t *atm,
+  const gsl_matrix *s) {
 
   static atm_t atm_aux;
 
@@ -6375,84 +6582,289 @@ void write_tbl(
   const ctl_t *ctl,
   const tbl_t *tbl) {
 
-  FILE *out;
+  /* Write ASCII look-up tables... */
+  if (ctl->tblfmt == 1)
+    write_tbl_asc(ctl, tbl);
 
-  char filename[2 * LEN];
+  /* Write binary look-up tables... */
+  else if (ctl->tblfmt == 2)
+    write_tbl_bin(ctl, tbl);
+
+  /* Write per-gas look-up tables... */
+  else if (ctl->tblfmt == 3)
+    write_tbl_gas(ctl, tbl);
+
+  /* Error message... */
+  else
+    ERRMSG("Unknown look-up table format!");
+}
+
+/*****************************************************************************/
+
+void write_tbl_asc(
+  const ctl_t *ctl,
+  const tbl_t *tbl) {
 
   /* Loop over emitters and detectors... */
   for (int ig = 0; ig < ctl->ng; ig++)
     for (int id = 0; id < ctl->nd; id++) {
 
       /* Set filename... */
-      sprintf(filename, "%s_%.4f_%s.%s", ctl->tblbase,
-	      ctl->nu[id], ctl->emitter[ig],
-	      ctl->tblfmt == 1 ? "tab" : "bin");
+      char filename[2 * LEN];
+      sprintf(filename, "%s_%.4f_%s.tab", ctl->tblbase,
+	      ctl->nu[id], ctl->emitter[ig]);
 
       /* Write info... */
       LOG(1, "Write emissivity table: %s", filename);
 
       /* Create file... */
+      FILE *out;
       if (!(out = fopen(filename, "w")))
 	ERRMSG("Cannot create file!");
 
-      /* Write ASCII data... */
-      if (ctl->tblfmt == 1) {
+      /* Write header... */
+      fprintf(out,
+	      "# $1 = pressure [hPa]\n"
+	      "# $2 = temperature [K]\n"
+	      "# $3 = column density [molecules/cm^2]\n"
+	      "# $4 = emissivity [-]\n");
 
-	/* Write header... */
-	fprintf(out,
-		"# $1 = pressure [hPa]\n"
-		"# $2 = temperature [K]\n"
-		"# $3 = column density [molecules/cm^2]\n"
-		"# $4 = emissivity [-]\n");
-
-	/* Save table file... */
-	for (int ip = 0; ip < tbl->np[id][ig]; ip++)
-	  for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
-	    fprintf(out, "\n");
-	    for (int iu = 0; iu < tbl->nu[id][ig][ip][it]; iu++)
-	      fprintf(out, "%g %g %e %e\n",
-		      tbl->p[id][ig][ip], tbl->t[id][ig][ip][it],
-		      tbl->u[id][ig][ip][it][iu],
-		      tbl->eps[id][ig][ip][it][iu]);
-	  }
-      }
-
-      /* Write binary data... */
-      else if (ctl->tblfmt == 2) {
-	FWRITE(&tbl->np[id][ig], int,
-	       1,
-	       out);
-	FWRITE(tbl->p[id][ig], double,
-	         (size_t) tbl->np[id][ig],
-	       out);
-	for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
-	  FWRITE(&tbl->nt[id][ig][ip], int,
-		 1,
-		 out);
-	  FWRITE(tbl->t[id][ig][ip], double,
-		   (size_t) tbl->nt[id][ig][ip],
-		 out);
-	  for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
-	    FWRITE(&tbl->nu[id][ig][ip][it], int,
-		   1,
-		   out);
-	    FWRITE(tbl->u[id][ig][ip][it], float,
-		     (size_t) tbl->nu[id][ig][ip][it],
-		   out);
-	    FWRITE(tbl->eps[id][ig][ip][it], float,
-		     (size_t) tbl->nu[id][ig][ip][it],
-		   out);
-	  }
+      /* Save table file... */
+      for (int ip = 0; ip < tbl->np[id][ig]; ip++)
+	for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
+	  fprintf(out, "\n");
+	  for (int iu = 0; iu < tbl->nu[id][ig][ip][it]; iu++)
+	    fprintf(out, "%g %g %e %e\n",
+		    tbl->p[id][ig][ip], tbl->t[id][ig][ip][it],
+		    tbl->u[id][ig][ip][it][iu], tbl->eps[id][ig][ip][it][iu]);
 	}
-      }
-
-      /* Error message... */
-      else
-	ERRMSG("Unknown look-up table format!");
 
       /* Close file... */
       fclose(out);
     }
+}
+
+/*****************************************************************************/
+
+void write_tbl_bin(
+  const ctl_t *ctl,
+  const tbl_t *tbl) {
+
+  /* Loop over emitters and detectors... */
+  for (int ig = 0; ig < ctl->ng; ig++)
+    for (int id = 0; id < ctl->nd; id++) {
+
+      /* Set filename... */
+      char filename[2 * LEN];
+      sprintf(filename, "%s_%.4f_%s.bin", ctl->tblbase,
+	      ctl->nu[id], ctl->emitter[ig]);
+
+      /* Write info... */
+      LOG(1, "Write emissivity table: %s", filename);
+
+      /* Create file... */
+      FILE *out;
+      if (!(out = fopen(filename, "w")))
+	ERRMSG("Cannot create file!");
+
+      /* Write binary data... */
+      FWRITE(&tbl->np[id][ig], int,
+	     1,
+	     out);
+      FWRITE(tbl->p[id][ig], double,
+	       (size_t) tbl->np[id][ig],
+	     out);
+      for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
+	FWRITE(&tbl->nt[id][ig][ip], int,
+	       1,
+	       out);
+	FWRITE(tbl->t[id][ig][ip], double,
+	         (size_t) tbl->nt[id][ig][ip],
+	       out);
+	for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
+	  FWRITE(&tbl->nu[id][ig][ip][it], int,
+		 1,
+		 out);
+	  FWRITE(tbl->u[id][ig][ip][it], float,
+		   (size_t) tbl->nu[id][ig][ip][it],
+		 out);
+	  FWRITE(tbl->eps[id][ig][ip][it], float,
+		   (size_t) tbl->nu[id][ig][ip][it],
+		 out);
+	}
+      }
+
+      /* Close file... */
+      fclose(out);
+    }
+}
+
+/*****************************************************************************/
+
+void write_tbl_gas(
+  const ctl_t *ctl,
+  const tbl_t *tbl) {
+
+  /* Loop over emitters... */
+  for (int ig = 0; ig < ctl->ng; ig++) {
+
+    /* Construct filename... */
+    char filename[2 * LEN];
+    sprintf(filename, "%s_%s.tbl", ctl->tblbase, ctl->emitter[ig]);
+
+    /* Try to open existing file first... */
+    tbl_gas_t gas;
+    if (read_tbl_gas_open(filename, &gas) != 0) {
+      LOG(1, "Gas file does not exist, creating: %s", filename);
+
+      /* Create with capacity for all frequencies... */
+      if (write_tbl_gas_create(filename) != 0)
+	ERRMSG("Cannot create gas table file!");
+
+      /* Now open it... */
+      if (read_tbl_gas_open(filename, &gas) != 0)
+	ERRMSG("Cannot open newly created gas table file!");
+    }
+
+    /* Loop over frequencies... */
+    for (int id = 0; id < ctl->nd; id++) {
+
+      /* Write one frequency table block into the gas file... */
+      if (write_tbl_gas_single(&gas, ctl->nu[id], tbl, id, ig) != 0)
+	ERRMSG("Error writing table block!");
+    }
+
+    /* Close gas-table file (flushes index)... */
+    read_tbl_gas_close(&gas);
+  }
+}
+
+/*****************************************************************************/
+
+int write_tbl_gas_create(
+  const char *path) {
+
+  /* Open file... */
+  FILE *fp = fopen(path, "wb+");
+  if (!fp)
+    return -1;
+
+  const char magic[4] = { 'G', 'T', 'L', '1' };
+  int32_t ntables = 0;
+
+  /* Write header... */
+  FWRITE(magic, char,
+	 4,
+	 fp);
+  FWRITE(&ntables, int32_t, 1, fp);
+
+  /* Zeroed index... */
+  tbl_gas_index_t zero = { 0 };
+  for (int i = 0; i < MAX_TABLES; i++)
+    FWRITE(&zero, tbl_gas_index_t, 1, fp);
+
+  /* Close file... */
+  fflush(fp);
+  fclose(fp);
+
+  return 0;
+}
+
+/*****************************************************************************/
+
+int write_tbl_gas_single(
+  tbl_gas_t *g,
+  const double freq,
+  const tbl_t *tbl,
+  const int id,
+  const int ig) {
+
+  int idx = -1;
+
+  /* Check if a table for this frequency already exists... */
+  for (int i = 0; i < g->ntables; i++) {
+    if (g->index[i].freq == freq) {
+      idx = i;
+      break;
+    }
+  }
+
+  /* New entry if not found... */
+  if (idx < 0) {
+    idx = g->ntables++;
+    if (g->ntables > MAX_TABLES)
+      ERRMSG("Gas table index overflow!");
+  }
+
+  /* Append payload block at end of file... */
+  if (fseek(g->fp, 0, SEEK_END) != 0)
+    ERRMSG("Seek error in write_tbl_gas_single_flat!");
+
+  int64_t offset = (int64_t) ftell(g->fp);
+  if (offset < 0)
+    ERRMSG("ftell failed in write_tbl_gas_single_flat!");
+
+  long start = ftell(g->fp);
+  if (start < 0)
+    ERRMSG("ftell failed at payload start!");
+
+  /* Write number of pressures... */
+  FWRITE(&tbl->np[id][ig], int,
+	 1,
+	 g->fp);
+
+  /* Write pressure grid... */
+  FWRITE(tbl->p[id][ig], double,
+	   (size_t) tbl->np[id][ig],
+	 g->fp);
+
+  /* Loop over pressure levels... */
+  for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
+
+    /* Write number of temperatures... */
+    FWRITE(&tbl->nt[id][ig][ip], int,
+	   1,
+	   g->fp);
+
+    /* Write temperature grid... */
+    FWRITE(tbl->t[id][ig][ip], double,
+	     (size_t) tbl->nt[id][ig][ip],
+	   g->fp);
+
+    /* Loop over temperature levels... */
+    for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
+
+      /* Write number of u points... */
+      FWRITE(&tbl->nu[id][ig][ip][it], int,
+	     1,
+	     g->fp);
+
+      /* Write u array... */
+      FWRITE(tbl->u[id][ig][ip][it], float,
+	       (size_t) tbl->nu[id][ig][ip][it],
+	     g->fp);
+
+      /* Write emissivity array... */
+      FWRITE(tbl->eps[id][ig][ip][it], float,
+	       (size_t) tbl->nu[id][ig][ip][it],
+	     g->fp);
+    }
+  }
+
+  /* Update index entry... */
+  long end = ftell(g->fp);
+  if (end < 0)
+    ERRMSG("ftell failed at payload end!");
+
+  int64_t size = (int64_t) (end - start);
+
+  g->index[idx].freq = freq;
+  g->index[idx].offset = offset;
+  g->index[idx].size = size;
+
+  g->dirty = 1;
+
+  return 0;
 }
 
 /*****************************************************************************/

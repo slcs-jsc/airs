@@ -113,6 +113,7 @@
 #include <gsl/gsl_statistics.h>
 #include <math.h>
 #include <omp.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -316,6 +317,11 @@
 #define TBLNS 1200
 #endif
 
+/*! Maximum number of frequency-table entries allowed in a gas table file. */
+#ifndef MAX_TABLES
+#define MAX_TABLES 10000
+#endif
+
 /*! Maximum number of RFM spectral grid points. */
 #ifndef RFMNPTS
 #define RFMNPTS 10000000
@@ -373,8 +379,8 @@
  *
  * @author Lars Hoffmann
  */
-#define ALLOC(ptr, type, n) \
-  if((ptr=malloc((size_t)(n)*sizeof(type)))==NULL) \
+#define ALLOC(ptr, type, n)				 \
+  if((ptr=calloc((size_t)(n), sizeof(type)))==NULL)      \
     ERRMSG("Out of memory!");
 
 /**
@@ -393,12 +399,17 @@
  * @see PLANCK, C1, C2
  *
  * @note Based on Planck’s law in wavenumber form:
- *       \f$ T_b = \frac{c_2 \nu}{\ln(1 + \frac{c_1 \nu^3}{L_\nu})} \f$
- *       where \( L_\nu \) is radiance.
+ *       \f$ T_b = \frac{c_2 \nu}{\ln\!\left(1 + \frac{c_1 \nu^3}{L_\nu}\right)} \f$
+ *       where \f$L_\nu\f$ is the radiance. The ν³ dependence reflects the
+ *       definition of `C1` for radiance per unit wavenumber in cm⁻¹.
+ *
+ * @warning The radiance MUST be in W·m⁻²·sr⁻¹·(cm⁻¹)⁻¹. Using radiance per meter
+ *          will produce brightness temperatures incorrect by six orders of
+ *          magnitude.
  *
  * @author Lars Hoffmann
  */
-#define BRIGHT(rad, nu) \
+#define BRIGHT(rad, nu)					\
   (C2 * (nu) / gsl_log1p(C1 * POW3(nu) / (rad)))
 
 /**
@@ -517,42 +528,6 @@
   }
 
 /**
- * @brief Determine the maximum of two values.
- *
- * Returns the greater of two scalar values.
- *
- * @param[in] a First value.
- * @param[in] b Second value.
- *
- * @return Maximum of a and b.
- *
- * @see MIN
- *
- * @note Both arguments are evaluated multiple times; avoid side effects.
- *
- * @author Lars Hoffmann
- */
-#define MAX(a,b) (((a)>(b))?(a):(b))
-
-/**
- * @brief Determine the minimum of two values.
- *
- * Returns the smaller of two scalar values.
- *
- * @param[in] a First value.
- * @param[in] b Second value.
- *
- * @return Minimum of a and b.
- *
- * @see MAX
- *
- * @note Both arguments are evaluated multiple times; avoid side effects.
- *
- * @author Lars Hoffmann
- */
-#define MIN(a,b) (((a)<(b))?(a):(b))
-
-/**
  * @brief Compute linear interpolation.
  *
  * Performs simple linear interpolation between two known points
@@ -620,6 +595,103 @@
    : LIN(x0, y0, x1, y1, x))
 
 /**
+ * @brief Determine the maximum of two values.
+ *
+ * Returns the greater of two scalar values.
+ *
+ * @param[in] a First value.
+ * @param[in] b Second value.
+ *
+ * @return Maximum of a and b.
+ *
+ * @see MIN
+ *
+ * @note Both arguments are evaluated multiple times; avoid side effects.
+ *
+ * @author Lars Hoffmann
+ */
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
+/**
+ * @brief Determine the minimum of two values.
+ *
+ * Returns the smaller of two scalar values.
+ *
+ * @param[in] a First value.
+ * @param[in] b Second value.
+ *
+ * @return Minimum of a and b.
+ *
+ * @see MAX
+ *
+ * @note Both arguments are evaluated multiple times; avoid side effects.
+ *
+ * @author Lars Hoffmann
+ */
+#define MIN(a,b) (((a)<(b))?(a):(b))
+
+/**
+ * @brief Convert noise-equivalent spectral radiance (NESR) to
+ *        noise-equivalent delta temperature (NEDT).
+ *
+ * Computes the temperature noise level corresponding to a given NESR at a
+ * background radiance, using the inverse Planck function. The NEDT expresses
+ * radiometric sensitivity in temperature units, assuming blackbody emission.
+ *
+ * @param[in] t_bg  Background (scene) brightness temperature [K].
+ * @param[in] nesr  Noise-equivalent spectral radiance
+ *                  [W·m⁻²·sr⁻¹·(cm⁻¹)⁻¹].
+ * @param[in] nu    Wavenumber [cm⁻¹].
+ *
+ * @return Noise-equivalent delta temperature [K].
+ *
+ * @note This macro computes
+ *       \f[
+ *          \mathrm{NEDT} = T_b(L_\nu(T_\mathrm{bg}) + \mathrm{NESR})
+ *                        - T_\mathrm{bg}
+ *       \f]
+ *       where \f$T_b\f$ is the brightness temperature from the inverse
+ *       Planck function.
+ *
+ * @warning All units must be consistent with `PLANCK` and `BRIGHT`. Mixing
+ *          radiance units per meter instead of per cm⁻¹ will yield incorrect
+ *          results by orders of magnitude.
+ *
+ * @see NESR, PLANCK, BRIGHT, C1, C2
+ */
+#define NEDT(t_bg, nesr, nu)					\
+  (BRIGHT(PLANCK((t_bg), (nu)) + (nesr), (nu)) - (t_bg))
+
+/**
+ * @brief Convert noise-equivalent delta temperature (NEDT) to
+ *        noise-equivalent spectral radiance (NESR).
+ *
+ * Computes the radiance difference corresponding to a temperature noise level
+ * at a given background temperature and wavenumber, using Planck’s law.
+ * The NESR quantifies the radiometric sensitivity in spectral radiance units.
+ *
+ * @param[in] t_bg  Background (scene) brightness temperature [K].
+ * @param[in] nedt  Noise-equivalent delta temperature [K].
+ * @param[in] nu    Wavenumber [cm⁻¹].
+ *
+ * @return Noise-equivalent spectral radiance [W·m⁻²·sr⁻¹·(cm⁻¹)⁻¹].
+ *
+ * @note This macro computes
+ *       \f[
+ *          \mathrm{NESR} = L_\nu(T_\mathrm{bg} + \mathrm{NEDT})
+ *                        - L_\nu(T_\mathrm{bg})
+ *       \f]
+ *       where \f$L_\nu\f$ is spectral radiance from Planck’s law.
+ *
+ * @warning All units must be consistent with `PLANCK`. In particular,
+ *          `nu` must be given in cm⁻¹.
+ *
+ * @see PLANCK, NEDT, BRIGHT
+ */
+#define NESR(t_bg, nedt, nu)					\
+  (PLANCK((t_bg) + (nedt), (nu)) - PLANCK((t_bg), (nu)))
+
+/**
  * @brief Compute the norm (magnitude) of a 3D vector.
  *
  * Computes the Euclidean norm using the dot product:
@@ -636,21 +708,33 @@
 #define NORM(a) sqrt(DOTP(a, a))
 
 /**
- * @brief Compute the Planck function in wavenumber form.
+ * @brief Compute spectral radiance using Planck’s law.
  *
- * Computes spectral radiance per unit wavenumber using Planck’s law:
- * \f$ B_\nu(T) = \frac{C_1 \nu^3}{\exp(C_2 \nu / T) - 1} \f$.
+ * Evaluates Planck’s blackbody spectral radiance for a given temperature and
+ * wavenumber. The expression is formulated in wavenumber space (cm⁻¹) and uses
+ * the spectroscopic constants `C1` and `C2` in wavenumber units.
  *
- * @param[in] T Temperature [K].
- * @param[in] nu Wavenumber [cm⁻¹].
+ * @param[in] nu  Wavenumber [cm⁻¹].
+ * @param[in] T   Temperature [K].
  *
- * @return Spectral radiance [W·m⁻²·sr⁻¹·(cm⁻¹)⁻¹].
+ * @return Spectral radiance \f$L_\nu\f$ in
+ *         [W·m⁻²·sr⁻¹·(cm⁻¹)⁻¹].
+ *
+ * @note The Planck law implemented here is
+ *       \f[
+ *           L_\nu = \frac{C_{1}\,\nu^{3}}
+ *                        {\exp\!\left(\frac{C_{2}\,\nu}{T}\right) - 1}
+ *       \f]
+ *       with \f$\nu\f$ in cm⁻¹.
+ *       The \f$\nu^{3}\f$ dependence follows from the definition of `C1`
+ *       for radiance per wavenumber in cm⁻¹.
+ *
+ * @warning The units of all inputs MUST be consistent:
+ *          `nu` in cm⁻¹ and `T` in kelvin. Mixing wavenumber and
+ *          frequency formulations, or using radiance per meter instead of
+ *          per cm⁻¹, will produce results off by orders of magnitude.
  *
  * @see BRIGHT, C1, C2
- *
- * @note Constants `C1` and `C2` must correspond to wavenumber units.
- *
- * @author Lars Hoffmann
  */
 #define PLANCK(T, nu) \
   (C1 * POW3(nu) / gsl_expm1(C2 * (nu) / (T)))
@@ -1349,6 +1433,48 @@ typedef struct {
 
 } tbl_t;
 
+/**
+ * @brief On-disk index entry describing one frequency table block in a gas file.
+ *
+ * Each entry maps a unique frequency value to a serialized block stored
+ * elsewhere in the file. All entries are stored in a fixed-size table of MAX_TABLES elements.
+ */
+typedef struct {
+
+  /*! Frequency identifier ν_j for this table block. */
+  double freq;
+
+  /*! Byte offset in file where the serialized block begins. */
+  int64_t offset;
+
+  /*! Size of the serialized block (in bytes). */
+  int64_t size;
+
+} tbl_gas_index_t;
+
+/**
+ * @brief In-memory representation of an open per-gas lookup-table file.
+ *
+ * This structure tracks the file pointer, the number of valid table entries,
+ * and the full in-memory index of MAX_TABLES elements. When table blocks
+ * are added or replaced, the index is marked dirty and rewritten on close.
+ */
+typedef struct {
+
+  /*! Open file handle ("rb+"), NULL if not open. */
+  FILE *fp;
+
+  /*! Number of index entries currently in use. */
+  int32_t ntables;
+
+  /*! In-memory index table of length MAX_TABLES. */
+  tbl_gas_index_t *index;
+
+  /**< Non-zero if index was modified and must be rewritten on close. */
+  int dirty;
+
+} tbl_gas_t;
+
 /* ------------------------------------------------------------
    Functions...
    ------------------------------------------------------------ */
@@ -1396,33 +1522,21 @@ typedef struct {
  * - Cloud and surface quantities are treated as scalar elements.
  * - Output files are written to the retrieval working directory (`ret->dir`).
  *
- * @example
- * @code
- * gsl_matrix *A = gsl_matrix_alloc(n, n);
- * // ... compute averaging kernel ...
- * analyze_avk(&ret, &ctl, &atm, iqa, ipa, A);
- * // Creates atm_cont.tab and atm_res.tab for diagnostics
- * @endcode
- *
  * @warning
  * - The averaging kernel must be fully computed and dimensionally consistent
  *   with the state vector before calling this function.
  * - File writing will overwrite existing diagnostics in `ret->dir`.
  *
- * @references
- * Rodgers, C. D. (2000). *Inverse Methods for Atmospheric Sounding:
- * Theory and Practice.* World Scientific.
- *
  * @author
  * Lars Hoffmann
  */
 void analyze_avk(
-  ret_t * ret,
-  ctl_t * ctl,
-  atm_t * atm,
-  int *iqa,
-  int *ipa,
-  gsl_matrix * avk);
+  const ret_t * ret,
+  const ctl_t * ctl,
+  const atm_t * atm,
+  const int *iqa,
+  const int *ipa,
+  const gsl_matrix * avk);
 
 /**
  * @brief Analyze averaging kernel submatrix for a specific retrieved quantity.
@@ -1471,30 +1585,20 @@ void analyze_avk(
  * - The contribution and resolution arrays must be preallocated to at least
  *   the number of atmospheric grid points (`atm->np`).
  *
- * @example
- * @code
- * analyze_avk_quantity(A, IDXT, ipa, n0, n1, atm_cont.t, atm_res.t);
- * // Computes contribution and resolution profiles for temperature
- * @endcode
- *
  * @warning
  * - If the diagonal element `A_ii` is zero or near-zero, the corresponding
  *   resolution value may be undefined or numerically unstable.
  * - Input indices `n0[iq]` and `n1[iq]` must have been computed by `analyze_avk()`.
  *
- * @references
- * Rodgers, C. D. (2000). *Inverse Methods for Atmospheric Sounding:
- * Theory and Practice.* World Scientific.
- *
  * @author
  * Lars Hoffmann
  */
 void analyze_avk_quantity(
-  gsl_matrix * avk,
-  int iq,
-  int *ipa,
-  size_t *n0,
-  size_t *n1,
+  const gsl_matrix * avk,
+  const int iq,
+  const int *ipa,
+  const size_t *n0,
+  const size_t *n1,
   double *cont,
   double *res);
 
@@ -1598,7 +1702,36 @@ void cart2geo(
  */
 void climatology(
   const ctl_t * ctl,
-  atm_t * atm_mean);
+  atm_t * atm);
+
+/**
+ * @brief Calculates the cosine of the solar zenith angle.
+ *
+ * This function computes the cosine of the solar zenith angle (SZA), which describes
+ * the angle between the local zenith (straight up) and the line connecting the
+ * observer to the center of the Sun. The cosine of the SZA is often used directly
+ * in radiative transfer and photochemical calculations to avoid unnecessary use
+ * of trigonometric inverse functions.
+ *
+ * @param sec Seconds elapsed since 2000-01-01T12:00Z.
+ * @param lon Observer's longitude in degrees.
+ * @param lat Observer's latitude in degrees.
+ * @return The cosine of the solar zenith angle (dimensionless, range [-1, 1]).
+ *
+ * The cosine of the solar zenith angle is computed based on the observer's position
+ * (longitude and latitude) and the specified time in seconds elapsed since
+ * 2000-01-01T12:00Z.
+ *
+ * @note The input longitude and latitude must be specified in degrees.
+ *
+ * @see acos() — can be used to convert the returned value to the solar zenith angle in radians if needed.
+ *
+ * @author Lars Hoffmann
+ */
+double cos_sza(
+  const double sec,
+  const double lon,
+  const double lat);
 
 /**
  * @brief Compute the normalized quadratic cost function for optimal estimation.
@@ -1636,24 +1769,14 @@ void climatology(
  * - The covariance matrices must be positive-definite and properly dimensioned.
  * - The function does **not** modify the input vectors.
  *
- * @example
- * @code
- * double J = cost_function(dx, dy, S_a_inv, sig_eps_inv);
- * printf("Cost function: %.6f\n", J);
- * @endcode
- *
- * @references
- * Rodgers, C. D. (2000). *Inverse Methods for Atmospheric Sounding:
- * Theory and Practice.* World Scientific Publishing.
- *
  * @author
  * Lars Hoffmann
  */
 double cost_function(
-  gsl_vector * dx,
-  gsl_vector * dy,
-  gsl_matrix * s_a_inv,
-  gsl_vector * sig_eps_inv);
+  const gsl_vector * dx,
+  const gsl_vector * dy,
+  const gsl_matrix * s_a_inv,
+  const gsl_vector * sig_eps_inv);
 
 /**
  * @brief Compute carbon dioxide continuum (optical depth).
@@ -1702,7 +1825,8 @@ double ctmh2o(
  *
  * @see locate_reg, LIN, P0, N2
  *
- * @cite Lafferty et al., J. Quant. Spectrosc. Radiat. Transf., 68, 473–479 (2001)
+ * @par Reference
+ *   Lafferty et al., J. Quant. Spectrosc. Radiat. Transf., 68, 473–479 (2001)
  *
  * @author Lars Hoffmann
  */
@@ -1734,8 +1858,9 @@ double ctmn2(
  *
  * @see locate_reg, LIN, P0, O2
  *
- * @cite Greenblatt et al., J. Quant. Spectrosc. Radiat. Transf., 33, 127–140 (1985)
- * @cite Smith and Newnham, Appl. Opt., 39, 318–326 (2000)
+ * @par References
+ *   Greenblatt et al., J. Quant. Spectrosc. Radiat. Transf., 33, 127–140 (1985)
+ *   Smith and Newnham, Appl. Opt., 39, 318–326 (2000)
  *
  * @author Lars Hoffmann
  */
@@ -1983,7 +2108,8 @@ void formod_pencil(
  *
  * @warning Requires external RFM binary; ensure @ref ctl_t::rfmbin is set.
  *
- * @cite Dudhia, A., "The Reference Forward Model (RFM)", JQSRT 186, 243–253 (2017)
+ * @par Reference
+ *   Dudhia, A., "The Reference Forward Model (RFM)", JQSRT 186, 243–253 (2017)
  *
  * @author Lars Hoffmann
  */
@@ -2552,13 +2678,6 @@ int locate_tbl(
  *   may result in numerical instability or GSL errors.
  * - Diagonal detection assumes exact zeros for off-diagonal elements.
  *
- * @example
- * @code
- * gsl_matrix *A = gsl_matrix_alloc(3, 3);
- * // Fill A with covariance matrix elements...
- * matrix_invert(A);  // A now holds the inverse
- * @endcode
- *
  * @warning
  * For ill-conditioned matrices, consider using singular value decomposition (SVD)
  * or regularization methods instead of direct inversion.
@@ -2606,31 +2725,17 @@ void matrix_invert(
  * - The output matrix \f$\mathbf{C}\f$ must be pre-allocated to the correct size.
  * - No symmetry enforcement or normalization is applied.
  *
- * @example
- * @code
- * gsl_matrix *A = gsl_matrix_alloc(m, n);
- * gsl_vector *B = gsl_vector_alloc(m);
- * gsl_matrix *C = gsl_matrix_alloc(n, n);
- *
- * // Compute C = Aᵀ B A
- * matrix_product(A, B, 1, C);
- * @endcode
- *
  * @warning
  * - If `transpose` is not 1 or 2, the function performs no operation.
  * - Numerical stability depends on the conditioning of A and the scaling of B.
- *
- * @references
- * Rodgers, C. D. (2000). *Inverse Methods for Atmospheric Sounding:
- * Theory and Practice.* World Scientific.
  *
  * @author
  * Lars Hoffmann
  */
 void matrix_product(
-  gsl_matrix * a,
-  gsl_vector * b,
-  int transpose,
+  const gsl_matrix * a,
+  const gsl_vector * b,
+  const int transpose,
   gsl_matrix * c);
 
 /**
@@ -2920,9 +3025,9 @@ void read_obs(
 double read_obs_rfm(
   const char *basename,
   const double z,
-  double *nu,
-  double *f,
-  int n);
+  const double *nu,
+  const double *f,
+  const int n);
 
 /**
  * @brief Read retrieval configuration and error parameters.
@@ -2981,22 +3086,9 @@ double read_obs_rfm(
  * - Default values are used when a parameter is not explicitly defined.
  * - Correlation lengths of `-999` indicate uncorrelated (diagonal) treatment.
  *
- * @example
- * @code
- * ctl_t ctl;
- * ret_t ret;
- * read_ctl(argc, argv, &ctl);
- * read_ret(argc, argv, &ctl, &ret);
- * // ret now contains all retrieval and error parameters
- * @endcode
- *
  * @warning
  * - Input validation is minimal; ensure consistency between `ctl` and `ret` dimensions.
  * - Missing mandatory parameters trigger runtime errors.
- *
- * @references
- * Rodgers, C. D. (2000). *Inverse Methods for Atmospheric Sounding:
- * Theory and Practice.* World Scientific.
  *
  * @author
  * Lars Hoffmann
@@ -3004,7 +3096,7 @@ double read_obs_rfm(
 void read_ret(
   int argc,
   char *argv[],
-  ctl_t * ctl,
+  const ctl_t * ctl,
   ret_t * ret);
 
 /**
@@ -3093,57 +3185,190 @@ void read_shape(
   int *n);
 
 /**
- * @brief Read gas emissivity look-up tables for all channels and emitters.
+ * @brief Read all emissivity lookup tables for all gases and frequencies.
  *
- * Loads precomputed emissivity tables from disk into a newly allocated
- * @ref tbl_t structure. Each table contains gas emissivity data as a function
- * of pressure, temperature, and column density, required for radiative transfer
- * using the CGA (Curtis–Godson Approximation) or EGA (Emissivity Growth Approximation).
+ * This function allocates a new `tbl_t` structure and fills it by reading
+ * emissivity lookup tables for each trace gas (`ig`) and each frequency index
+ * (`id`) specified in the control structure. The lookup tables may be read
+ * from ASCII, binary, or per-gas table files depending on `ctl->tblfmt`.
  *
- * @param[in] ctl  Pointer to the control structure containing configuration
- *                 and table file parameters.
+ * After loading all tables, the source function is initialized with
+ * `init_srcfunc()`.
  *
- * @return Pointer to the allocated and initialized @ref tbl_t structure.
+ * @param ctl  Pointer to control structure containing table metadata,
+ *             number of gases, number of frequencies, filenames, etc.
  *
- * @details
- * - For each radiance channel (`id`) and each trace gas (`ig`), the routine
- *   attempts to open a table file named:
- *   ```
- *   <TBLBASE>_<NU>_<EMITTER>.<TAB/BIN>
- *   ```
- *   where:
- *   - `<TBLBASE>` is `ctl->tblbase`
- *   - `<NU>` is the channel wavenumber [cm⁻¹]
- *   - `<EMITTER>` is the gas name (e.g. "CO2", "H2O")
- *   - The extension is `.tab` for ASCII or `.bin` for binary format.
- * - The table format is selected via `ctl->tblfmt`:
- *   - **1** → ASCII tables (four columns: pressure, temperature, u, eps)
- *   - **2** → Binary tables written by JURASSIC’s preprocessing tools
- * - Data are stored in hierarchical arrays:
- *   @f$ \varepsilon(p, T, u) @f$ = emissivity  
- *   where `p` = pressure [hPa], `T` = temperature [K], `u` = column density [molec/cm²].
- * - Invalid or out-of-range entries (outside `[UMIN,UMAX]` or `[EPSMIN,EPSMAX]`)
- *   are skipped with a warning.
- * - The routine automatically counts levels in pressure, temperature, and column
- *   density dimensions, checking against limits `TBLNP`, `TBLNT`, and `TBLNU`.
- * - After loading all tables, it calls @ref init_srcfunc() to initialize the
- *   source function table.
+ * @return Pointer to a newly allocated `tbl_t` structure containing all
+ *         loaded lookup-table data. The caller owns the returned pointer
+ *         and must free it when done.
  *
- * @see init_srcfunc, intpol_tbl_cga, intpol_tbl_ega, ctl_t, tbl_t
- *
- * @warning
- * - Aborts if the number of levels exceeds compile-time limits (`TBLNP`, `TBLNT`, `TBLNU`).
- * - Emits warnings if emissivity or column density values are outside physical range.
- * - Missing tables are skipped with a warning.
- *
- * @note
- * Binary table reading uses `FREAD` macros to ensure platform-independent
- * precision and array sizes.
+ * @warning Aborts the program via `ERRMSG()` if unexpected table formats
+ *          or dimension overflows occur.
  *
  * @author Lars Hoffmann
  */
 tbl_t *read_tbl(
   const ctl_t * ctl);
+
+/**
+ * @brief Read a single ASCII emissivity lookup table.
+ *
+ * This reads one ASCII table corresponding to frequency index @p id
+ * and gas index @p ig. The table format is:
+ *
+ *     pressure   temperature   column_density   emissivity
+ *
+ * The function automatically determines the pressure, temperature,
+ * and column-density indices based on new values appearing in the file.
+ *
+ * Out-of-range values for `u` or `eps` are skipped and counted.
+ *
+ * @param ctl  Pointer to control structure specifying filenames and grids.
+ * @param tbl  Pointer to the table structure to be filled.
+ * @param id   Frequency index.
+ * @param ig   Gas index.
+ *
+ * @warning Aborts via `ERRMSG()` if table dimensions exceed TBLNP/TBLNT/TBLNU.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+void read_tbl_asc(
+  const ctl_t * ctl,
+  tbl_t * tbl,
+  const int id,
+  const int ig);
+
+/**
+ * @brief Read a single binary emissivity lookup table.
+ *
+ * Reads the binary table stored as:
+ *   - number of pressure levels
+ *   - pressure grid
+ *   - for each pressure:
+ *       - number of temperatures
+ *       - temperature grid
+ *       - for each temperature:
+ *           - number of column densities
+ *           - u array
+ *           - emissivity array
+ *
+ * The function fills the corresponding entries of the `tbl_t` structure.
+ *
+ * @param ctl  Pointer to control structure specifying filenames and grids.
+ * @param tbl  Pointer to the table structure to be filled.
+ * @param id   Frequency index.
+ * @param ig   Gas index.
+ *
+ * @warning Aborts via `ERRMSG()` if table dimensions exceed TBLNP/TBLNT/TBLNU.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+void read_tbl_bin(
+  const ctl_t * ctl,
+  tbl_t * tbl,
+  const int id,
+  const int ig);
+
+/**
+ * @brief Read one frequency block from a per-gas binary table file.
+ *
+ * Opens the gas-specific table file (e.g., `base_emitter.tbl`) and
+ * reads the table block corresponding to frequency `ctl->nu[id]`.
+ * The block is appended to the in-memory `tbl_t`.
+ *
+ * @param ctl  Pointer to control structure containing table metadata.
+ * @param tbl  Pointer to table structure to populate.
+ * @param id   Frequency index.
+ * @param ig   Gas index.
+ *
+ * @note Missing tables or missing frequency blocks only produce warnings.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+void read_tbl_gas(
+  const ctl_t * ctl,
+  tbl_t * tbl,
+  const int id,
+  const int ig);
+
+/**
+ * @brief Close a per-gas binary table file and optionally rewrite metadata.
+ *
+ * If the table was modified (`g->dirty != 0`), the header and index are
+ * rewritten before closing the file. After closing, memory associated
+ * with the table index is freed.
+ *
+ * @param g  Pointer to an open gas-table handle.
+ *
+ * @return 0 on success, -1 on invalid handle.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+int read_tbl_gas_close(
+  tbl_gas_t * g);
+
+/**
+ * @brief Open a per-gas binary table file for reading and writing.
+ *
+ * Reads and validates the file header, then loads the entire index
+ * of table blocks. The resulting `tbl_gas_t` structure tracks the
+ * file pointer, index, and table count.
+ *
+ * @param path  Path to the `.tbl` file.
+ * @param g     Output parameter: populated table-file handle.
+ *
+ * @return 0 on success, -1 if the file cannot be opened.
+ *
+ * @warning Aborts via `ERRMSG()` on invalid magic or format.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+int read_tbl_gas_open(
+  const char *path,
+  tbl_gas_t * g);
+
+/**
+ * @brief Read one emissivity table block from a per-gas table file.
+ *
+ * Locates the index entry corresponding to the requested frequency @p freq.
+ * If found, seeks to the stored offset and reads:
+ *
+ *   - number of pressure levels
+ *   - pressure grid
+ *   - for each pressure:
+ *       - number of temperatures
+ *       - temperature grid
+ *       - for each temperature:
+ *           - number of column densities
+ *           - u array
+ *           - emissivity array
+ *
+ * The data are stored into `tbl[id][ig]`.
+ *
+ * @param g     Pointer to an open gas-table handle.
+ * @param freq  Frequency to be read.
+ * @param tbl   Pointer to output table structure.
+ * @param id    Frequency index.
+ * @param ig    Gas index.
+ *
+ * @return 0 on success, -1 if the frequency is not found.
+ *
+ * @warning Aborts on dimension overflow or seek errors.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+int read_tbl_gas_single(
+  const tbl_gas_t * g,
+  const double freq,
+  tbl_t * tbl,
+  const int id,
+  const int ig);
 
 /**
  * @brief Scan control file or command-line arguments for a configuration variable.
@@ -3164,21 +3389,21 @@ tbl_t *read_tbl(
  *
  * @details
  * - The routine first attempts to open the control file provided as the first
- *   command-line argument (`argv[1]`), unless it starts with `'-'`.
+ *   command-line argument (`argv[1]`), unless it starts with '-'.
  * - Variable names may appear as either:
  *   - `VAR` (scalar)
  *   - `VAR[index]` (explicit array index)
  *   - `VAR[*]` (wildcard entry applying to all indices)
  * - The search order is:
  *   1. Control file lines of the form:
- *      ```
+ *      @code
  *      VAR[index] = VALUE
  *      VAR[*]     = VALUE
- *      ```
+ *      @endcode
  *   2. Command-line arguments:
- *      ```
+ *      @code
  *      ./jurassic ctlfile VAR[index] VALUE
- *      ```
+ *      @endcode
  * - If no match is found:
  *   - The default value `defvalue` is used (if non-empty).
  *   - Otherwise, the routine aborts with an error.
@@ -3187,7 +3412,7 @@ tbl_t *read_tbl(
  * @see read_ctl, LOG, ERRMSG
  *
  * @warning
- * - Aborts if the control file cannot be opened (unless skipped with `'-'`).
+ * - Aborts if the control file cannot be opened (unless skipped with '-').
  * - Aborts if a required variable is missing and no default is provided.
  * - Array bounds are not validated against internal limits; use `ctl_t` checks
  *   to ensure consistency.
@@ -3196,17 +3421,6 @@ tbl_t *read_tbl(
  * - This utility simplifies control input parsing by supporting both command-line
  *   overrides and configuration files with the same syntax.
  * - String comparisons are case-insensitive.
- *
- * @example
- * ```text
- * EMITTER[0] = CO2
- * EMITTER[1] = H2O
- * NU[0] = 667.0
- * ```
- * or equivalently:
- * ```bash
- * ./jurassic config.ctl NU[0] 667.0
- * ```
  *
  * @author
  * Lars Hoffmann
@@ -3265,31 +3479,20 @@ double scan_ctl(
  *   - Extinction: `err_k_cz[]`, `err_k_ch[]`
  * - Cloud and surface parameters are assumed uncorrelated (diagonal only).
  *
- * @example
- * @code
- * gsl_matrix *Sa = gsl_matrix_alloc(n, n);
- * set_cov_apr(&ret, &ctl, &atm, iqa, ipa, Sa);
- * // Sa now contains the full a priori covariance matrix
- * @endcode
- *
  * @warning
  * - A zero or negative variance triggers a runtime error.
  * - The matrix is constructed in full (dense), which may be large for
  *   high-resolution retrieval grids.
  *
- * @references
- * Rodgers, C. D. (2000). *Inverse Methods for Atmospheric Sounding:
- * Theory and Practice.* World Scientific.
- *
  * @author
  * Lars Hoffmann
  */
 void set_cov_apr(
-  ret_t * ret,
-  ctl_t * ctl,
-  atm_t * atm,
-  int *iqa,
-  int *ipa,
+  const ret_t * ret,
+  const ctl_t * ctl,
+  const atm_t * atm,
+  const int *iqa,
+  const int *ipa,
   gsl_matrix * s_a);
 
 /*!
@@ -3339,31 +3542,17 @@ void set_cov_apr(
  *   - Brightness temperature: [K]
  * - The forward model error is always relative, expressed in percent (%).
  *
- * @example
- * @code
- * gsl_vector *sig_noise  = gsl_vector_alloc(m);
- * gsl_vector *sig_formod = gsl_vector_alloc(m);
- * gsl_vector *sig_eps_inv = gsl_vector_alloc(m);
- *
- * set_cov_meas(&ret, &ctl, &obs, sig_noise, sig_formod, sig_eps_inv);
- * // sig_eps_inv can now be used to weight residuals in cost function
- * @endcode
- *
  * @warning
  * - A zero or negative uncertainty triggers a runtime error.
  * - Assumes `obs` and `ctl` are consistent in dimension and indexing.
- *
- * @references
- * Rodgers, C. D. (2000). *Inverse Methods for Atmospheric Sounding:
- * Theory and Practice.* World Scientific.
  *
  * @author
  * Lars Hoffmann
  */
 void set_cov_meas(
-  ret_t * ret,
-  ctl_t * ctl,
-  obs_t * obs,
+  const ret_t * ret,
+  const ctl_t * ctl,
+  const obs_t * obs,
   gsl_vector * sig_noise,
   gsl_vector * sig_formod,
   gsl_vector * sig_eps_inv);
@@ -3516,12 +3705,6 @@ void time2jsec(
  *   and written to the log via the @ref LOG macro.
  * - Supports nested timers (up to 10 levels). Exceeding this limit
  *   triggers a runtime error via @ref ERRMSG.
- * - Typical usage macros wrap this routine, for example:
- *   @code
- *   TIMER_START("Forward Model");
- *   formod(ctl, tbl, atm, obs);
- *   TIMER_STOP("Forward Model");
- *   @endcode
  *
  * @see LOG, ERRMSG, omp_get_wtime
  *
@@ -3533,11 +3716,6 @@ void time2jsec(
  * @warning
  * - Exceeding 10 nested timers results in an error.
  * - Calling `mode == 2` or `3` without a prior start causes an internal error.
- *
- * @example
- * ```text
- * Timer 'Forward Model' (formod.c, formod, l120-175): 0.238 sec
- * ```
  *
  * @author
  * Lars Hoffmann
@@ -3588,20 +3766,6 @@ void timer(
  * - The output file is overwritten if it already exists.
  * - The number of data points must not exceed the maximum defined by `NP`.
  *
- * @example
- * Example header and data:
- * @code
- * # $1 = time (seconds since 2000-01-01T00:00Z)
- * # $2 = altitude [km]
- * # $3 = longitude [deg]
- * # $4 = latitude [deg]
- * # $5 = pressure [hPa]
- * # $6 = temperature [K]
- * # $7 = H2O volume mixing ratio [ppv]
- * # $8 = extinction (window 0) [km^-1]
- * 0.00 0.0 0.0 0.0 1013.25 288.15 0.01 0.0001
- * @endcode
- *
  * @author
  * Lars Hoffmann
  */
@@ -3625,7 +3789,7 @@ void write_atm(
  *
  * @details
  * - Produces a plain-text RFM atmosphere file with the following sections:
- *   ```
+ *   @code
  *   NLAYERS
  *   *HGT [km]
  *   <altitude_1>
@@ -3640,7 +3804,7 @@ void write_atm(
  *   <mixing_ratio_1>
  *   ...
  *   *END
- *   ```
+ *   @endcode
  * - The first line specifies the number of vertical layers (`atm->np`).
  * - Each subsequent block begins with a keyword (e.g., `*HGT`, `*PRE`, etc.)
  *   and lists one value per line.
@@ -3659,29 +3823,6 @@ void write_atm(
  * @warning
  * - Existing files with the same name will be overwritten.
  * - The function assumes consistent vertical ordering (surface → top of atmosphere).
- *
- * @example
- * Example output:
- * @code
- * 3
- * *HGT [km]
- * 0
- * 5
- * 10
- * *PRE [mb]
- * 1013.25
- * 540.0
- * 260.0
- * *TEM [K]
- * 288.0
- * 270.0
- * 240.0
- * *CO2 [ppmv]
- * 400.0
- * 400.0
- * 400.0
- * *END
- * @endcode
  *
  * @author
  * Lars Hoffmann
@@ -3710,9 +3851,9 @@ void write_atm_rfm(
  *
  * @details
  * - This routine writes one matrix element per line, including descriptive metadata:
- *   ```
+ *   @code
  *   RowIndex RowMeta... ColIndex ColMeta... MatrixValue
- *   ```
+ *   @endcode
  * - The row and column metadata differ depending on space selection:
  *   - **Measurement space (`'y'`)**:
  *     - Channel wavenumber [cm⁻¹]
@@ -3735,20 +3876,6 @@ void write_atm_rfm(
  * - Large matrices may produce very large output files.
  * - Memory allocation is performed for temporary indexing arrays; ensure sufficient resources for large N, M.
  * - The function overwrites existing files without confirmation.
- *
- * @example
- * Example excerpt (measurement-to-state Jacobian):
- * @code
- * # $1 = Row: index (measurement space)
- * # $2 = Row: channel wavenumber [cm^-1]
- * # $3 = Row: time (seconds since 2000-01-01T00:00Z)
- * # ...
- * # $13 = Matrix element
- *
- * 0 667.75 0.00 10.0 0.0 0.0  12 TEMPERATURE 0.00 8.5 0.0 0.0  1.47e-05
- * 0 667.75 0.00 10.0 0.0 0.0  13 H2O 0.00 8.5 0.0 0.0  3.25e-07
- * ...
- * @endcode
  *
  * @author
  * Lars Hoffmann
@@ -3785,7 +3912,7 @@ void write_matrix(
  * - A blank line separates groups with different observation times.
  *
  * The file layout:
- * ```
+ * @code
  * # $1  = time (seconds since 2000-01-01T00:00Z)
  * # $2  = observer altitude [km]
  * # $3  = observer longitude [deg]
@@ -3798,7 +3925,7 @@ void write_matrix(
  * # $10 = tangent point latitude [deg]
  * # $11..$N = Radiances or brightness temperatures for each channel
  * # $N..$M = Transmittances for each channel
- * ```
+ * @endcode
  *
  * - If `ctl->write_bbt` is true, radiances are expressed as
  *   brightness temperatures [K].
@@ -3817,23 +3944,6 @@ void write_matrix(
  * @warning
  * - Existing files with the same name are overwritten.
  * - The number of rays must not exceed `NR`.
- *
- * @example
- * Example file excerpt:
- * @code
- * # $1 = time (seconds since 2000-01-01T00:00Z)
- * # $2 = observer altitude [km]
- * # ...
- * 0.00 15.0 0.0 0.0 12.0 0.0 0.0 10.5 0.0 0.0  250.1 0.995
- * 0.00 15.0 0.0 0.0 12.0 0.0 0.0 10.3 0.0 0.0  249.8 0.992
- * @endcode
- *
- * @example
- * Example of brightness temperature mode:
- * @code
- * # $11 = brightness temperature (667.75 cm^-1) [K]
- * # $12 = transmittance (667.75 cm^-1) [-]
- * @endcode
  *
  * @author
  * Lars Hoffmann
@@ -3857,10 +3967,10 @@ void write_obs(
  *
  * @details
  * - Writes a plain-text table with two columns:
- *   ```
+ *   @code
  *   # $1 = shape function x-value [-]
  *   # $2 = shape function y-value [-]
- *   ```
+ *   @endcode
  * - Each line contains one (*x*, *y*) pair written with high precision.
  * - Typically used to export field-of-view functions, apodization kernels,
  *   or any other normalized shape profiles used by the model.
@@ -3875,20 +3985,6 @@ void write_obs(
  * @warning
  * - Existing files with the same name will be overwritten.
  * - The number of points *n* must be consistent with the size of *x* and *y* arrays.
- *
- * @example
- * Example output file:
- * @code
- * # $1 = shape function x-value [-]
- * # $2 = shape function y-value [-]
- *
- * 0.0000 0.0000
- * 0.2000 0.5403
- * 0.4000 0.9093
- * 0.6000 0.9899
- * 0.8000 0.7173
- * 1.0000 0.0000
- * @endcode
  *
  * @author
  * Lars Hoffmann
@@ -3938,98 +4034,35 @@ void write_shape(
  * - The output profile includes all state quantities defined in `ctl`.
  * - Only diagonal uncertainties are written; correlations are not stored.
  *
- * @example
- * @code
- * // Write posterior error standard deviations
- * write_stddev("pos", &ret, &ctl, &atm, S_post);
- * @endcode
- *
  * @warning
  * - The covariance matrix `s` must be symmetric and positive-definite.
  * - The state vector mapping (`x2atm`) must correspond to the matrix ordering.
- *
- * @references
- * Rodgers, C. D. (2000). *Inverse Methods for Atmospheric Sounding:
- * Theory and Practice.* World Scientific.
  *
  * @author
  * Lars Hoffmann
  */
 void write_stddev(
   const char *quantity,
-  ret_t * ret,
-  ctl_t * ctl,
-  atm_t * atm,
-  gsl_matrix * s);
+  const ret_t * ret,
+  const ctl_t * ctl,
+  const atm_t * atm,
+  const gsl_matrix * s);
 
 /**
- * @brief Write emissivity look-up tables to disk (ASCII or binary format).
+ * @brief Write all emissivity lookup tables in the format specified by the control structure.
  *
- * Exports precomputed emissivity tables for all combinations of emitters
- * and detector channels defined in the control structure. Each table
- * contains emissivity values parameterized by pressure, temperature,
- * and column density.
+ * This function dispatches to one of three table writers depending on
+ * `ctl->tblfmt`:
  *
- * @param[in] ctl  Pointer to control structure defining emitters, channels,
- *                 table format, and base file name.
- * @param[in] tbl  Pointer to emissivity table data structure to be written.
+ *   - `1`: ASCII tables written by write_tbl_asc()
+ *   - `2`: Binary tables written by write_tbl_bin()
+ *   - `3`: Per-gas binary tables written by write_tbl_gas()
  *
- * @details
- * - The function writes one file per emitter–channel pair:
- *   ```
- *   <TBLBASE>_<WAVENUMBER>_<EMITTER>.<EXT>
- *   ```
- *   where `<EXT>` = `"tab"` for ASCII format or `"bin"` for binary format.
- * - The ASCII format (`TBLFMT = 1`) includes a human-readable header and
- *   four columns:
- *   ```
- *   # $1 = pressure [hPa]
- *   # $2 = temperature [K]
- *   # $3 = column density [molecules/cm^2]
- *   # $4 = emissivity [-]
- *   ```
- *   Each pressure–temperature block is separated by a blank line.
- * - The binary format (`TBLFMT = 2`) stores the same data compactly using
- *   nested arrays of type `int`, `double`, and `float` for efficient reading
- *   by `read_tbl()`.
+ * If an unknown format is given, the function aborts via ERRMSG().
  *
- * @see read_tbl, init_srcfunc
- *
- * @note
- * - Emissivity tables are used in the **Emissivity Growth Approximation (EGA)**
- *   to accelerate radiative transfer computations.
- * - The control structure field `ctl->tblbase` defines the output prefix.
- * - The number of emitters and detectors is determined by `ctl->ng` and `ctl->nd`.
- * - ASCII tables are convenient for inspection; binary tables are faster
- *   to load in production mode.
- *
- * @warning
- * - Existing files with matching names will be overwritten without prompt.
- * - Ensure that the table dimensions (`TBLNP`, `TBLNT`, `TBLNU`) are within
- *   array bounds defined at compile time.
- * - The routine aborts with an error if `ctl->tblfmt` is not 1 or 2.
- *
- * @example
- * Example ASCII emissivity table (`CO2_667.75.tab`):
- * @code
- * # $1 = pressure [hPa]
- * # $2 = temperature [K]
- * # $3 = column density [molecules/cm^2]
- * # $4 = emissivity [-]
- *
- * 1013.25 220.0 1.0e19 0.00231
- * 1013.25 220.0 5.0e19 0.01084
- *
- * 1013.25 240.0 1.0e19 0.00289
- * 1013.25 240.0 5.0e19 0.01147
- * @endcode
- *
- * @example
- * Binary mode usage (compact format):
- * @code
- * ctl->tblfmt = 2;
- * write_tbl(ctl, tbl);
- * @endcode
+ * @param ctl  Control structure specifying table format, filenames,
+ *             number of gases, number of frequencies, etc.
+ * @param tbl  Fully populated lookup-table structure to be written.
  *
  * @author
  * Lars Hoffmann
@@ -4037,6 +4070,160 @@ void write_stddev(
 void write_tbl(
   const ctl_t * ctl,
   const tbl_t * tbl);
+
+/**
+ * @brief Write all lookup tables in human-readable ASCII format.
+ *
+ * For every gas index (`ig`) and frequency index (`id`), the function
+ * generates a file of the form:
+ *
+ *     <base>_<nu[id]>_<emitter[ig]>.tab
+ *
+ * The ASCII file contains four columns:
+ *
+ *     1. pressure [hPa]
+ *     2. temperature [K]
+ *     3. column density [molecules/cm²]
+ *     4. emissivity [-]
+ *
+ * Table dimensions are taken from the `tbl_t` structure.  
+ * Missing files cause the program to abort via ERRMSG().
+ *
+ * @param ctl  Control structure providing grid metadata and filename base.
+ * @param tbl  Table data to be written.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+void write_tbl_asc(
+  const ctl_t * ctl,
+  const tbl_t * tbl);
+
+/**
+ * @brief Write all lookup tables in compact binary format.
+ *
+ * For each gas index (`ig`) and frequency index (`id`), a binary file named
+ *
+ *     <base>_<nu[id]>_<emitter[ig]>.bin
+ *
+ * is created. The format is:
+ *
+ *   - int     np                      (number of pressure levels)
+ *   - double  p[np]
+ *   - for each pressure:
+ *       - int     nt                  (number of temperature levels)
+ *       - double  t[nt]
+ *       - for each temperature:
+ *           - int     nu              (number of column-density points)
+ *           - float   u[nu]
+ *           - float   eps[nu]
+ *
+ * @param ctl  Control structure containing filename base and spectral grid.
+ * @param tbl  Table data to be serialized.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+void write_tbl_bin(
+  const ctl_t * ctl,
+  const tbl_t * tbl);
+
+/**
+ * @brief Write lookup tables into per-gas binary table files with indexed blocks.
+ *
+ * This function creates (if necessary) and updates gas-specific files of the form:
+ *
+ *     <base>_<emitter>.tbl
+ *
+ * Each file contains:
+ *
+ *   - A header ("GTL1")
+ *   - A table count (ntables)
+ *   - A fixed-size index of MAX_TABLES entries
+ *   - One or more appended binary table blocks
+ *
+ * For each frequency index (`id`), a block is appended (or overwritten) using
+ * write_tbl_gas_single(), which stores both the serialized table and its
+ * offset/size in the on-disk index.
+ *
+ * @param ctl  Control structure containing spectral grid, emitters, and filenames.
+ * @param tbl  Table data from which individual frequency blocks are extracted.
+ *
+ * @warning The file must have capacity for all required frequency entries
+ *          (MAX_TABLES). Exceeding this capacity triggers a fatal error.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+void write_tbl_gas(
+  const ctl_t * ctl,
+  const tbl_t * tbl);
+
+/**
+ * @brief Create a new per-gas table file with an empty index.
+ *
+ * Writes the “GTL1” magic header, initializes the table count to zero,
+ * and creates a MAX_TABLES-sized index whose entries are zeroed.
+ *
+ * The resulting file layout is:
+ *
+ *     magic[4] = "GTL1"
+ *     ntables  = 0
+ *     index[MAX_TABLES]  (all zero)
+ *
+ * @param path  Path to the table file to create.
+ *
+ * @return 0 on success, -1 if the file cannot be opened.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+int write_tbl_gas_create(
+  const char *path);
+
+/**
+ * @brief Append or overwrite a single frequency-table block in a per-gas file.
+ *
+ * Searches the in-memory index for an entry matching @p freq. If found, the
+ * corresponding block is updated. Otherwise a new entry is created (subject
+ * to the MAX_TABLES limit) and the block is appended to the end of the file.
+ *
+ * The block format written is identical to the binary format used in write_tbl_bin():
+ *
+ *   - int     np
+ *   - double  p[np]
+ *   - for each pressure:
+ *       - int     nt
+ *       - double  t[nt]
+ *       - for each temperature:
+ *           - int     nu
+ *           - float   u[nu]
+ *           - float   eps[nu]
+ *
+ * The index entry is then updated with:
+ *   - freq
+ *   - offset (byte offset of the block)
+ *   - size   (block size in bytes)
+ *
+ * @param g     Open gas-table handle obtained from read_tbl_gas_open().
+ * @param freq  Frequency associated with the table block.
+ * @param tbl   Full lookup table from which one block is extracted.
+ * @param id    Frequency index into tbl.
+ * @param ig    Gas index into tbl.
+ *
+ * @return 0 on success, non-zero on write failure.
+ *
+ * @warning Aborts via ERRMSG() if MAX_TABLES is exceeded or file seek fails.
+ *
+ * @author
+ * Lars Hoffmann
+ */
+int write_tbl_gas_single(
+  tbl_gas_t * g,
+  const double freq,
+  const tbl_t * tbl,
+  const int id,
+  const int ig);
 
 /**
  * @brief Map retrieval state vector back to atmospheric structure.
@@ -4082,13 +4269,6 @@ void write_tbl(
  *   in the forward-model configuration.
  * - Mismatch between `atm2x()` and `x2atm()` ordering will cause incorrect mappings.
  *
- * @example
- * @code
- * // Example: apply retrieved state vector to atmospheric structure
- * gsl_vector *x_ret = load_retrieved_state("retrieval_output.dat");
- * x2atm(ctl, x_ret, atm);
- * @endcode
- *
  * @author
  * Lars Hoffmann
  */
@@ -4123,13 +4303,6 @@ void x2atm(
  *   is within valid bounds of the state vector length.
  * - Typically used only internally by retrieval mapping routines.
  *
- * @example
- * @code
- * size_t n = 0;
- * double temp;
- * x2atm_help(&temp, x, &n); // temp = x[n], then n++
- * @endcode
- *
  * @author
  * Lars Hoffmann
  */
@@ -4139,35 +4312,34 @@ void x2atm_help(
   size_t *n);
 
 /**
- * @brief Get element from state vector.
+ * @brief Copy elements from the measurement vector @p y into the observation structure.
  *
- * Retrieves a single element from the retrieval state vector and assigns it
- * to the provided variable. This function is primarily used as a helper
- * within `x2atm()` to sequentially extract atmospheric parameters
- * (pressure, temperature, gas mixing ratios, etc.) from the state vector.
+ * Decomposes the 1-D measurement vector @p y into its radiance components and
+ * writes them into the 2-D observation array @c obs->rad[id][ir], using the
+ * same ordering as produced by the corresponding forward model.
  *
- * @param[out] value  Pointer to scalar variable receiving the retrieved value.
- * @param[in]  x      Pointer to the state vector (`gsl_vector`) containing retrieval parameters.
- * @param[in,out] n   Pointer to current index in the state vector; incremented after access.
+ * Only entries for which @c obs->rad[id][ir] is finite are updated.  This allows
+ * missing or masked radiances to remain untouched in the observation structure.
+ *
+ * @param[in]  ctl  Control settings defining the number of detector channels
+ *                  (@c ctl->nd) and other retrieval configuration parameters.
+ * @param[in]  y    Measurement vector containing radiances in forward-model order.
+ * @param[out] obs  Observation structure whose radiance array (@c obs->rad)
+ *                  is to be filled with values from @p y.
  *
  * @details
- * - Equivalent to `*value = gsl_vector_get(x, *n); (*n)++;`
- * - Maintains consistent sequential mapping between state vector elements
- *   and atmospheric quantities.
- * - Used internally by retrieval update routines (`x2atm()`).
+ * The function loops over all ray paths (`obs->nr`) and detector channels
+ * (`ctl->nd`).  For each pair (detector @c id, ray @c ir) where an existing value
+ * in @c obs->rad[id][ir] is finite, the next element from the measurement vector
+ * @p y is inserted.  The counter @c m tracks progression through @p y.
  *
- * @see x2atm, atm2x
+ * This function is the inverse operation of the packing performed when
+ * constructing the measurement vector from an @ref obs_t structure.
  *
- * @note
- * - No bounds checking is performed; ensure `*n` is within vector range.
- * - Designed for internal use within the retrieval subsystem.
+ * @note The measurement vector @p y must contain as many finite elements as the
+ *       number of finite entries in @c obs->rad, in the same scanning order.
  *
- * @example
- * @code
- * size_t n = 0;
- * double p;
- * x2atm_help(&p, x, &n); // Assigns p = x[0], then increments n to 1
- * @endcode
+ * @see obs_t, ctl_t
  *
  * @author
  * Lars Hoffmann

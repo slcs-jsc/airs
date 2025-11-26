@@ -326,12 +326,10 @@ int main(
 
 	      /* Estimate noise... */
 	      if (dt230 > 0) {
-		const double nesr =
-		  PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
-		nedt =
-		  BRIGHT(PLANCK(bt4_mean / n, nu) + nesr, nu) - bt4_mean / n;
+		const double nesr = NESR(230.0, dt230, nu);
+		nedt = NEDT(bt4_mean / n, nesr, nu);
 	      }
-
+	      
 	      /* Write output... */
 	      if (n > 0)
 		fprintf(out,

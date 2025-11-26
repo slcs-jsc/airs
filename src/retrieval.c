@@ -329,8 +329,8 @@ int main(
 	  obs_meas.rad[id][0] = ncd.l1_rad[track][xtrack][channel[id]];
 
 	/* Flag out 4 micron channels for daytime measurements... */
-	if (sza(obs_meas.time[0], obs_meas.obslon[0], obs_meas.obslat[0])
-	    < sza_thresh)
+	if (RAD2DEG(acos(cos_sza(obs_meas.time[0], obs_meas.obslon[0],
+				 obs_meas.obslat[0]))) < sza_thresh)
 	  for (int id = 0; id < ctl.nd; id++)
 	    if (ctl.nu[id] >= 2000)
 	      obs_meas.rad[id][0] = GSL_NAN;

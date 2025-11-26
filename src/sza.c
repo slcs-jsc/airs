@@ -39,7 +39,7 @@ int main(
   const double lat = atof(argv[3]);
 
   /* Compute solar zenith angle... */
-  printf("%g\n", sza(jsec, lon, lat));
-
+  printf("%g\n", RAD2DEG(acos(cos_sza(jsec, lon, lat))));
+  
   return EXIT_SUCCESS;
 }

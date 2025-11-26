@@ -290,9 +290,7 @@ double get_noise(
   double dt250,
   double nu) {
 
-  double nesr;
-
-  nesr = PLANCK(250.0 + dt250, nu) - PLANCK(250.0, nu);
-
-  return BRIGHT(PLANCK(bt, nu) + nesr, nu) - bt;
+  const double nesr = NESR(250.0, dt250, nu);
+  
+  return NEDT(bt, nesr, nu);
 }

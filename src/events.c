@@ -120,13 +120,13 @@ int main(
     if (dt230 > 0)
       for (int itrack = 0; itrack < pert->ntrack; itrack++)
 	for (int ixtrack = 0; ixtrack < pert->nxtrack; ixtrack++) {
-	  const double nesr = PLANCK(230.0 + dt230, nu) - PLANCK(230.0, nu);
 	  const double tbg =
 	    pert->bt[itrack][ixtrack] - pert->pt[itrack][ixtrack];
-	  const double nedt = BRIGHT(PLANCK(tbg, nu) + nesr, nu) - tbg;
+	  const double nesr = NESR(230.0, dt230, nu);
+	  const double nedt = NEDT(tbg, nesr, nu);
 	  pert->var[itrack][ixtrack] -= gsl_pow_2(nedt);
 	}
-
+    
     /* Find local maxima... */
     for (int itrack = 0; itrack < pert->ntrack; itrack += 2 * dtrack)
       for (int ixtrack = dxtrack / 2; ixtrack < pert->nxtrack;
