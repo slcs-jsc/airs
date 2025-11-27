@@ -4548,6 +4548,278 @@ size_t obs2y(
 
 /*****************************************************************************/
 
+void optimal_estimation(
+  ret_t *ret,
+  ctl_t *ctl,
+  tbl_t *tbl,
+  obs_t *obs_meas,
+  obs_t *obs_i,
+  atm_t *atm_apr,
+  atm_t *atm_i,
+  double *chisq) {
+
+  static int ipa[N], iqa[N];
+
+  double disq = 0, lmpar = 0.001;
+
+  /* ------------------------------------------------------------
+     Initialize...
+     ------------------------------------------------------------ */
+
+  /* Get sizes... */
+  const size_t m = obs2y(ctl, obs_meas, NULL, NULL, NULL);
+  const size_t n = atm2x(ctl, atm_apr, NULL, iqa, ipa);
+  if (m == 0 || n == 0) {
+    WARN("Check problem definition (m = 0 or n = 0)!");
+    *chisq = GSL_NAN;
+    return;
+  }
+
+  /* Allocate... */
+  gsl_matrix *a = gsl_matrix_alloc(n, n);
+  gsl_matrix *cov = gsl_matrix_alloc(n, n);
+  gsl_matrix *k_i = gsl_matrix_alloc(m, n);
+  gsl_matrix *s_a_inv = gsl_matrix_alloc(n, n);
+
+  gsl_vector *b = gsl_vector_alloc(n);
+  gsl_vector *dx = gsl_vector_alloc(n);
+  gsl_vector *dy = gsl_vector_alloc(m);
+  gsl_vector *sig_eps_inv = gsl_vector_alloc(m);
+  gsl_vector *sig_formod = gsl_vector_alloc(m);
+  gsl_vector *sig_noise = gsl_vector_alloc(m);
+  gsl_vector *x_a = gsl_vector_alloc(n);
+  gsl_vector *x_i = gsl_vector_alloc(n);
+  gsl_vector *x_step = gsl_vector_alloc(n);
+  gsl_vector *y_aux = gsl_vector_alloc(m);
+  gsl_vector *y_i = gsl_vector_alloc(m);
+  gsl_vector *y_m = gsl_vector_alloc(m);
+
+  /* Set initial state... */
+  copy_atm(ctl, atm_i, atm_apr, 0);
+  copy_obs(ctl, obs_i, obs_meas, 0);
+  formod(ctl, tbl, atm_i, obs_i);
+
+  /* Set state vectors and observation vectors... */
+  atm2x(ctl, atm_apr, x_a, NULL, NULL);
+  atm2x(ctl, atm_i, x_i, NULL, NULL);
+  obs2y(ctl, obs_meas, y_m, NULL, NULL);
+  obs2y(ctl, obs_i, y_i, NULL, NULL);
+
+  /* Set inverse a priori covariance S_a^-1... */
+  set_cov_apr(ret, ctl, atm_apr, iqa, ipa, s_a_inv);
+  write_matrix(ret->dir, "matrix_cov_apr.tab", ctl, s_a_inv,
+	       atm_i, obs_i, "x", "x", "r");
+  matrix_invert(s_a_inv);
+
+  /* Get measurement errors... */
+  set_cov_meas(ret, ctl, obs_meas, sig_noise, sig_formod, sig_eps_inv);
+
+  /* Determine dx = x_i - x_a and dy = y - F(x_i) ... */
+  gsl_vector_memcpy(dx, x_i);
+  gsl_vector_sub(dx, x_a);
+  gsl_vector_memcpy(dy, y_m);
+  gsl_vector_sub(dy, y_i);
+
+  /* Compute cost function... */
+  *chisq = cost_function(dx, dy, s_a_inv, sig_eps_inv);
+
+  /* Write info... */
+  LOG(2, "it= %d / chi^2/m= %g", 0, *chisq);
+
+  /* Compute initial kernel... */
+  kernel(ctl, tbl, atm_i, obs_i, k_i);
+
+  /* ------------------------------------------------------------
+     Levenberg-Marquardt minimization...
+     ------------------------------------------------------------ */
+
+  /* Outer loop... */
+  for (int it = 1; it <= ret->conv_itmax; it++) {
+
+    /* Store current cost function value... */
+    double chisq_old = *chisq;
+
+    /* Compute kernel matrix K_i... */
+    if (it > 1 && it % ret->kernel_recomp == 0)
+      kernel(ctl, tbl, atm_i, obs_i, k_i);
+
+    /* Compute K_i^T * S_eps^{-1} * K_i ... */
+    if (it == 1 || it % ret->kernel_recomp == 0)
+      matrix_product(k_i, sig_eps_inv, 1, cov);
+
+    /* Determine b = K_i^T * S_eps^{-1} * dy - S_a^{-1} * dx ... */
+    for (size_t i = 0; i < m; i++)
+      gsl_vector_set(y_aux, i, gsl_vector_get(dy, i)
+		     * POW2(gsl_vector_get(sig_eps_inv, i)));
+    gsl_blas_dgemv(CblasTrans, 1.0, k_i, y_aux, 0.0, b);
+    gsl_blas_dgemv(CblasNoTrans, -1.0, s_a_inv, dx, 1.0, b);
+
+    /* Inner loop... */
+    for (int it2 = 0; it2 < 20; it2++) {
+
+      /* Compute A = (1 + lmpar) * S_a^{-1} + K_i^T * S_eps^{-1} * K_i ... */
+      gsl_matrix_memcpy(a, s_a_inv);
+      gsl_matrix_scale(a, 1 + lmpar);
+      gsl_matrix_add(a, cov);
+
+      /* Solve A * x_step = b by means of Cholesky decomposition... */
+      gsl_linalg_cholesky_decomp(a);
+      gsl_linalg_cholesky_solve(a, b, x_step);
+
+      /* Update atmospheric state... */
+      gsl_vector_add(x_i, x_step);
+      copy_atm(ctl, atm_i, atm_apr, 0);
+      copy_obs(ctl, obs_i, obs_meas, 0);
+      x2atm(ctl, x_i, atm_i);
+
+      /* Check atmospheric state... */
+      for (int ip = 0; ip < atm_i->np; ip++) {
+	atm_i->p[ip] = MIN(MAX(atm_i->p[ip], 5e-7), 5e4);
+	atm_i->t[ip] = MIN(MAX(atm_i->t[ip], 100), 400);
+	for (int ig = 0; ig < ctl->ng; ig++)
+	  atm_i->q[ig][ip] = MIN(MAX(atm_i->q[ig][ip], 0), 1);
+	for (int iw = 0; iw < ctl->nw; iw++)
+	  atm_i->k[iw][ip] = MAX(atm_i->k[iw][ip], 0);
+      }
+      atm_i->clz = MAX(atm_i->clz, 0);
+      atm_i->cldz = MAX(atm_i->cldz, 0.1);
+      for (int icl = 0; icl < ctl->ncl; icl++)
+	atm_i->clk[icl] = MAX(atm_i->clk[icl], 0);
+      atm_i->sft = MIN(MAX(atm_i->sft, 100), 400);
+      for (int isf = 0; isf < ctl->nsf; isf++)
+	atm_i->sfeps[isf] = MIN(MAX(atm_i->sfeps[isf], 0), 1);
+
+      /* Forward calculation... */
+      formod(ctl, tbl, atm_i, obs_i);
+      obs2y(ctl, obs_i, y_i, NULL, NULL);
+
+      /* Determine dx = x_i - x_a and dy = y - F(x_i) ... */
+      gsl_vector_memcpy(dx, x_i);
+      gsl_vector_sub(dx, x_a);
+      gsl_vector_memcpy(dy, y_m);
+      gsl_vector_sub(dy, y_i);
+
+      /* Compute cost function... */
+      *chisq = cost_function(dx, dy, s_a_inv, sig_eps_inv);
+
+      /* Modify Levenberg-Marquardt parameter... */
+      if (*chisq > chisq_old) {
+	lmpar *= 10;
+	gsl_vector_sub(x_i, x_step);
+      } else {
+	lmpar /= 10;
+	break;
+      }
+    }
+
+    /* Write info... */
+    LOG(2, "it= %d / chi^2/m= %g", it, *chisq);
+
+    /* Get normalized step size in state space... */
+    gsl_blas_ddot(x_step, b, &disq);
+    disq /= (double) n;
+
+    /* Convergence test... */
+    if ((it == 1 || it % ret->kernel_recomp == 0) && disq < ret->conv_dmin)
+      break;
+  }
+
+  /* ------------------------------------------------------------
+     Analysis of retrieval results...
+     ------------------------------------------------------------ */
+
+  /* Check if error analysis is requested... */
+  if (ret->err_ana) {
+
+    /* Store results... */
+    write_atm(ret->dir, "atm_final.tab", ctl, atm_i);
+    write_obs(ret->dir, "obs_final.tab", ctl, obs_i);
+    write_matrix(ret->dir, "matrix_kernel.tab", ctl, k_i,
+		 atm_i, obs_i, "y", "x", "r");
+
+    /* Allocate... */
+    gsl_matrix *auxnm = gsl_matrix_alloc(n, m);
+    gsl_matrix *corr = gsl_matrix_alloc(n, n);
+    gsl_matrix *gain = gsl_matrix_alloc(n, m);
+
+    /* Compute inverse retrieval covariance...
+       cov^{-1} = S_a^{-1} + K_i^T * S_eps^{-1} * K_i */
+    matrix_product(k_i, sig_eps_inv, 1, cov);
+    gsl_matrix_add(cov, s_a_inv);
+
+    /* Compute retrieval covariance... */
+    matrix_invert(cov);
+    write_matrix(ret->dir, "matrix_cov_ret.tab", ctl, cov,
+		 atm_i, obs_i, "x", "x", "r");
+    write_stddev("total", ret, ctl, atm_i, cov);
+
+    /* Compute correlation matrix... */
+    for (size_t i = 0; i < n; i++)
+      for (size_t j = 0; j < n; j++)
+	gsl_matrix_set(corr, i, j, gsl_matrix_get(cov, i, j)
+		       / sqrt(gsl_matrix_get(cov, i, i))
+		       / sqrt(gsl_matrix_get(cov, j, j)));
+    write_matrix(ret->dir, "matrix_corr.tab", ctl, corr,
+		 atm_i, obs_i, "x", "x", "r");
+
+    /* Compute gain matrix...
+       G = cov * K^T * S_eps^{-1} */
+    for (size_t i = 0; i < n; i++)
+      for (size_t j = 0; j < m; j++)
+	gsl_matrix_set(auxnm, i, j, gsl_matrix_get(k_i, j, i)
+		       * POW2(gsl_vector_get(sig_eps_inv, j)));
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, cov, auxnm, 0.0, gain);
+    write_matrix(ret->dir, "matrix_gain.tab", ctl, gain,
+		 atm_i, obs_i, "x", "y", "c");
+
+    /* Compute retrieval error due to noise... */
+    matrix_product(gain, sig_noise, 2, a);
+    write_stddev("noise", ret, ctl, atm_i, a);
+
+    /* Compute retrieval error  due to forward model errors... */
+    matrix_product(gain, sig_formod, 2, a);
+    write_stddev("formod", ret, ctl, atm_i, a);
+
+    /* Compute averaging kernel matrix
+       A = G * K ... */
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, gain, k_i, 0.0, a);
+    write_matrix(ret->dir, "matrix_avk.tab", ctl, a,
+		 atm_i, obs_i, "x", "x", "r");
+
+    /* Analyze averaging kernel matrix... */
+    analyze_avk(ret, ctl, atm_i, iqa, ipa, a);
+
+    /* Free... */
+    gsl_matrix_free(auxnm);
+    gsl_matrix_free(corr);
+    gsl_matrix_free(gain);
+  }
+
+  /* ------------------------------------------------------------
+     Finalize...
+     ------------------------------------------------------------ */
+
+  gsl_matrix_free(a);
+  gsl_matrix_free(cov);
+  gsl_matrix_free(k_i);
+  gsl_matrix_free(s_a_inv);
+
+  gsl_vector_free(b);
+  gsl_vector_free(dx);
+  gsl_vector_free(dy);
+  gsl_vector_free(sig_eps_inv);
+  gsl_vector_free(sig_formod);
+  gsl_vector_free(sig_noise);
+  gsl_vector_free(x_a);
+  gsl_vector_free(x_i);
+  gsl_vector_free(x_step);
+  gsl_vector_free(y_aux);
+  gsl_vector_free(y_i);
+  gsl_vector_free(y_m);
+}
+
+/*****************************************************************************/
+
 void raytrace(
   const ctl_t *ctl,
   const atm_t *atm,
@@ -4792,7 +5064,7 @@ void read_atm(
 
   FILE *in;
 
-  char file[LEN], line[LEN], *tok;
+  char file[LEN];
 
   /* Init... */
   atm->np = 0;
@@ -4810,36 +5082,17 @@ void read_atm(
   if (!(in = fopen(file, "r")))
     ERRMSG("Cannot open file!");
 
-  /* Read line... */
-  while (fgets(line, LEN, in)) {
+  /* Read ASCII data... */
+  if (ctl->atmfmt == 1)
+    read_atm_asc(in, ctl, atm);
 
-    /* Read data... */
-    TOK(line, tok, "%lg", atm->time[atm->np]);
-    TOK(NULL, tok, "%lg", atm->z[atm->np]);
-    TOK(NULL, tok, "%lg", atm->lon[atm->np]);
-    TOK(NULL, tok, "%lg", atm->lat[atm->np]);
-    TOK(NULL, tok, "%lg", atm->p[atm->np]);
-    TOK(NULL, tok, "%lg", atm->t[atm->np]);
-    for (int ig = 0; ig < ctl->ng; ig++)
-      TOK(NULL, tok, "%lg", atm->q[ig][atm->np]);
-    for (int iw = 0; iw < ctl->nw; iw++)
-      TOK(NULL, tok, "%lg", atm->k[iw][atm->np]);
-    if (ctl->ncl > 0 && atm->np == 0) {
-      TOK(NULL, tok, "%lg", atm->clz);
-      TOK(NULL, tok, "%lg", atm->cldz);
-      for (int icl = 0; icl < ctl->ncl; icl++)
-	TOK(NULL, tok, "%lg", atm->clk[icl]);
-    }
-    if (ctl->nsf > 0 && atm->np == 0) {
-      TOK(NULL, tok, "%lg", atm->sft);
-      for (int isf = 0; isf < ctl->nsf; isf++)
-	TOK(NULL, tok, "%lg", atm->sfeps[isf]);
-    }
+  /* Read binary data... */
+  else if (ctl->atmfmt == 2)
+    read_atm_bin(in, ctl, atm);
 
-    /* Increment data point counter... */
-    if ((++atm->np) > NP)
-      ERRMSG("Too many data points!");
-  }
+  /* Error... */
+  else
+    ERRMSG("Unknown atmospheric data file format, check ATMFMT!");
 
   /* Close file... */
   fclose(in);
@@ -4882,6 +5135,136 @@ void read_atm(
 	atm->sft, atm->sfeps[0], atm->sfeps[ctl->nsf - 1]);
   } else
     LOG(2, "Surface layer: none");
+}
+
+/*****************************************************************************/
+
+void read_atm_asc(
+  FILE *in,
+  const ctl_t *ctl,
+  atm_t *atm) {
+
+  char line[LEN], *tok;
+
+  /* Init... */
+  atm->np = 0;
+
+  /* Read line... */
+  while (fgets(line, LEN, in)) {
+
+    /* Read data... */
+    TOK(line, tok, "%lg", atm->time[atm->np]);
+    TOK(NULL, tok, "%lg", atm->z[atm->np]);
+    TOK(NULL, tok, "%lg", atm->lon[atm->np]);
+    TOK(NULL, tok, "%lg", atm->lat[atm->np]);
+    TOK(NULL, tok, "%lg", atm->p[atm->np]);
+    TOK(NULL, tok, "%lg", atm->t[atm->np]);
+    for (int ig = 0; ig < ctl->ng; ig++)
+      TOK(NULL, tok, "%lg", atm->q[ig][atm->np]);
+    for (int iw = 0; iw < ctl->nw; iw++)
+      TOK(NULL, tok, "%lg", atm->k[iw][atm->np]);
+    if (ctl->ncl > 0 && atm->np == 0) {
+      TOK(NULL, tok, "%lg", atm->clz);
+      TOK(NULL, tok, "%lg", atm->cldz);
+      for (int icl = 0; icl < ctl->ncl; icl++)
+	TOK(NULL, tok, "%lg", atm->clk[icl]);
+    }
+    if (ctl->nsf > 0 && atm->np == 0) {
+      TOK(NULL, tok, "%lg", atm->sft);
+      for (int isf = 0; isf < ctl->nsf; isf++)
+	TOK(NULL, tok, "%lg", atm->sfeps[isf]);
+    }
+
+    /* Increment data point counter... */
+    if ((++atm->np) > NP)
+      ERRMSG("Too many data points!");
+  }
+}
+
+/*****************************************************************************/
+
+void read_atm_bin(
+  FILE *in,
+  const ctl_t *ctl,
+  atm_t *atm) {
+
+  /* Read header... */
+  char magic[4];
+  FREAD(magic, char,
+	4,
+	in);
+  if (memcmp(magic, "ATM1", 4) != 0)
+    ERRMSG("Invalid magic string!");
+
+  int ng, nw, ncl, nsf;
+  FREAD(&ng, int,
+	1,
+	in);
+  FREAD(&nw, int,
+	1,
+	in);
+  FREAD(&ncl, int,
+	1,
+	in);
+  FREAD(&nsf, int,
+	1,
+	in);
+  if (ng != ctl->ng || nw != ctl->nw || ncl != ctl->ncl || nsf != ctl->nsf)
+    ERRMSG("Error reading file header!");
+
+  /* Read data... */
+  size_t np;
+  FREAD(&np, size_t,
+	1,
+	in);
+  atm->np = (int) np;
+  if (atm->np > NP)
+    ERRMSG("Too many data points!");
+  FREAD(atm->time, double,
+	np,
+	in);
+  FREAD(atm->z, double,
+	np,
+	in);
+  FREAD(atm->lon, double,
+	np,
+	in);
+  FREAD(atm->lat, double,
+	np,
+	in);
+  FREAD(atm->p, double,
+	np,
+	in);
+  FREAD(atm->t, double,
+	np,
+	in);
+  for (int ig = 0; ig < ctl->ng; ig++)
+    FREAD(atm->q[ig], double,
+	  np,
+	  in);
+  for (int iw = 0; iw < ctl->nw; iw++)
+    FREAD(atm->k[iw], double,
+	  np,
+	  in);
+  if (ctl->ncl > 0) {
+    FREAD(&atm->clz, double,
+	  1,
+	  in);
+    FREAD(&atm->cldz, double,
+	  1,
+	  in);
+    FREAD(atm->clk, double,
+	    (size_t) ctl->ncl,
+	  in);
+  }
+  if (ctl->nsf) {
+    FREAD(&atm->sft, double,
+	  1,
+	  in);
+    FREAD(atm->sfeps, double,
+	    (size_t) ctl->nsf,
+	  in);
+  }
 }
 
 /*****************************************************************************/
@@ -4946,6 +5329,10 @@ void read_ctl(
   /* Emissivity look-up tables... */
   scan_ctl(argc, argv, "TBLBASE", -1, "-", ctl->tblbase);
   ctl->tblfmt = (int) scan_ctl(argc, argv, "TBLFMT", -1, "1", NULL);
+
+  /* File formats... */
+  ctl->atmfmt = (int) scan_ctl(argc, argv, "ATMFMT", -1, "1", NULL);
+  ctl->obsfmt = (int) scan_ctl(argc, argv, "OBSFMT", -1, "1", NULL);
 
   /* Hydrostatic equilibrium... */
   ctl->hydz = scan_ctl(argc, argv, "HYDZ", -1, "-999", NULL);
@@ -5048,10 +5435,7 @@ void read_obs(
 
   FILE *in;
 
-  char file[LEN], line[LEN], *tok;
-
-  /* Init... */
-  obs->nr = 0;
+  char file[LEN];
 
   /* Set filename... */
   if (dirname != NULL)
@@ -5066,29 +5450,17 @@ void read_obs(
   if (!(in = fopen(file, "r")))
     ERRMSG("Cannot open file!");
 
-  /* Read line... */
-  while (fgets(line, LEN, in)) {
+  /* Read ASCII data... */
+  if (ctl->obsfmt == 1)
+    read_obs_asc(in, ctl, obs);
 
-    /* Read data... */
-    TOK(line, tok, "%lg", obs->time[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->obsz[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->obslon[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->obslat[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->vpz[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->vplon[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->vplat[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->tpz[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->tplon[obs->nr]);
-    TOK(NULL, tok, "%lg", obs->tplat[obs->nr]);
-    for (int id = 0; id < ctl->nd; id++)
-      TOK(NULL, tok, "%lg", obs->rad[id][obs->nr]);
-    for (int id = 0; id < ctl->nd; id++)
-      TOK(NULL, tok, "%lg", obs->tau[id][obs->nr]);
+  /* Read binary data... */
+  else if (ctl->obsfmt == 2)
+    read_obs_bin(in, ctl, obs);
 
-    /* Increment counter... */
-    if ((++obs->nr) > NR)
-      ERRMSG("Too many rays!");
-  }
+  /* Error... */
+  else
+    ERRMSG("Unknown observation file format!");
 
   /* Close file... */
   fclose(in);
@@ -5137,6 +5509,113 @@ void read_obs(
 	  ctl->nu[id], mini, maxi);
     }
   }
+}
+
+/*****************************************************************************/
+
+void read_obs_asc(
+  FILE *in,
+  const ctl_t *ctl,
+  obs_t *obs) {
+
+  char line[LEN], *tok;
+
+  /* Init... */
+  obs->nr = 0;
+
+  /* Read line... */
+  while (fgets(line, LEN, in)) {
+
+    /* Read data... */
+    TOK(line, tok, "%lg", obs->time[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->obsz[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->obslon[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->obslat[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->vpz[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->vplon[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->vplat[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->tpz[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->tplon[obs->nr]);
+    TOK(NULL, tok, "%lg", obs->tplat[obs->nr]);
+    for (int id = 0; id < ctl->nd; id++)
+      TOK(NULL, tok, "%lg", obs->rad[id][obs->nr]);
+    for (int id = 0; id < ctl->nd; id++)
+      TOK(NULL, tok, "%lg", obs->tau[id][obs->nr]);
+
+    /* Increment counter... */
+    if ((++obs->nr) > NR)
+      ERRMSG("Too many rays!");
+  }
+}
+
+/*****************************************************************************/
+
+void read_obs_bin(
+  FILE *in,
+  const ctl_t *ctl,
+  obs_t *obs) {
+
+  /* Read header... */
+  char magic[4];
+  FREAD(magic, char,
+	4,
+	in);
+  if (memcmp(magic, "OBS1", 4) != 0)
+    ERRMSG("Invalid magic string!");
+
+  int nd;
+  FREAD(&nd, int,
+	1,
+	in);
+  if (nd != ctl->nd)
+    ERRMSG("Error reading file header!");
+
+  /* Read data... */
+  size_t nr;
+  FREAD(&nr, size_t,
+	1,
+	in);
+  obs->nr = (int) nr;
+  if (obs->nr > NR)
+    ERRMSG("Too many ray paths!");
+  FREAD(obs->time, double,
+	nr,
+	in);
+  FREAD(obs->obsz, double,
+	nr,
+	in);
+  FREAD(obs->obslon, double,
+	nr,
+	in);
+  FREAD(obs->obslat, double,
+	nr,
+	in);
+  FREAD(obs->vpz, double,
+	nr,
+	in);
+  FREAD(obs->vplon, double,
+	nr,
+	in);
+  FREAD(obs->vplat, double,
+	nr,
+	in);
+  FREAD(obs->tpz, double,
+	nr,
+	in);
+  FREAD(obs->tplon, double,
+	nr,
+	in);
+  FREAD(obs->tplat, double,
+	nr,
+	in);
+  for (int id = 0; id < ctl->nd; id++)
+    FREAD(obs->rad[id], double,
+	  nr,
+	  in);
+  for (int id = 0; id < ctl->nd; id++)
+    FREAD(obs->tau[id], double,
+	  nr,
+	  in);
 }
 
 /*****************************************************************************/
@@ -5212,7 +5691,7 @@ void read_ret(
   ret->conv_dmin = scan_ctl(argc, argv, "CONV_DMIN", -1, "0.1", NULL);
 
   /* Error analysis... */
-  ret->err_ana = (int) scan_ctl(argc, argv, "ERR_ANA", -1, "1", NULL);
+  ret->err_ana = (int) scan_ctl(argc, argv, "ERR_ANA", -1, "0", NULL);
 
   for (int id = 0; id < ctl->nd; id++)
     ret->err_formod[id] = scan_ctl(argc, argv, "ERR_FORMOD", id, "0", NULL);
@@ -6082,8 +6561,6 @@ void write_atm(
 
   char file[LEN];
 
-  int n = 6;
-
   /* Set filename... */
   if (dirname != NULL)
     sprintf(file, "%s/%s", dirname, filename);
@@ -6096,6 +6573,66 @@ void write_atm(
   /* Create file... */
   if (!(out = fopen(file, "w")))
     ERRMSG("Cannot create file!");
+
+  /* Write ASCII file... */
+  if (ctl->atmfmt == 1)
+    write_atm_asc(out, ctl, atm);
+
+  /* Write binary file... */
+  else if (ctl->atmfmt == 2)
+    write_atm_bin(out, ctl, atm);
+
+  /* Error... */
+  else
+    ERRMSG("Unknown file format, check ATMFMT!");
+
+  /* Close file... */
+  fclose(out);
+
+  /* Write info... */
+  double mini, maxi;
+  LOG(2, "Number of data points: %d", atm->np);
+  gsl_stats_minmax(&mini, &maxi, atm->time, 1, (size_t) atm->np);
+  LOG(2, "Time range: %.2f ... %.2f s", mini, maxi);
+  gsl_stats_minmax(&mini, &maxi, atm->z, 1, (size_t) atm->np);
+  LOG(2, "Altitude range: %g ... %g km", mini, maxi);
+  gsl_stats_minmax(&mini, &maxi, atm->lon, 1, (size_t) atm->np);
+  LOG(2, "Longitude range: %g ... %g deg", mini, maxi);
+  gsl_stats_minmax(&mini, &maxi, atm->lat, 1, (size_t) atm->np);
+  LOG(2, "Latitude range: %g ... %g deg", mini, maxi);
+  gsl_stats_minmax(&mini, &maxi, atm->p, 1, (size_t) atm->np);
+  LOG(2, "Pressure range: %g ... %g hPa", maxi, mini);
+  gsl_stats_minmax(&mini, &maxi, atm->t, 1, (size_t) atm->np);
+  LOG(2, "Temperature range: %g ... %g K", mini, maxi);
+  for (int ig = 0; ig < ctl->ng; ig++) {
+    gsl_stats_minmax(&mini, &maxi, atm->q[ig], 1, (size_t) atm->np);
+    LOG(2, "Emitter %s range: %g ... %g ppv", ctl->emitter[ig], mini, maxi);
+  }
+  for (int iw = 0; iw < ctl->nw; iw++) {
+    gsl_stats_minmax(&mini, &maxi, atm->k[iw], 1, (size_t) atm->np);
+    LOG(2, "Extinction range (window %d): %g ... %g km^-1", iw, mini, maxi);
+  }
+  if (ctl->ncl > 0 && atm->np == 0) {
+    LOG(2, "Cloud layer: z= %g km | dz= %g km | k= %g ... %g km^-1",
+	atm->clz, atm->cldz, atm->clk[0], atm->clk[ctl->ncl - 1]);
+  } else
+    LOG(2, "Cloud layer: none");
+  if (ctl->nsf > 0 && atm->np == 0) {
+    LOG(2,
+	"Surface layer: T_s = %g K | eps= %g ... %g",
+	atm->sft, atm->sfeps[0], atm->sfeps[ctl->nsf - 1]);
+  } else
+    LOG(2, "Surface layer: none");
+}
+
+/*****************************************************************************/
+
+void write_atm_asc(
+  FILE *out,
+  const ctl_t *ctl,
+  const atm_t *atm) {
+
+  int n = 6;
 
   /* Write header... */
   fprintf(out,
@@ -6147,44 +6684,82 @@ void write_atm(
     }
     fprintf(out, "\n");
   }
+}
 
-  /* Close file... */
-  fclose(out);
+/*****************************************************************************/
 
-  /* Write info... */
-  double mini, maxi;
-  LOG(2, "Number of data points: %d", atm->np);
-  gsl_stats_minmax(&mini, &maxi, atm->time, 1, (size_t) atm->np);
-  LOG(2, "Time range: %.2f ... %.2f s", mini, maxi);
-  gsl_stats_minmax(&mini, &maxi, atm->z, 1, (size_t) atm->np);
-  LOG(2, "Altitude range: %g ... %g km", mini, maxi);
-  gsl_stats_minmax(&mini, &maxi, atm->lon, 1, (size_t) atm->np);
-  LOG(2, "Longitude range: %g ... %g deg", mini, maxi);
-  gsl_stats_minmax(&mini, &maxi, atm->lat, 1, (size_t) atm->np);
-  LOG(2, "Latitude range: %g ... %g deg", mini, maxi);
-  gsl_stats_minmax(&mini, &maxi, atm->p, 1, (size_t) atm->np);
-  LOG(2, "Pressure range: %g ... %g hPa", maxi, mini);
-  gsl_stats_minmax(&mini, &maxi, atm->t, 1, (size_t) atm->np);
-  LOG(2, "Temperature range: %g ... %g K", mini, maxi);
-  for (int ig = 0; ig < ctl->ng; ig++) {
-    gsl_stats_minmax(&mini, &maxi, atm->q[ig], 1, (size_t) atm->np);
-    LOG(2, "Emitter %s range: %g ... %g ppv", ctl->emitter[ig], mini, maxi);
+void write_atm_bin(
+  FILE *out,
+  const ctl_t *ctl,
+  const atm_t *atm) {
+
+  /* Write header... */
+  FWRITE("ATM1", char,
+	 4,
+	 out);
+  FWRITE(&ctl->ng, int,
+	 1,
+	 out);
+  FWRITE(&ctl->nw, int,
+	 1,
+	 out);
+  FWRITE(&ctl->ncl, int,
+	 1,
+	 out);
+  FWRITE(&ctl->nsf, int,
+	 1,
+	 out);
+
+  /* Write data... */
+  size_t np = (size_t) atm->np;
+  FWRITE(&np, size_t,
+	 1,
+	 out);
+  FWRITE(atm->time, double,
+	 np,
+	 out);
+  FWRITE(atm->z, double,
+	 np,
+	 out);
+  FWRITE(atm->lon, double,
+	 np,
+	 out);
+  FWRITE(atm->lat, double,
+	 np,
+	 out);
+  FWRITE(atm->p, double,
+	 np,
+	 out);
+  FWRITE(atm->t, double,
+	 np,
+	 out);
+  for (int ig = 0; ig < ctl->ng; ig++)
+    FWRITE(atm->q[ig], double,
+	   np,
+	   out);
+  for (int iw = 0; iw < ctl->nw; iw++)
+    FWRITE(atm->k[iw], double,
+	   np,
+	   out);
+  if (ctl->ncl > 0) {
+    FWRITE(&atm->clz, double,
+	   1,
+	   out);
+    FWRITE(&atm->cldz, double,
+	   1,
+	   out);
+    FWRITE(atm->clk, double,
+	     (size_t) ctl->ncl,
+	   out);
   }
-  for (int iw = 0; iw < ctl->nw; iw++) {
-    gsl_stats_minmax(&mini, &maxi, atm->k[iw], 1, (size_t) atm->np);
-    LOG(2, "Extinction range (window %d): %g ... %g km^-1", iw, mini, maxi);
+  if (ctl->nsf > 0) {
+    FWRITE(&atm->sft, double,
+	   1,
+	   out);
+    FWRITE(atm->sfeps, double,
+	     (size_t) ctl->nsf,
+	   out);
   }
-  if (ctl->ncl > 0 && atm->np == 0) {
-    LOG(2, "Cloud layer: z= %g km | dz= %g km | k= %g ... %g km^-1",
-	atm->clz, atm->cldz, atm->clk[0], atm->clk[ctl->ncl - 1]);
-  } else
-    LOG(2, "Cloud layer: none");
-  if (ctl->nsf > 0 && atm->np == 0) {
-    LOG(2,
-	"Surface layer: T_s = %g K | eps= %g ... %g",
-	atm->sft, atm->sfeps[0], atm->sfeps[ctl->nsf - 1]);
-  } else
-    LOG(2, "Surface layer: none");
 }
 
 /*****************************************************************************/
@@ -6415,8 +6990,6 @@ void write_obs(
 
   char file[LEN];
 
-  int n = 10;
-
   /* Set filename... */
   if (dirname != NULL)
     sprintf(file, "%s/%s", dirname, filename);
@@ -6430,43 +7003,17 @@ void write_obs(
   if (!(out = fopen(file, "w")))
     ERRMSG("Cannot create file!");
 
-  /* Write header... */
-  fprintf(out,
-	  "# $1 = time (seconds since 2000-01-01T00:00Z)\n"
-	  "# $2 = observer altitude [km]\n"
-	  "# $3 = observer longitude [deg]\n"
-	  "# $4 = observer latitude [deg]\n"
-	  "# $5 = view point altitude [km]\n"
-	  "# $6 = view point longitude [deg]\n"
-	  "# $7 = view point latitude [deg]\n"
-	  "# $8 = tangent point altitude [km]\n"
-	  "# $9 = tangent point longitude [deg]\n"
-	  "# $10 = tangent point latitude [deg]\n");
-  for (int id = 0; id < ctl->nd; id++)
-    if (ctl->write_bbt)
-      fprintf(out, "# $%d = brightness temperature (%.4f cm^-1) [K]\n",
-	      ++n, ctl->nu[id]);
-    else
-      fprintf(out, "# $%d = radiance (%.4f cm^-1) [W/(m^2 sr cm^-1)]\n",
-	      ++n, ctl->nu[id]);
-  for (int id = 0; id < ctl->nd; id++)
-    fprintf(out, "# $%d = transmittance (%.4f cm^-1) [-]\n", ++n,
-	    ctl->nu[id]);
+  /* Write ASCII data... */
+  if (ctl->obsfmt == 1)
+    write_obs_asc(out, ctl, obs);
 
-  /* Write data... */
-  for (int ir = 0; ir < obs->nr; ir++) {
-    if (ir == 0 || obs->time[ir] != obs->time[ir - 1])
-      fprintf(out, "\n");
-    fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g", obs->time[ir],
-	    obs->obsz[ir], obs->obslon[ir], obs->obslat[ir],
-	    obs->vpz[ir], obs->vplon[ir], obs->vplat[ir],
-	    obs->tpz[ir], obs->tplon[ir], obs->tplat[ir]);
-    for (int id = 0; id < ctl->nd; id++)
-      fprintf(out, " %g", obs->rad[id][ir]);
-    for (int id = 0; id < ctl->nd; id++)
-      fprintf(out, " %g", obs->tau[id][ir]);
-    fprintf(out, "\n");
-  }
+  /* Write binary data... */
+  else if (ctl->obsfmt == 2)
+    write_obs_bin(out, ctl, obs);
+
+  /* Error... */
+  else
+    ERRMSG("Unknown observation file format, check OBSFMT!");
 
   /* Close file... */
   fclose(out);
@@ -6511,6 +7058,114 @@ void write_obs(
 	  ctl->nu[id], mini, maxi);
     }
   }
+}
+
+/*****************************************************************************/
+
+void write_obs_asc(
+  FILE *out,
+  const ctl_t *ctl,
+  const obs_t *obs) {
+
+  int n = 10;
+
+  /* Write header... */
+  fprintf(out,
+	  "# $1 = time (seconds since 2000-01-01T00:00Z)\n"
+	  "# $2 = observer altitude [km]\n"
+	  "# $3 = observer longitude [deg]\n"
+	  "# $4 = observer latitude [deg]\n"
+	  "# $5 = view point altitude [km]\n"
+	  "# $6 = view point longitude [deg]\n"
+	  "# $7 = view point latitude [deg]\n"
+	  "# $8 = tangent point altitude [km]\n"
+	  "# $9 = tangent point longitude [deg]\n"
+	  "# $10 = tangent point latitude [deg]\n");
+  for (int id = 0; id < ctl->nd; id++)
+    if (ctl->write_bbt)
+      fprintf(out, "# $%d = brightness temperature (%.4f cm^-1) [K]\n",
+	      ++n, ctl->nu[id]);
+    else
+      fprintf(out, "# $%d = radiance (%.4f cm^-1) [W/(m^2 sr cm^-1)]\n",
+	      ++n, ctl->nu[id]);
+  for (int id = 0; id < ctl->nd; id++)
+    fprintf(out, "# $%d = transmittance (%.4f cm^-1) [-]\n", ++n,
+	    ctl->nu[id]);
+
+  /* Write data... */
+  for (int ir = 0; ir < obs->nr; ir++) {
+    if (ir == 0 || obs->time[ir] != obs->time[ir - 1])
+      fprintf(out, "\n");
+    fprintf(out, "%.2f %g %g %g %g %g %g %g %g %g", obs->time[ir],
+	    obs->obsz[ir], obs->obslon[ir], obs->obslat[ir],
+	    obs->vpz[ir], obs->vplon[ir], obs->vplat[ir],
+	    obs->tpz[ir], obs->tplon[ir], obs->tplat[ir]);
+    for (int id = 0; id < ctl->nd; id++)
+      fprintf(out, " %g", obs->rad[id][ir]);
+    for (int id = 0; id < ctl->nd; id++)
+      fprintf(out, " %g", obs->tau[id][ir]);
+    fprintf(out, "\n");
+  }
+}
+
+/*****************************************************************************/
+
+void write_obs_bin(
+  FILE *out,
+  const ctl_t *ctl,
+  const obs_t *obs) {
+
+  /* Write header... */
+  FWRITE("OBS1", char,
+	 4,
+	 out);
+  FWRITE(&ctl->nd, int,
+	 1,
+	 out);
+
+  /* Write data... */
+  size_t nr = (size_t) obs->nr;
+  FWRITE(&nr, size_t,
+	 1,
+	 out);
+  FWRITE(obs->time, double,
+	 nr,
+	 out);
+  FWRITE(obs->obsz, double,
+	 nr,
+	 out);
+  FWRITE(obs->obslon, double,
+	 nr,
+	 out);
+  FWRITE(obs->obslat, double,
+	 nr,
+	 out);
+  FWRITE(obs->vpz, double,
+	 nr,
+	 out);
+  FWRITE(obs->vplon, double,
+	 nr,
+	 out);
+  FWRITE(obs->vplat, double,
+	 nr,
+	 out);
+  FWRITE(obs->tpz, double,
+	 nr,
+	 out);
+  FWRITE(obs->tplon, double,
+	 nr,
+	 out);
+  FWRITE(obs->tplat, double,
+	 nr,
+	 out);
+  for (int id = 0; id < ctl->nd; id++)
+    FWRITE(obs->rad[id], double,
+	   nr,
+	   out);
+  for (int id = 0; id < ctl->nd; id++)
+    FWRITE(obs->tau[id], double,
+	   nr,
+	   out);
 }
 
 /*****************************************************************************/
