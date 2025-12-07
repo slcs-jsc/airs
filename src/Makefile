@@ -18,7 +18,7 @@ INCDIR += -I ../libs/build/include -I/usr/include -I/usr/include/hdf5/serial
 LIBDIR += -L ../libs/build/lib -L /usr/lib/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu/hdf5/serial
 
 # Static compilation...
-STATIC ?= 1
+STATIC ?= 0
 
 # Optimization flags...
 OPT ?= -O3
