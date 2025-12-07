@@ -1936,6 +1936,60 @@ void copy_obs(
   const int init);
 
 /**
+ * @brief Convert a calendar date to day-of-year.
+ *
+ * This function computes the day-of-year (1–365 or 1–366 for leap years)
+ * corresponding to a given Gregorian date specified by year, month, and day.
+ *
+ * Leap years are determined using the standard Gregorian rules:
+ *   - Every year divisible by 4 is a leap year,
+ *   - except years divisible by 100, unless also divisible by 400.
+ *
+ * @param year  The full year (e.g., 2025).
+ * @param mon   The month of the year (1–12).
+ * @param day   The day of the month (1–31).
+ * @param[out] doy Pointer to an integer where the resulting day-of-year
+ *                 will be stored (1–365 or 1–366).
+ *
+ * @note The caller must ensure that the input date is valid.
+ * 
+ * @author Lars Hoffmann
+ */
+void day2doy(
+  int year,
+  int mon,
+  int day,
+  int *doy);
+
+/**
+ * @brief Convert a day-of-year value to a calendar date.
+ *
+ * This function computes the month and day corresponding to a given
+ * day-of-year (1–365 or 1–366 for leap years) in the Gregorian calendar.
+ *
+ * Leap years are determined using the standard Gregorian rules:
+ *   - Every year divisible by 4 is a leap year,
+ *   - except years divisible by 100, unless also divisible by 400.
+ *
+ * @param year  The full year (e.g., 2025).
+ * @param doy   The day-of-year (1–365 or 1–366).
+ * @param[out] mon Pointer to an integer where the calculated month (1–12)
+ *                 will be stored.
+ * @param[out] day Pointer to an integer where the calculated day-of-month
+ *                 will be stored.
+ *
+ * @note The caller must ensure that @p doy is within the valid range for
+ *       the specified year.
+ * 
+ * @author Lars Hoffmann
+ */
+void doy2day(
+  int year,
+  int doy,
+  int *mon,
+  int *day);
+
+/**
  * @brief Find gas species index by name.
  *
  * Searches the list of emitter (gas) names defined in the control
