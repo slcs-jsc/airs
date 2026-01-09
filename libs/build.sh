@@ -5,9 +5,9 @@ target=$(rm -rf build && mkdir -p build && cd build && pwd)
 
 # Prepare directories...
 mkdir -p $target/src $target/bin $target/include $target/lib $target/man/man1 \
-    && cp *tar.gz $target/src \
+    && cp *tar.bz2 $target/src \
     && cd $target/src \
-    && for f in $(ls *tar.gz) ; do tar xvzf $f ; done \
+    && for f in *tar.bz2 ; do tar xvjf $f ; done \
 	|| exit
 
 # Build only AIRS reader...
@@ -30,10 +30,17 @@ cd $target/src/$dir \
 	|| exit
 
 # zlib...
-dir=zlib-1.2.3
+dir=zlib-1.3.1
 cd $target/src/$dir \
     && ./configure --prefix=$target \
-    && make -j && make check && make install \
+    && make -j && make check && make install && make clean \
+	|| exit
+
+# szip...
+dir=szip-2.1.1
+cd $target/src/$dir \
+    && ./configure --prefix=$target \
+    && make -j && make check && make install && make clean \
 	|| exit
 
 # tirpc...
@@ -73,11 +80,18 @@ cd $target/src/airs-v6 \
     && cp *.h $target/include \
     && cp lib* $target/lib
 
-# netCDF...
-dir=netcdf-4.1.2
+# HDF5...
+dir=hdf5-1.14.4-3
 cd $target/src/$dir \
-    && ./configure --prefix=$target --enable-c-only --disable-dap \
-    && make -j && make check && make install \
+    && ./configure --prefix=$target --with-zlib=$target --with-szlib=$target --enable-hl --disable-fortran \
+    && make -j && make check && make install && make clean \
+	|| exit
+
+# netCDF...
+dir=netcdf-c-4.9.2
+cd $target/src/$dir \
+    && CPPFLAGS=-I$target/include LDFLAGS=-L$target/lib ./configure --prefix=$target --disable-dap --disable-byterange --disable-nczarr --disable-libxml2 \
+    && make -j && make install && make clean \
 	|| exit
 
 # GSL...
