@@ -48,6 +48,9 @@ CFLAGS ?= $(INCDIR) $(DEFINES) -DVERSION=\"$(VERSION)\" $(OPT) -DHAVE_INLINE -DG
 
 # LDFLAGS...
 LDFLAGS ?= $(LIBDIR) -lgsl -lgslcblas -lm -lairs -lhdfeos -lmfhdf -ldf -lz -ljpeg -lnsl -lnetcdf -lm -ltirpc
+ifeq ($(STATIC),1)
+  LDFLAGS += -lhdf5_hl -lhdf5 -lm -lz -lsz
+endif
 
 # LDFLAGS for retrieval...
 LDFLAGS_RET ?= $(LIBDIR) -lgsl -lgslcblas -lm -lnetcdf -lm
