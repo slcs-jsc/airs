@@ -231,7 +231,7 @@ int main(
 	      enoise = NEDT(ebt / en, nesr, nu);
 	      wnoise = NEDT(wbt / wn, nesr, nu);
 	    }
-	    
+
 	    /* Write output... */
 	    fprintf(out, "%.2f %d %d %g %g %g %d %g %g %g\n", etime / en, orb,
 		    en, evar / en - gsl_pow_2(emu / en), ebt / en, enoise,
@@ -316,7 +316,7 @@ int main(
 	enoise = NEDT(ebt / en, nesr, nu);
 	wnoise = NEDT(wbt / wn, nesr, nu);
       }
-      
+
       /* Write output... */
       fprintf(out, "%.2f %d %d %g %g %g %d %g %g %g\n", etime / en, orb,
 	      en, evar / en - gsl_pow_2(emu / en), ebt / en, enoise,

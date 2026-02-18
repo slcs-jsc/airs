@@ -197,7 +197,7 @@ int main(
 
   /* Initialize look-up tables... */
   tbl_t *tbl = read_tbl(&ctl);
-  
+
   /* Read retrieval grid... */
   const int nz = (int) scan_ctl(argc, argv, "NZ", -1, "", NULL);
   if (nz > NP)
@@ -356,7 +356,7 @@ int main(
     for (int track = track0; track <= track1; track++) {
       fprintf(out, "\n");
       for (int xtrack = xtrack0; xtrack <= xtrack1; xtrack++)
-	fprintf(out, "%.2f %g %g %g %g %g\n",ncd.l1_time[track][xtrack],
+	fprintf(out, "%.2f %g %g %g %g %g\n", ncd.l1_time[track][xtrack],
 		ncd.l1_lon[track][xtrack], ncd.l1_lat[track][xtrack],
 		RAD2DEG(acos(cos_sza(ncd.l1_time[track][xtrack],
 				     ncd.l1_lon[track][xtrack],
@@ -376,7 +376,7 @@ int main(
 
   /* Free... */
   free(tbl);
-  
+
   /* Measure CPU time... */
   TIMER("total", 3);
 

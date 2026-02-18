@@ -30,13 +30,13 @@
    ------------------------------------------------------------ */
 
 /*! Maximum number of model levels. */
-#define NZ 248
+#define NZ 150
 
 /*! Maximum number of model longitudes. */
-#define NLON 4080
+#define NLON 4500
 
 /*! Maximum number of model latitudes. */
-#define NLAT 1402
+#define NLAT 2400
 
 /* ------------------------------------------------------------
    Structs...
@@ -148,10 +148,10 @@ int main(
 
   /* Set control parameters... */
   ctl.write_bbt = 1;
-  
+
   /* Initialize look-up tables... */
   tbl_t *tbl = read_tbl(&ctl);
-  
+
   /* ------------------------------------------------------------
      Read model data...
      ------------------------------------------------------------ */
@@ -411,6 +411,14 @@ int main(
   LOG(2, "Smoothing...");
   smooth(model);
 
+  /* Calcuate height above the surface... */
+  for (int ilon = 0; ilon < model->nlon; ilon++)
+    for (int ilat = 0; ilat < model->nlat; ilat++) {
+      const float z0 = model->z[ilon][ilat][0];
+      for (int iz = 0; iz < model->nz; iz++)
+	model->z[ilon][ilat][iz] -= z0;
+    }
+
   /* Write info... */
   for (int iz = 0; iz < model->nz; iz++)
     printf("section_height: %d %g %g %g %g %g\n", iz,
@@ -610,7 +618,7 @@ int main(
   free(pert);
   free(wave);
   free(tbl);
-  
+
   return EXIT_SUCCESS;
 }
 

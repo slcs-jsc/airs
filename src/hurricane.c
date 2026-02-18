@@ -329,7 +329,7 @@ int main(
 		const double nesr = NESR(230.0, dt230, nu);
 		nedt = NEDT(bt4_mean / n, nesr, nu);
 	      }
-	      
+
 	      /* Write output... */
 	      if (n > 0)
 		fprintf(out,

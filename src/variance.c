@@ -578,7 +578,7 @@ int main(
 	const double nesr = NESR(230.0, dt230, nu);
 	dt[ix][iy] = NEDT(bt[ix][iy], nesr, nu);
       }
-      
+
       /* Get mean perturbation and variance... */
       mean[ix][iy] /= (double) n[ix][iy];
       var[ix][iy] =

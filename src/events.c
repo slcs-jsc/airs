@@ -126,7 +126,7 @@ int main(
 	  const double nedt = NEDT(tbg, nesr, nu);
 	  pert->var[itrack][ixtrack] -= gsl_pow_2(nedt);
 	}
-    
+
     /* Find local maxima... */
     for (int itrack = 0; itrack < pert->ntrack; itrack += 2 * dtrack)
       for (int ixtrack = dxtrack / 2; ixtrack < pert->nxtrack;

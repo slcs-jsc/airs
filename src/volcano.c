@@ -291,6 +291,6 @@ double get_noise(
   double nu) {
 
   const double nesr = NESR(250.0, dt250, nu);
-  
+
   return NEDT(bt, nesr, nu);
 }

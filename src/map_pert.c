@@ -199,7 +199,7 @@ int main(
 	sza2 = RAD2DEG(acos(cos_sza(pert->time[itrack][ixtrack],
 				    pert->lon[itrack][ixtrack],
 				    pert->lat[itrack][ixtrack])));
-      
+
       /* Estimate noise... */
       if (dt230 > 0) {
 	const double tbg =

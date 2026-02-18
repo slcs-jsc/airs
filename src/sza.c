@@ -40,6 +40,6 @@ int main(
 
   /* Compute solar zenith angle... */
   printf("%g\n", RAD2DEG(acos(cos_sza(jsec, lon, lat))));
-  
+
   return EXIT_SUCCESS;
 }
