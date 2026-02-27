@@ -414,7 +414,9 @@ int main(
   /* Calcuate height above the surface... */
   for (int ilon = 0; ilon < model->nlon; ilon++)
     for (int ilat = 0; ilat < model->nlat; ilat++) {
-      const float z0 = model->z[ilon][ilat][0];
+      float z0 = model->z[ilon][ilat][0];
+      for (int iz = 1; iz < model->nz; iz++)
+	z0 = GSL_MIN(z0, model->z[ilon][ilat][iz]);
       for (int iz = 0; iz < model->nz; iz++)
 	model->z[ilon][ilat][iz] -= z0;
     }
