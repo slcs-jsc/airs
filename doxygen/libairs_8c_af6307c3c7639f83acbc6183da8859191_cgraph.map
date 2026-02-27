@@ -1,0 +1,4 @@
+<map id="write_l1" name="write_l1">
+<area shape="rect" id="node1" title="Write AIRS Level&#45;1 data." alt="" coords="5,5,72,32"/>
+<area shape="rect" id="node2" href="$libairs_8c.html#a832132b5251582419a6ca58fe3615f1c" title="Add variable to netCDF file." alt="" coords="120,5,188,32"/>
+</map>

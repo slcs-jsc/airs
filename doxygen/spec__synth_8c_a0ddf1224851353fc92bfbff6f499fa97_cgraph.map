@@ -1,0 +1,14 @@
+<map id="main" name="main">
+<area shape="rect" id="node1" title=" " alt="" coords="5,208,56,235"/>
+<area shape="rect" id="node2" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="114,5,233,32"/>
+<area shape="rect" id="node4" href="$libairs_8c.html#a4c4c301958209cf49f0ecc1537206112" title="Smooth background." alt="" coords="104,56,243,83"/>
+<area shape="rect" id="node5" href="$libairs_8c.html#a1dec399b6f0f58f6c55c331e1dbed667" title="Add linear wave pattern..." alt="" coords="125,107,221,133"/>
+<area shape="rect" id="node6" href="$libairs_8c.html#a56d9d404910e5afb7c19e4522694bdbd" title="Calculate 2&#45;D FFT..." alt="" coords="154,157,193,184"/>
+<area shape="rect" id="node8" href="$libairs_8c.html#a16c9f818dfaf0dd50659502fb980bf40" title="Evaluate wave fit..." alt="" coords="138,208,209,235"/>
+<area shape="rect" id="node9" href="$libairs_8c.html#a55ea12181bcba7a04ebd787d98b98e7d" title="Interpolate to regular grid in x&#45;direction." alt="" coords="140,259,207,285"/>
+<area shape="rect" id="node10" href="$libairs_8c.html#af8cb2dbc204d3dde10da5df3aa715bbd" title="Compute periodogram." alt="" coords="145,309,202,336"/>
+<area shape="rect" id="node11" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="138,360,209,387"/>
+<area shape="rect" id="node12" href="$libairs_8c.html#af7f155ab23aab051c6ea44e72b2923ca" title="Write wave analysis data." alt="" coords="129,411,217,437"/>
+<area shape="rect" id="node3" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="291,5,441,32"/>
+<area shape="rect" id="node7" href="$libairs_8c.html#a48b5c3ccaf39126de8e504baeb032ab8" title="Calculate 1&#45;D FFT..." alt="" coords="334,157,398,184"/>
+</map>

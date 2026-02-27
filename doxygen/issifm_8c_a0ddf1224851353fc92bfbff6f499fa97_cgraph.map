@@ -1,0 +1,13 @@
+<map id="main" name="main">
+<area shape="rect" id="node1" title=" " alt="" coords="5,183,56,209"/>
+<area shape="rect" id="node2" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="104,5,223,32"/>
+<area shape="rect" id="node4" href="$issifm_8c.html#a20d92fdd52d43b34dd34e073bb389f58" title="Interpolation of model data." alt="" coords="137,56,190,83"/>
+<area shape="rect" id="node5" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="122,107,205,133"/>
+<area shape="rect" id="node6" href="$libairs_8c.html#ae152247236688ec44cf9a3bceae691e7" title="Read radiance perturbation data." alt="" coords="125,157,201,184"/>
+<area shape="rect" id="node7" href="$issifm_8c.html#a8aae1aa8058bf9c28d4035991b7e1046" title="Smoothing of model data." alt="" coords="131,208,196,235"/>
+<area shape="rect" id="node8" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="128,259,199,285"/>
+<area shape="rect" id="node9" href="$issifm_8c.html#a3c08a4e8d75dfefa3ca8e97a71d4e404" title="Write wave struct to netCDF file." alt="" coords="128,309,199,336"/>
+<area shape="rect" id="node11" href="$libairs_8c.html#af7f155ab23aab051c6ea44e72b2923ca" title="Write wave analysis data." alt="" coords="119,360,207,387"/>
+<area shape="rect" id="node3" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="271,5,421,32"/>
+<area shape="rect" id="node10" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="313,309,379,336"/>
+</map>

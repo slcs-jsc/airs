@@ -1,0 +1,4 @@
+<map id="write_nc" name="write_nc">
+<area shape="rect" id="node1" title="Write wave struct to netCDF file." alt="" coords="5,5,76,32"/>
+<area shape="rect" id="node2" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="124,5,189,32"/>
+</map>

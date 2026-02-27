@@ -1,0 +1,10 @@
+<map id="main" name="main">
+<area shape="rect" id="node1" title=" " alt="" coords="5,107,56,133"/>
+<area shape="rect" id="node2" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="114,5,233,32"/>
+<area shape="rect" id="node4" href="$libairs_8c.html#a4c4c301958209cf49f0ecc1537206112" title="Smooth background." alt="" coords="104,56,243,83"/>
+<area shape="rect" id="node5" href="$libairs_8c.html#a5f3805f7100e05e251c9964222080b73" title="Estimate noise." alt="" coords="147,107,200,133"/>
+<area shape="rect" id="node6" href="$libairs_8c.html#a8ab49014709995c7496bf77fec6cb794" title="Read AIRS retrieval data." alt="" coords="137,157,210,184"/>
+<area shape="rect" id="node8" href="$libairs_8c.html#a69c29b01843aa0e3d102bd6ede518571" title="Convert AIRS retrieval results to wave analysis struct." alt="" coords="136,208,211,235"/>
+<area shape="rect" id="node3" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="291,5,441,32"/>
+<area shape="rect" id="node7" href="$libairs_8c.html#a6024b0776c4bc2697536590877e26494" title="Convert array." alt="" coords="314,157,418,184"/>
+</map>
