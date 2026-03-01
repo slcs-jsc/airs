@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with JURASSIC. If not, see <http://www.gnu.org/licenses/>.
   
-  Copyright (C) 2003-2025 Forschungszentrum Juelich GmbH
+  Copyright (C) 2003-2026 Forschungszentrum Juelich GmbH
 */
 
 /*! 
@@ -112,6 +112,7 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_statistics.h>
 #include <math.h>
+#include <netcdf.h>
 #include <omp.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -307,19 +308,14 @@
 #define TBLNT 30
 #endif
 
-/*! Maximum number of column densities in emissivity tables. */
+/*! Maximum number of column densities per emissivity curve. */
 #ifndef TBLNU
-#define TBLNU 320
+#define TBLNU 512
 #endif
 
 /*! Maximum number of source function temperature levels. */
 #ifndef TBLNS
 #define TBLNS 1200
-#endif
-
-/*! Maximum number of frequency-table entries allowed in a gas table file. */
-#ifndef MAX_TABLES
-#define MAX_TABLES 10000
 #endif
 
 /*! Maximum number of RFM spectral grid points. */
@@ -411,6 +407,28 @@
  */
 #define BRIGHT(rad, nu)					\
   (C2 * (nu) / gsl_log1p(C1 * POW3(nu) / (rad)))
+
+/**
+ * @brief Clamp a value to a specified range.
+ *
+ * Ensures that @p v lies between @p lo and @p hi.
+ * If @p v < @p lo, returns @p lo.
+ * If @p v > @p hi, returns @p hi.
+ * Otherwise, returns @p v unchanged.
+ *
+ * This macro works with any numeric type (e.g., int, float, double).
+ * All arguments are evaluated exactly once — avoid passing expressions
+ * with side effects (e.g., ++ operators or function calls).
+ *
+ * @param v   Input value to clamp.
+ * @param lo  Lower bound.
+ * @param hi  Upper bound.
+ * @return The clamped value between @p lo and @p hi.
+ *
+ * @author Lars Hoffmann
+ */
+#define CLAMP(v, lo, hi)				\
+  (((v) < (lo)) ? (lo) : (((v) > (hi)) ? (hi) : (v)))
 
 /**
  * @brief Convert degrees to radians.
@@ -549,29 +567,6 @@
   ((y0)+((y1)-(y0))/((x1)-(x0))*((x)-(x0)))
 
 /**
- * @brief Compute logarithmic interpolation in x.
- *
- * Performs interpolation assuming logarithmic variation in the x-axis.
- * If either x/x₀ or x₁/x₀ is nonpositive, reverts to linear interpolation.
- *
- * @param[in] x0 Lower x-value.
- * @param[in] y0 Function value at x₀.
- * @param[in] x1 Upper x-value.
- * @param[in] y1 Function value at x₁.
- * @param[in] x Interpolation point.
- *
- * @return Interpolated y-value at x.
- *
- * @see LIN, LOGY
- *
- * @author Lars Hoffmann
- */
-#define LOGX(x0, y0, x1, y1, x) \
-  (((x)/(x0)>0 && (x1)/(x0)>0) \
-   ? ((y0)+((y1)-(y0))*log((x)/(x0))/log((x1)/(x0))) \
-   : LIN(x0, y0, x1, y1, x))
-
-/**
  * @brief Compute logarithmic interpolation in y.
  *
  * Performs interpolation assuming exponential variation in the y-axis
@@ -629,6 +624,219 @@
  * @author Lars Hoffmann
  */
 #define MIN(a,b) (((a)<(b))?(a):(b))
+
+/**
+ * @brief Execute a NetCDF command and check for errors.
+ *
+ * This macro executes a NetCDF command and checks the result. If the
+ * result indicates an error, it prints the error message using
+ * ERRMSG.
+ *
+ * @param cmd NetCDF command to execute.
+ *
+ * @author Lars Hoffmann
+ */
+#define NC(cmd) {				     \
+    int nc_result=(cmd);			     \
+    if(nc_result!=NC_NOERR)			     \
+      ERRMSG("%s", nc_strerror(nc_result));	     \
+  }
+
+/**
+ * @brief Define a NetCDF variable with attributes.
+ *
+ * This macro defines a NetCDF variable with the specified name, data
+ * type, dimensions, long name, and units. It also sets the
+ * `long_name` and `units` attributes for the variable.
+ * It enables compression and quantizatio of the data.
+ *
+ * @param varname Name of the variable.
+ * @param type Data type of the variable.
+ * @param ndims Number of dimensions for the variable.
+ * @param dims Array of dimension IDs.
+ * @param long_name Long name of the variable.
+ * @param units Units of the variable.
+ * @param level zlib compression level (0 = off).
+ * @param quant Number of digits for quantization (0 = off).
+ *
+ * @note To enable ZSTD compression, replace `nc_def_var_deflate()` by
+ * `nc_def_var_filter()` below. Use dynamic linking, static linking does not work.
+ * Set environment variable `HDF5_PLUGIN_PATH` to `./libs/build/share/netcdf-plugins/`.
+ *
+ * @author Lars Hoffmann
+ */
+#define NC_DEF_VAR(varname, type, ndims, dims, long_name, units, level, quant) { \
+    NC(nc_def_var(ncid, varname, type, ndims, dims, &varid));		\
+    NC(nc_put_att_text(ncid, varid, "long_name", strnlen(long_name, LEN), long_name)); \
+    NC(nc_put_att_text(ncid, varid, "units", strnlen(units, LEN), units)); \
+    if((quant) > 0)							\
+      NC(nc_def_var_quantize(ncid, varid, NC_QUANTIZE_GRANULARBR, quant)); \
+    if((level) != 0) {							\
+      NC(nc_def_var_deflate(ncid, varid, 1, 1, level));			\
+      /* unsigned int ulevel = (unsigned int)level; */			\
+      /* NC(nc_def_var_filter(ncid, varid, 32015, 1, (unsigned int[]){ulevel})); */ \
+    }									\
+  }
+
+/**
+ * @brief Retrieve a double-precision variable from a NetCDF file.
+ *
+ * This macro retrieves a double-precision variable from a NetCDF
+ * file. It first checks if the variable exists in the file and then
+ * reads its data into the specified pointer. If the `force` parameter
+ * is set to true, it forces the retrieval of the variable, raising an
+ * error if the variable does not exist.  If `force` is false, it
+ * retrieves the variable if it exists and issues a warning if it does
+ * not.
+ *
+ * @param varname Name of the variable to retrieve.
+ * @param ptr Pointer to the memory location where the data will be stored.
+ * @param force Boolean flag indicating whether to force retrieval (true) or not (false).
+ *
+ * @author Lars Hoffmann
+ */
+#define NC_GET_DOUBLE(varname, ptr, force) {			\
+    if(force) {							\
+      NC(nc_inq_varid(ncid, varname, &varid));			\
+      NC(nc_get_var_double(ncid, varid, ptr));			\
+    } else {							\
+      if(nc_inq_varid(ncid, varname, &varid) == NC_NOERR) {	\
+	NC(nc_get_var_double(ncid, varid, ptr));		\
+      } else							\
+	WARN("netCDF variable %s is missing!", varname);	\
+    }								\
+  }
+
+/**
+ * @brief Inquire the length of a dimension in a NetCDF file.
+ *
+ * This macro retrieves the length of a specified dimension from a
+ * NetCDF file.  It checks if the length of the dimension is within a
+ * specified range and assigns the length to the provided pointer. If
+ * the length is outside the specified range, an error message is
+ * raised.
+ *
+ * @param dimname Name of the dimension to inquire.
+ * @param ptr Pointer to an integer where the dimension length will be stored.
+ * @param min Minimum acceptable length for the dimension.
+ * @param max Maximum acceptable length for the dimension.
+ * @param check Flag to check bounds. Set to 1 for bounds check.
+ *
+ * @author Lars Hoffmann
+ * @author Jan Clemens
+ */
+#define NC_INQ_DIM(dimname, ptr, min, max, check) {       \
+    int dimid; size_t naux;				  \
+    NC(nc_inq_dimid(ncid, dimname, &dimid));		  \
+    NC(nc_inq_dimlen(ncid, dimid, &naux));		  \
+    *ptr = (int)naux;                                     \
+    if (check)		                                  \
+      if ((*ptr) < (min) || (*ptr) > (max))		  \
+        ERRMSG("Dimension %s is out of range!", dimname); \
+  }
+
+/**
+ * @brief Write double precision data to a NetCDF variable.
+ *
+ * This macro writes data to a specified NetCDF variable. It can
+ * handle both full variable writes and hyperslab writes depending on
+ * the `hyperslab` parameter. If `hyperslab` is true, the data is
+ * written as a hyperslab; otherwise, the entire variable is written.
+ *
+ * @param varname Name of the NetCDF variable to write to.
+ * @param ptr Pointer to the data to be written.
+ * @param hyperslab Boolean indicating whether to write the data as a hyperslab.
+ *
+ * @author Lars Hoffmann
+ */
+#define NC_PUT_DOUBLE(varname, ptr, hyperslab) {		\
+    NC(nc_inq_varid(ncid, varname, &varid));			\
+    if(hyperslab) {						\
+      NC(nc_put_vara_double(ncid, varid, start, count, ptr));	\
+    } else {							\
+      NC(nc_put_var_double(ncid, varid, ptr));			\
+    }								\
+  }
+
+/**
+ * @brief Write a float array to a NetCDF file.
+ *
+ * This macro writes a float array to a specified variable in a NetCDF
+ * file.  Depending on the value of the hyperslab parameter, the data
+ * can be written as a hyperslab or as a whole variable.
+ *
+ * @param varname Name of the variable to which the float array will be written.
+ * @param ptr Pointer to the float array to be written.
+ * @param hyperslab Boolean flag indicating if the data should be written as a hyperslab. 
+ *        - If true, the data will be written as a hyperslab using the start and count arrays.
+ *        - If false, the data will be written to the entire variable.
+ *
+ * @author Lars Hoffmann
+ */
+#define NC_PUT_FLOAT(varname, ptr, hyperslab) {			\
+    NC(nc_inq_varid(ncid, varname, &varid));			\
+    if(hyperslab) {						\
+      NC(nc_put_vara_float(ncid, varid, start, count, ptr));	\
+    } else {							\
+      NC(nc_put_var_float(ncid, varid, ptr));			\
+    }								\
+  }
+
+/**
+ * @brief Write integer data to a NetCDF variable.
+ *
+ * This macro writes data to a specified NetCDF variable. It can
+ * handle both full variable writes and hyperslab writes depending on
+ * the `hyperslab` parameter. If `hyperslab` is true, the data is
+ * written as a hyperslab; otherwise, the entire variable is written.
+ *
+ * @param varname Name of the NetCDF variable to write to.
+ * @param ptr Pointer to the data to be written.
+ * @param hyperslab Boolean indicating whether to write the data as a hyperslab.
+ *
+ * @author Lars Hoffmann
+ */
+#define NC_PUT_INT(varname, ptr, hyperslab) {			\
+    NC(nc_inq_varid(ncid, varname, &varid));			\
+    if(hyperslab) {						\
+      NC(nc_put_vara_int(ncid, varid, start, count, ptr));	\
+    } else {							\
+      NC(nc_put_var_int(ncid, varid, ptr));			\
+    }								\
+  }
+
+/**
+ * @brief Add a text attribute to a NetCDF variable.
+ *
+ * This macro adds a text attribute to a specified NetCDF variable. It
+ * first retrieves the variable ID using its name, then it attaches
+ * the text attribute to the variable.
+ *
+ * @param varname Name of the NetCDF variable to which the attribute will be added.
+ * @param attname Name of the attribute to be added.
+ * @param text Text of the attribute to be added.
+ *
+ * @author Lars Hoffmann
+ */
+#define NC_PUT_ATT(varname, attname, text) {				\
+    NC(nc_inq_varid(ncid, varname, &varid));				\
+    NC(nc_put_att_text(ncid, varid, attname, strnlen(text, LEN), text)); \
+  }
+
+/**
+ * @brief Add a global text attribute to a NetCDF file.
+ *
+ * This macro adds a text attribute to the global attributes of a
+ * NetCDF file.  It directly attaches the attribute to the file,
+ * rather than to a specific variable.
+ *
+ * @param attname Name of the global attribute to be added.
+ * @param text Text of the attribute to be added.
+ *
+ * @author Lars Hoffmann
+ */
+#define NC_PUT_ATT_GLOBAL(attname, text)				\
+  NC(nc_put_att_text(ncid, NC_GLOBAL, attname, strnlen(text, LEN), text));
 
 /**
  * @brief Convert noise-equivalent spectral radiance (NESR) to
@@ -796,6 +1004,43 @@
  * @author Lars Hoffmann
  */
 #define REFRAC(p, T) (7.753e-05 * (p) / (T))
+
+/**
+ * @brief Log detailed statistics of an emissivity look-up table.
+ *
+ * This macro logs pressure, temperature, absorber column, and emissivity
+ * ranges for all pressure levels of a given (channel, emitter) table.
+ * Output is written at verbosity level 2 and is intended for diagnostics
+ * and debugging.
+ *
+ * @param tbl Pointer to the look-up table structure.
+ * @param id  Channel (detector) index.
+ * @param ig  Emitter (trace gas) index.
+ *
+ * @author Lars Hoffmann
+ */
+#define TBL_LOG(tbl, id, ig)						\
+  do {									\
+    for (int ip = 0; ip < (tbl)->np[(id)][(ig)]; ip++)			\
+      LOG(2,								\
+          "p[%2d]= %.5e hPa | T[0:%2d]= %.2f ... %.2f K | "		\
+          "u[0:%3d]= %.5e ... %.5e molec/cm^2 | "			\
+          "eps[0:%3d]= %.5e ... %.5e",					\
+          (ip),								\
+          (tbl)->p[(id)][(ig)][(ip)],					\
+          (tbl)->nt[(id)][(ig)][(ip)] - 1,				\
+          (tbl)->t[(id)][(ig)][(ip)][0],				\
+          (tbl)->t[(id)][(ig)][(ip)]					\
+	  [(tbl)->nt[(id)][(ig)][(ip)] - 1],                            \
+          (tbl)->nu[(id)][(ig)][(ip)][0] - 1,				\
+          exp((tbl)->logu[(id)][(ig)][(ip)][0][0]),			\
+          exp((tbl)->logu[(id)][(ig)][(ip)][0]				\
+	      [(tbl)->nu[(id)][(ig)][(ip)][0] - 1]),			\
+          (tbl)->nu[(id)][(ig)][(ip)][0] - 1,				\
+          exp((tbl)->logeps[(id)][(ig)][(ip)][0][0]),			\
+          exp((tbl)->logeps[(id)][(ig)][(ip)][0]			\
+	      [(tbl)->nu[(id)][(ig)][(ip)][0] - 1]));			\
+  } while (0)
 
 /**
  * @brief Start or stop a named timer.
@@ -1101,13 +1346,13 @@ typedef struct {
   /*! Basename for table files and filter function files. */
   char tblbase[LEN];
 
-  /*! Look-up table file format (1=ASCII, 2=binary). */
+  /*! Look-up table file format (1=ASCII, 2=binary, 3=netCDF). */
   int tblfmt;
 
-  /*! Atmospheric data file format (1=ASCII, 2=binary). */
+  /*! Atmospheric data file format (1=ASCII, 2=binary, 3=netCDF). */
   int atmfmt;
 
-  /*! Observation data file format (1=ASCII, 2=binary). */
+  /*! Observation data file format (1=ASCII, 2=binary, 3=netCDF). */
   int obsfmt;
 
   /*! Reference height for hydrostatic pressure profile (-999 to skip) [km]. */
@@ -1422,14 +1667,26 @@ typedef struct {
   /*! Pressure [hPa]. */
   double p[ND][NG][TBLNP];
 
+  /*! Log-pressure [hPa]. */
+  double lnp[ND][NG][TBLNP];
+
   /*! Temperature [K]. */
   double t[ND][NG][TBLNP][TBLNT];
 
-  /*! Column density [molecules/cm^2]. */
-  float u[ND][NG][TBLNP][TBLNT][TBLNU];
+  /*! Logarithm of column density [molecules/cm^2]. */
+  float *logu[ND][NG][TBLNP][TBLNT];
 
-  /*! Emissivity. */
-  float eps[ND][NG][TBLNP][TBLNT][TBLNU];
+  /*! Logarithm of emissivity. */
+  float *logeps[ND][NG][TBLNP][TBLNT];
+
+  /*! Filter function number of spectral grid points. */
+  int filt_n[ND];
+
+  /*! Filter function spectral grid points [cm^-1]. */
+  double filt_nu[ND][NSHAPE];
+
+  /*! Filter function values. */
+  double filt_f[ND][NSHAPE];
 
   /*! Source function temperature [K]. */
   double st[TBLNS];
@@ -1438,48 +1695,6 @@ typedef struct {
   double sr[TBLNS][ND];
 
 } tbl_t;
-
-/**
- * @brief On-disk index entry describing one frequency table block in a gas file.
- *
- * Each entry maps a unique frequency value to a serialized block stored
- * elsewhere in the file. All entries are stored in a fixed-size table of MAX_TABLES elements.
- */
-typedef struct {
-
-  /*! Frequency identifier ν_j for this table block. */
-  double freq;
-
-  /*! Byte offset in file where the serialized block begins. */
-  int64_t offset;
-
-  /*! Size of the serialized block (in bytes). */
-  int64_t size;
-
-} tbl_gas_index_t;
-
-/**
- * @brief In-memory representation of an open per-gas lookup-table file.
- *
- * This structure tracks the file pointer, the number of valid table entries,
- * and the full in-memory index of MAX_TABLES elements. When table blocks
- * are added or replaced, the index is marked dirty and rewritten on close.
- */
-typedef struct {
-
-  /*! Open file handle ("rb+"), NULL if not open. */
-  FILE *fp;
-
-  /*! Number of index entries currently in use. */
-  int32_t ntables;
-
-  /*! In-memory index table of length MAX_TABLES. */
-  tbl_gas_index_t *index;
-
-  /**< Non-zero if index was modified and must be rewritten on close. */
-  int dirty;
-
-} tbl_gas_t;
 
 /* ------------------------------------------------------------
    Functions...
@@ -2136,37 +2351,50 @@ void formod_pencil(
   const int ir);
 
 /**
- * @brief Interface routine for the Reference Forward Model (RFM).
+ * @brief Forward-model radiance and transmittance with the Reference Forward Model (RFM).
  *
- * Prepares input data, executes the RFM executable, and imports
- * simulated radiances and transmittances into the observation structure.
- * The routine converts the atmospheric and geometric configuration from
- * internal JURASSIC data structures into RFM-compatible driver and
- * atmosphere files, then reads the RFM output spectra.
+ * This routine provides the JURASSIC interface to the external RFM executable. It writes an
+ * RFM atmospheric profile file and a per-channel RFM driver file, runs RFM, and reads back
+ * the resulting radiance and transmittance spectra. The spectra are then convolved with the
+ * instrument channel filter functions and stored in the observation structure.
  *
- * @param[in]  ctl  Control structure defining model configuration, RFM
- *                  executable path, HITRAN database, and spectral setup.
- * @param[in]  atm  Atmospheric state structure containing pressure,
- *                  temperature, and gas profiles.
- * @param[in,out] obs  Observation geometry and radiance data to be
- *                     populated with RFM-computed radiances and
- *                     transmittances.
+ * Filter functions are taken exclusively from the lookup-table container @p tbl
+ * (i.e., @c tbl->filt_n, @c tbl->filt_nu, @c tbl->filt_f). This makes the behavior independent
+ * of the lookup-table format (ASCII, binary, or netCDF) and avoids reliance on external
+ * per-channel ASCII filter files.
  *
- * @note The function assumes identical observer positions across all
- *       ray paths and no extinction data in @p atm. It automatically
- *       determines whether the geometry is limb, nadir, or observer-based.
+ * Viewing geometry is classified as one of:
+ * - limb: uses tangent altitude
+ * - nadir: path intersects the surface (secant/air-mass-factor geometry)
+ * - zenith: upward-looking path exits the atmosphere at the top boundary
  *
- * @note Adds appropriate RFM flags (e.g., @c RAD, @c TRA, @c MIX, @c CTM)
- *       based on the control settings. Temporary files such as
- *       @c rfm.drv, @c rfm.atm, and @c rad_*.asc are created and removed
- *       automatically.
+ * Mixed geometries (e.g., limb and nadir simultaneously) are not allowed and will trigger an error.
  *
- * @see ctl_t, atm_t, obs_t, raytrace, write_atm_rfm,
- *      read_shape, read_obs_rfm, geo2cart, NORM, DOTP
+ * Limitations:
+ * - Requires identical observer positions for all rays.
+ * - Does not support extinction input data (atm->k must be zero everywhere).
+ * - Uses temporary files in the current working directory (e.g., @c rfm.atm, @c rfm.drv,
+ *   @c rad_*.asc, @c tra_*.asc) and removes them on completion.
  *
- * @throws ERRMSG on inconsistent geometry, failed I/O, or system call errors.
+ * @param[in]  ctl  Control and configuration parameters (RFM binary path, HITRAN/XSC settings,
+ *                  channel definitions, flags such as refraction and continua).
+ * @param[in]  tbl  Lookup-table container providing per-channel filter functions.
+ * @param[in]  atm  Atmospheric state (altitude grid, temperature, and gas profiles).
+ * @param[out] obs  Observation geometry and output arrays; on return, @c obs->rad[id][ir]
+ *                  and @c obs->tau[id][ir] are filled for all channels and rays.
  *
- * @warning Requires external RFM binary; ensure @ref ctl_t::rfmbin is set.
+ * @pre @p tbl contains valid filter functions for all channels used (@c tbl->filt_n[id] > 0).
+ * @pre All rays share identical observer position (@c obsz/obslon/obslat).
+ * @pre No extinction data is present (@c atm->k == 0 for all wavelengths/levels).
+ *
+ * @post @c obs->rad and @c obs->tau are updated with channel-integrated radiance and
+ *       transmittance computed by RFM.
+ *
+ * @note The surface temperature is taken as the temperature at the lowest altitude level
+ *       of the atmospheric grid.
+ *
+ * @warning This function executes external commands via @c system(), and creates/removes files
+ *          in the current working directory.
  *
  * @par Reference
  *   Dudhia, A., "The Reference Forward Model (RFM)", JQSRT 186, 243–253 (2017)
@@ -2175,6 +2403,7 @@ void formod_pencil(
  */
 void formod_rfm(
   const ctl_t * ctl,
+  const tbl_t * tbl,
   const atm_t * atm,
   obs_t * obs);
 
@@ -2300,30 +2529,31 @@ void idx2name(
   char *quantity);
 
 /**
- * @brief Initialize the source-function (Planck radiance) lookup table.
+ * @brief Initialize source function lookup tables from emissivity data.
  *
- * Computes channel-averaged Planck radiances for a range of temperatures
- * and stores them in the source-function table. For each spectral channel,
- * the Planck function is integrated over the instrument filter function
- * defined in the corresponding filter file (*.filt).
+ * This function computes channel-dependent source function lookup tables
+ * based on the spectral filter functions and the Planck function. For each
+ * spectral channel, the Planck radiance is integrated over the corresponding
+ * filter function and stored as a function of temperature.
  *
- * @param[in]  ctl  Control structure defining spectral channels and table base name.
- * @param[out] tbl  Emissivity and source-function lookup table to populate.
+ * The resulting source function table represents the **band-integrated
+ * thermal emission** associated with the emissivity lookup tables and is
+ * later used in radiative transfer calculations.
  *
- * @note The source function is tabulated for @ref TBLNS temperature levels
- *       uniformly distributed between @ref TMIN and @ref TMAX. Integration
- *       over the spectral response is performed using linear interpolation
- *       and uniform grid spacing.
+ * The temperature grid is uniformly sampled between @c TMIN and @c TMAX
+ * with @c TBLNS points. The spectral integration is performed on the finest
+ * frequency spacing present in the filter function.
  *
- * @see ctl_t, tbl_t, read_shape, locate_irr, LIN, PLANCK, TBLNS, TMIN, TMAX
- * 
- * @par Parallelization
- * Implemented with OpenMP to compute each temperature level concurrently.
+ * @param[in]  ctl  Pointer to the control structure defining the number of
+ *                  channels and their central wavenumbers.
+ * @param[in,out] tbl  Pointer to the lookup-table structure in which the
+ *                  source function tables and temperature grid are stored.
  *
- * @par Output
- * Writes diagnostic information via @ref LOG at verbosity levels 1 and 2.
+ * @note The computation is parallelized over temperature grid points using
+ *       OpenMP.
  *
- * @warning Requires valid filter files named `<tblbase>_<wavenumber>.filt`.
+ * @note The source function is normalized by the integral of the filter
+ *       function to yield a band-averaged Planck radiance.
  *
  * @author Lars Hoffmann
  */
@@ -2452,34 +2682,28 @@ void intpol_tbl_ega(
   double tau_seg[ND]);
 
 /**
- * @brief Interpolate emissivity from lookup tables as a function
- *        of column density.
+ * @brief Interpolate gas emissivity as a function of column amount.
  *
- * Retrieves the emissivity corresponding to a given column density
- * `u` for a specific gas, channel, pressure level, and temperature
- * index from the precomputed emissivity tables.
+ * Computes emissivity \f$\varepsilon(u)\f$ from tabulated data using
+ * linear interpolation in \f$\log u\f$–\f$\log\varepsilon\f$ space.
+ * The input column amount must be provided as \f$\log(u)\f$.
  *
- * @param[in] tbl  Emissivity lookup tables (@ref tbl_t).
- * @param[in] ig   Gas index.
- * @param[in] id   Channel index.
- * @param[in] ip   Pressure level index.
- * @param[in] it   Temperature level index.
- * @param[in] u    Column density [molecules/cm²].
- * @return Interpolated emissivity value in the range [0, 1].
+ * Behavior:
+ * - For \f$u < u_{\min}\f$, emissivity scales linearly with column amount.
+ * - For \f$u > u_{\max}\f$, emissivity asymptotically approaches unity using
+ *   an exponential tail matched at \f$(u_{\max}, \varepsilon_{\max})\f$.
  *
- * @details
- * - Performs linear interpolation in column density between adjacent
- *   grid points using @ref LIN.
- * - Applies lower-bound extrapolation proportional to `u` for
- *   `u < u_min`.
- * - Applies exponential upper-bound extrapolation ensuring
- *   asymptotic emissivity growth (`eps → 1` as `u → ∞`).
- * - The input arrays are taken from `tbl->u` and `tbl->eps`.
+ * The implementation uses `log1p`/`expm1` for numerical stability and
+ * minimizes conversions between linear and logarithmic space.
  *
- * @see tbl_t, LIN, locate_tbl
+ * @param tbl   Lookup table structure.
+ * @param ig    Gas index.
+ * @param id    Spectral/channel index.
+ * @param ip    Pressure index.
+ * @param it    Temperature index.
+ * @param logu  Natural logarithm of the column amount [molecules/cm²].
  *
- * @note Used by both the Curtis–Godson (CGA) and Emissivity Growth
- *       Approximation (EGA) interpolation schemes.
+ * @return Emissivity in the range \f$[0,1]\f$.
  *
  * @author Lars Hoffmann
  */
@@ -2489,37 +2713,35 @@ double intpol_tbl_eps(
   const int id,
   const int ip,
   const int it,
-  const double u);
+  const double logu);
 
 /**
- * @brief Interpolate column density from lookup tables as a function
- *        of emissivity.
+ * @brief Interpolate column amount as a function of emissivity.
  *
- * Returns the column density corresponding to a given emissivity
- * `eps` for a specific gas, channel, pressure level, and temperature
- * index from the precomputed emissivity tables.
+ * Computes the column amount \f$u(\varepsilon)\f$ from tabulated data using
+ * linear interpolation in \f$\log\varepsilon\f$–\f$\log u\f$ space.
+ * The emissivity must be provided as \f$\log(\varepsilon)\f$ together with
+ * \f$\log(1-\varepsilon)\f$.
  *
- * @param[in] tbl  Emissivity lookup tables (@ref tbl_t).
- * @param[in] ig   Gas index.
- * @param[in] id   Channel index.
- * @param[in] ip   Pressure level index.
- * @param[in] it   Temperature level index.
- * @param[in] eps  Emissivity value (0–1).
- * @return Interpolated column density [molecules/cm²].
+ * Behavior:
+ * - For \f$\varepsilon < \varepsilon_{\min}\f$, column amount scales linearly
+ *   with emissivity.
+ * - For \f$\varepsilon > \varepsilon_{\max}\f$, the exponential tail used in
+ *   `intpol_tbl_eps()` is analytically inverted.
  *
- * @details
- * - Performs linear interpolation in emissivity between adjacent
- *   table entries using @ref LIN.
- * - For `eps < eps_min`, applies linear extrapolation proportional
- *   to emissivity.
- * - For `eps > eps_max`, applies exponential extrapolation
- *   following the emissivity growth law.
- * - The lookup is performed using `tbl->eps` and `tbl->u`.
+ * The implementation operates primarily in log-space and uses `log1p` for
+ * numerical stability near \f$\varepsilon \rightarrow 1\f$.
  *
- * @see tbl_t, LIN, locate_tbl
+ * @param tbl     Lookup table structure.
+ * @param ig      Gas index.
+ * @param id      Spectral/channel index.
+ * @param ip      Pressure index.
+ * @param it      Temperature index.
+ * @param logeps  Natural logarithm of emissivity (\f$\log\varepsilon\f$).
  *
- * @note Used in the Emissivity Growth Approximation (EGA) to
- *       determine effective column density from transmittance.
+ * @return Column amount \f$u\f$.
+ *
+ * @see intpol_tbl_eps
  *
  * @author Lars Hoffmann
  */
@@ -2529,7 +2751,7 @@ double intpol_tbl_u(
   const int id,
   const int ip,
   const int it,
-  const double eps);
+  const double logeps);
 
 /**
  * @brief Converts Julian seconds to calendar date and time components.
@@ -2991,10 +3213,11 @@ void read_atm(
 /**
  * @brief Read atmospheric data in ASCII format.
  *
- * This function parses atmospheric input data from an opened ASCII file stream
- * (`in`) and stores the values in the atmospheric structure `atm`. The number
- * and type of fields to read are determined by the control structure `ctl`.
- * Each line of the ASCII file corresponds to a single atmospheric data point.
+ * This function reads and parses atmospheric input data from an ASCII file
+ * specified by its filename and stores the values in the atmospheric
+ * structure \c atm. The number and type of fields to read are determined by
+ * the control structure \c ctl. Each line of the ASCII file corresponds to a
+ * single atmospheric data point.
  *
  * The expected order of fields in each line is:
  *   - Time
@@ -3003,17 +3226,16 @@ void read_atm(
  *   - Latitude
  *   - Pressure
  *   - Temperature
- *   - Mixing ratios for each gas/emitter (`ctl->ng` values)
- *   - Extinction coefficients for each spectral window (`ctl->nw` values)
+ *   - Mixing ratios for each gas/emitter (\c ctl->ng values)
+ *   - Extinction coefficients for each spectral window (\c ctl->nw values)
  *
- * Additionally, if cloud or surface layer parameters are enabled in `ctl`,
+ * Additionally, if cloud or surface layer parameters are enabled in \c ctl,
  * they are read once from the first line only:
- *   - Cloud layer: altitude, thickness, and extinction (`ctl->ncl` values)
- *   - Surface layer: temperature and emissivity (`ctl->nsf` values)
+ *   - Cloud layer: altitude, thickness, and extinction (\c ctl->ncl values)
+ *   - Surface layer: temperature and emissivity (\c ctl->nsf values)
  *
- * @param in
- *        Pointer to an already opened input file stream containing ASCII
- *        atmospheric data.
+ * @param filename
+ *        Path to the ASCII file containing atmospheric data.
  *
  * @param ctl
  *        Pointer to a control structure defining the number of gases,
@@ -3022,56 +3244,56 @@ void read_atm(
  *
  * @param atm
  *        Pointer to an initialized atmospheric structure where the parsed
- *        data points will be stored. The function updates `atm->np` to
+ *        data points will be stored. The function updates \c atm->np to
  *        reflect the number of successfully read data records.
  *
- * @note The function continues reading until EOF is reached. Each successfully
+ * @note The function reads until end-of-file is reached. Each successfully
  *       parsed line increments the atmospheric data point counter.
  *
- * @warning The function terminates execution using `ERRMSG` if more than
- *          `NP` data points are encountered, or if the input format deviates
+ * @warning The function terminates execution using \c ERRMSG if more than
+ *          \c NP data points are encountered, or if the input format deviates
  *          from expectations.
  *
  * @author Lars Hoffmann
  */
 void read_atm_asc(
-  FILE * in,
+  const char *filename,
   const ctl_t * ctl,
   atm_t * atm);
 
 /**
  * @brief Read atmospheric data in binary format.
  *
- * This function reads atmospheric input data from a binary file stream (`in`)
- * and stores the decoded values in the atmospheric structure `atm`. The expected
- * binary format is predefined and must match the configuration provided in the
- * control structure `ctl`. The function reads a header containing metadata
- * describing the dataset, followed by the atmospheric fields and optional
- * cloud/surface layer properties.
+ * This function reads atmospheric input data from a binary file specified
+ * by its filename and stores the decoded values in the atmospheric structure
+ * \c atm. The expected binary format is predefined and must match the
+ * configuration provided in the control structure \c ctl. The function reads
+ * a header containing metadata describing the dataset, followed by the
+ * atmospheric fields and optional cloud and surface layer properties.
  *
  * The binary file layout is expected to follow this structure:
  *   1. **Magic identifier** (4 bytes, ignored except for presence)
  *   2. **Header integers**:
- *      - Number of gas species (`ng`)
- *      - Number of spectral windows (`nw`)
- *      - Number of cloud layer extinction elements (`ncl`)
- *      - Number of surface emissivity elements (`nsf`)
- *      These must match the corresponding values in `ctl`.
+ *      - Number of gas species (\c ng)
+ *      - Number of spectral windows (\c nw)
+ *      - Number of cloud layer extinction elements (\c ncl)
+ *      - Number of surface emissivity elements (\c nsf)
+ *      These must match the corresponding values in \c ctl.
  *   3. **Data payload**:
- *      - Number of points (`np`)
- *      - Arrays of size `np` for time, altitude, longitude, latitude,
- *        pressure, temperature
- *      - For each gas species: mixing ratio array of length `np`
- *      - For each spectral window: extinction coefficient array of length `np`
+ *      - Number of points (\c np)
+ *      - Arrays of size \c np for time, altitude, longitude, latitude,
+ *        pressure, and temperature
+ *      - For each gas species: mixing ratio array of length \c np
+ *      - For each spectral window: extinction coefficient array of length \c np
  *   4. **Optional layered parameters**:
- *      - Cloud layer altitude, thickness, and extinction (`ctl->ncl` values)
- *      - Surface temperature and emissivity (`ctl->nsf` values)
+ *      - Cloud layer altitude, thickness, and extinction (\c ctl->ncl values)
+ *      - Surface temperature and emissivity (\c ctl->nsf values)
  *
- * @param in
- *        Pointer to an opened binary input file stream.
+ * @param filename
+ *        Path to the binary file containing atmospheric data.
  *
  * @param ctl
- *        Pointer to a control structure specifying expected dimensions of
+ *        Pointer to a control structure specifying the expected dimensions of
  *        atmospheric fields and optional layers. Used for header validation.
  *
  * @param atm
@@ -3082,16 +3304,61 @@ void read_atm_asc(
  * @note This function does **not** allocate memory; it assumes storage for all
  *       atmospheric variables already exists and matches the expected sizes.
  *
- * @warning Execution is terminated via `ERRMSG` if:
+ * @warning Execution is terminated via \c ERRMSG if:
  *          - The binary header does not match the control structure.
- *          - The binary stream does not contain the expected amount of data.
+ *          - The binary file does not contain the expected amount of data.
  *
  * @author Lars Hoffmann
  */
 void read_atm_bin(
-  FILE * in,
+  const char *filename,
   const ctl_t * ctl,
   atm_t * atm);
+
+/**
+ * @brief Read one atmospheric profile from a netCDF file.
+ *
+ * This routine reads a single profile (record) from a netCDF file into an
+ * @ref atm_t structure. The file is expected to follow the JURASSIC netCDF
+ * layout produced by @ref write_atm_nc(), using an unlimited @c profile
+ * dimension and a fixed @c level dimension.
+ *
+ * The number of valid vertical levels for the requested profile is read from
+ * @c nlev(profile) and stored in @c atm->np. All 2-D profile variables are
+ * then read for the hyperslab @c (profile,0:atm->np-1).
+ *
+ * ## File layout (expected)
+ * Dimensions:
+ * - @c profile : unlimited (record dimension)
+ * - @c level   : fixed (maximum number of vertical levels stored in the file)
+ *
+ * Variables:
+ * - @c nlev(profile) : number of valid levels per profile (required)
+ * - Core state (2-D): @c time,z,lon,lat,p,t(profile,level)
+ * - Trace gases (2-D): one variable per species named @c ctl->emitter[ig]
+ *   with dimensions @c (profile,level)
+ * - Extinction windows (2-D): @c ext_win_%d(profile,level)
+ * - Clouds (1-D, optional if @c ctl->ncl>0): @c cld_z, cld_dz, cld_k_%d(profile)
+ * - Surface (1-D, optional if @c ctl->nsf>0): @c sf_t, sf_eps_%d(profile)
+ *
+ * @param filename Input netCDF file name.
+ * @param ctl      Control structure (defines numbers/names of optional fields,
+ *                 e.g., @c ng, @c nw, @c ncl, @c nsf, and @c emitter[]).
+ * @param atm      Atmospheric profile structure to fill. On return, @c atm->np
+ *                 contains the number of valid levels for the requested profile.
+ * @param profile  Record index along the unlimited @c profile dimension.
+ *
+ * @note This function assumes that arrays in @p atm have static capacity @c NP
+ *       and checks that @c atm->np is within @c [1,NP]. Errors are handled via
+ *       the @c NC(...) macro.
+ *
+ * @author Lars Hoffmann
+ */
+void read_atm_nc(
+  const char *filename,
+  const ctl_t * ctl,
+  atm_t * atm,
+  int profile);
 
 /**
  * @brief Read model control parameters from command-line and configuration input.
@@ -3215,82 +3482,127 @@ void read_obs(
   obs_t * obs);
 
 /**
- * @brief Read ASCII-formatted observation data from an open file stream.
+ * @brief Read ASCII-formatted observation data from a file.
  *
- * This function parses atmospheric observation data from an ASCII text file
- * and stores it in the provided ::obs_t structure. Each line in the input file
- * is expected to contain numerical values representing a single observation
- * record, including time, observer coordinates, view point coordinates,
- * tangent point coordinates, radiance or brightness temperature values, and
- * transmittances. The number of radiance and transmittance values per record
- * is determined by `ctl->nd`.
+ * This function reads atmospheric observation data from an ASCII text file
+ * specified by its filename and stores it in the provided ::obs_t structure.
+ * Each line in the input file is expected to contain numerical values
+ * representing a single observation record, including time, observer
+ * coordinates, view point coordinates, tangent point coordinates, radiance
+ * or brightness temperature values, and transmittances. The number of radiance
+ * and transmittance values per record is determined by \c ctl->nd.
  *
  * The function reads the file line by line, tokenizes the data fields, and
- * fills the corresponding observation arrays. The number of successfully read
- * observation entries is stored in `obs->nr`.
+ * fills the corresponding observation arrays. The number of successfully
+ * read observation entries is stored in \c obs->nr.
  *
- * @param[in]  in   Open file pointer from which the ASCII observation data
- *                  will be read. The file must already be opened in read mode.
- * @param[in]  ctl  Control structure containing metadata such as the number
- *                  of spectral channels (`nd`).
- * @param[out] obs  Observation structure where parsed data will be stored.
+ * @param filename
+ *        Path to the ASCII file containing the observation data.
  *
- * @note This is a C function and assumes that the @p obs structure has been
+ * @param ctl
+ *        Control structure containing metadata such as the number of spectral
+ *        channels (\c nd).
+ *
+ * @param obs
+ *        Observation structure where the parsed data will be stored.
+ *
+ * @note This is a C function and assumes that the \c obs structure has been
  *       preallocated with sufficient space for all records and spectral
  *       channels. No memory allocation is performed inside this routine.
  *
  * @warning The function terminates with an error message if the number of
- *          entries exceeds the predefined limit `NR`.
+ *          entries exceeds the predefined limit \c NR.
  *
  * @see read_obs(), read_obs_bin(), ctl_t, obs_t
  *
  * @author Lars Hoffmann
  */
 void read_obs_asc(
-  FILE * in,
+  const char *filename,
   const ctl_t * ctl,
   obs_t * obs);
 
 /**
- * @brief Read binary-formatted observation data from an open file stream.
+ * @brief Read binary-formatted observation data from a file.
  *
- * This C function reads observation data stored in a compact binary format and
- * initializes the provided ::obs_t structure with the values retrieved from
- * the input file. The binary format begins with a header that contains a magic
- * identifier and the expected number of spectral channels. The number of
- * channels in the file must match `ctl->nd`, otherwise the routine aborts with
- * an error.
+ * This C function reads observation data stored in a compact binary format
+ * from a file specified by its filename and initializes the provided ::obs_t
+ * structure with the values retrieved. The binary format begins with a header
+ * that contains a magic identifier and the expected number of spectral
+ * channels. The number of channels in the file must match \c ctl->nd, otherwise
+ * the routine aborts with an error.
  *
  * After verifying the header, the function reads the number of ray paths and
  * then sequentially loads arrays corresponding to observation time, observer
  * location, view point location, tangent point location, radiance (or
  * brightness temperature), and transmittance data. The number of ray paths is
- * assigned to `obs->nr`. All arrays must have been allocated prior to calling
+ * assigned to \c obs->nr. All arrays must have been allocated prior to calling
  * this function.
  *
- * @param[in]  in   Open file stream positioned at the beginning of the binary
- *                  observation data. The file must be opened in binary mode.
- * @param[in]  ctl  Pointer to a control structure specifying the number of
- *                  spectral channels (`nd`) and other configuration settings.
- * @param[out] obs  Pointer to an observation structure where the decoded
- *                  binary data will be stored.
+ * @param filename
+ *        Path to the binary file containing the observation data.
  *
- * @note This is a C routine and does not perform any memory allocation. The
- *       caller must ensure that all arrays in @p obs have sufficient capacity
- *       for the data being read.
+ * @param ctl
+ *        Pointer to a control structure specifying the number of spectral
+ *        channels (\c nd) and other configuration settings.
+ *
+ * @param obs
+ *        Pointer to an observation structure where the decoded binary data
+ *        will be stored.
+ *
+ * @note This function does not perform any memory allocation. The caller must
+ *       ensure that all arrays in \c obs have sufficient capacity for the data
+ *       being read.
  *
  * @warning The function terminates with an error message if the binary header
  *          does not match the expected channel count, if more data than allowed
- *          by `NR` is encountered, or if any read operation fails.
+ *          by \c NR is encountered, or if any read operation fails.
  *
  * @see read_obs(), read_obs_asc(), ctl_t, obs_t
  *
  * @author Lars Hoffmann
  */
 void read_obs_bin(
-  FILE * in,
+  const char *filename,
   const ctl_t * ctl,
   obs_t * obs);
+
+/**
+ * @brief Read one observation profile from a NetCDF file.
+ *
+ * This function reads all geometric and spectral observation data for a
+ * single profile from a NetCDF file using the variable-per-channel layout.
+ *
+ * The NetCDF file is expected to contain:
+ *  - A dimension \c profile (unlimited)
+ *  - A dimension \c ray (number of ray paths)
+ *  - A variable \c nray(profile) giving the number of rays for each profile
+ *  - Geometry variables with dimensions \c (profile, ray):
+ *      - \c time, \c obs_z, \c obs_lon, \c obs_lat
+ *      - \c vp_z,  \c vp_lon,  \c vp_lat
+ *      - \c tp_z,  \c tp_lon,  \c tp_lat
+ *  - Spectral variables with dimensions \c (profile, ray), one per channel:
+ *      - \c rad_%.4f  (radiance or brightness temperature)
+ *      - \c tau_%.4f  (transmittance)
+ *    where the formatted frequency corresponds to \c ctl->nu[id].
+ *
+ * All data for the selected profile are read into the supplied \c obs_t
+ * structure. The number of rays is read from \c nray(profile) and stored
+ * in \c obs->nr. If the number of rays exceeds \c NR or is less than one,
+ * an error is raised.
+ *
+ * @param filename  Path to the NetCDF observation file.
+ * @param ctl       Pointer to the control structure defining spectral channels.
+ * @param obs       Pointer to the observation structure to be filled.
+ * @param profile   Zero-based index of the profile to read.
+ *
+ * @author Lars Hoffmann
+ */
+void read_obs_nc(
+  const char *filename,
+  const ctl_t * ctl,
+  obs_t * obs,
+  const int profile);
 
 /**
  * @brief Read and spectrally convolve an RFM output spectrum.
@@ -3494,25 +3806,37 @@ void read_shape(
   int *n);
 
 /**
- * @brief Read all emissivity lookup tables for all gases and frequencies.
+ * @brief Read emissivity lookup tables from disk.
  *
- * This function allocates a new `tbl_t` structure and fills it by reading
- * emissivity lookup tables for each trace gas (`ig`) and each frequency index
- * (`id`) specified in the control structure. The lookup tables may be read
- * from ASCII, binary, or per-gas table files depending on `ctl->tblfmt`.
+ * Loads emissivity lookup tables for all detector/channel indices @c id and
+ * all emitter/gas indices @c ig according to the configured table format
+ * @c ctl->tblfmt:
+ *  - ASCII (@c ctl->tblfmt == 1)
+ *  - compact binary (@c ctl->tblfmt == 2)
+ *  - netCDF (@c ctl->tblfmt == 3)
  *
- * After loading all tables, the source function is initialized with
- * `init_srcfunc()`.
+ * The function allocates and initializes a @c tbl_t structure, reads the
+ * corresponding lookup tables, and (depending on the table format) also loads
+ * filter functions.
  *
- * @param ctl  Pointer to control structure containing table metadata,
- *             number of gases, number of frequencies, filenames, etc.
+ * Missing per-table files (ASCII/binary) or missing netCDF files/variables are
+ * not fatal: the reader emits a warning and the corresponding lookup table is
+ * treated as empty (i.e., @c tbl->np[id][ig] == 0).
  *
- * @return Pointer to a newly allocated `tbl_t` structure containing all
- *         loaded lookup-table data. The caller owns the returned pointer
- *         and must free it when done.
+ * Diagnostic information about loaded tables (pressure levels, temperature
+ * ranges, absorber amounts, emissivity ranges) may be written to the log.
  *
- * @warning Aborts the program via `ERRMSG()` if unexpected table formats
- *          or dimension overflows occur.
+ * @param[in] ctl  Pointer to the control structure defining lookup table format,
+ *                 filenames, emitters, and detector/channel frequencies.
+ *
+ * @return Pointer to an allocated and initialized @c tbl_t structure containing
+ *         the loaded lookup tables.
+ *
+ * @warning If an unsupported lookup table format is specified via
+ *          @c ctl->tblfmt, the function aborts with an error message.
+ *
+ * @note Memory for the returned structure is dynamically allocated and must be
+ *       released by the caller.
  *
  * @author Lars Hoffmann
  */
@@ -3522,22 +3846,35 @@ tbl_t *read_tbl(
 /**
  * @brief Read a single ASCII emissivity lookup table.
  *
- * This reads one ASCII table corresponding to frequency index @p id
- * and gas index @p ig. The table format is:
+ * Reads one ASCII table for detector/channel index @p id and emitter/gas index
+ * @p ig from a file named:
  *
- *     pressure   temperature   column_density   emissivity
+ *     <ctl->tblbase>_<ctl->nu[id]>_<ctl->emitter[ig]>.tab
  *
- * The function automatically determines the pressure, temperature,
- * and column-density indices based on new values appearing in the file.
+ * The table file contains four columns:
+ *  1. pressure [hPa]
+ *  2. temperature [K]
+ *  3. column density [molecules/cm^2]
+ *  4. emissivity [-]
  *
- * Out-of-range values for `u` or `eps` are skipped and counted.
+ * The routine infers the pressure/temperature/column-density indices from
+ * changes in the values read from the file. Values outside the supported ranges
+ * for column density or emissivity are skipped and counted.
  *
- * @param ctl  Pointer to control structure specifying filenames and grids.
- * @param tbl  Pointer to the table structure to be filled.
- * @param id   Frequency index.
- * @param ig   Gas index.
+ * If the file cannot be opened, a warning is issued and the table is treated
+ * as empty (i.e., @c tbl->np[id][ig] == 0).
  *
- * @warning Aborts via `ERRMSG()` if table dimensions exceed TBLNP/TBLNT/TBLNU.
+ * @param[in]     ctl  Pointer to control structure specifying filenames and grids.
+ * @param[in,out] tbl  Pointer to the table structure to be filled.
+ * @param[in]     id   Detector/channel index.
+ * @param[in]     ig   Emitter/gas index.
+ *
+ * @warning Aborts via @c ERRMSG() if table dimensions exceed @c TBLNP / @c TBLNT / @c TBLNU.
+ *
+ * @note Implementation detail: the ASCII reader may use an internal sentinel
+ *       during parsing (historically @c np == -1 such that the first increment
+ *       yields index 0). On return, @c tbl->np[id][ig] always represents the
+ *       number of pressure levels (0 for an empty table).
  *
  * @author Lars Hoffmann
  */
@@ -3548,27 +3885,33 @@ void read_tbl_asc(
   const int ig);
 
 /**
- * @brief Read a single binary emissivity lookup table.
+ * @brief Read a single compact binary emissivity lookup table.
  *
- * Reads the binary table stored as:
- *   - number of pressure levels
- *   - pressure grid
- *   - for each pressure:
- *       - number of temperatures
- *       - temperature grid
- *       - for each temperature:
- *           - number of column densities
- *           - u array
- *           - emissivity array
+ * Reads one binary table for detector/channel index @p id and emitter/gas index
+ * @p ig from a file named:
  *
- * The function fills the corresponding entries of the `tbl_t` structure.
+ *     <ctl->tblbase>_<ctl->nu[id]>_<ctl->emitter[ig]>.bin
  *
- * @param ctl  Pointer to control structure specifying filenames and grids.
- * @param tbl  Pointer to the table structure to be filled.
- * @param id   Frequency index.
- * @param ig   Gas index.
+ * The file contains a length field followed by a packed byte blob created by
+ * @c tbl_pack():
+ *  - @c size_t nbytes   : number of bytes in the packed blob
+ *  - @c uint8_t blob[]  : packed lookup table data
  *
- * @warning Aborts via `ERRMSG()` if table dimensions exceed TBLNP/TBLNT/TBLNU.
+ * The blob is unpacked into @p tbl using @c tbl_unpack().
+ *
+ * If the file cannot be opened, a warning is issued and the table is treated
+ * as empty (i.e., @c tbl->np[id][ig] == 0).
+ *
+ * @param[in]     ctl  Pointer to control structure specifying filenames and grids.
+ * @param[in,out] tbl  Pointer to the table structure to be filled.
+ * @param[in]     id   Detector/channel index.
+ * @param[in]     ig   Emitter/gas index.
+ *
+ * @warning Aborts via @c ERRMSG() if the file is malformed or unpacking fails.
+ *
+ * @see write_tbl_bin()
+ * @see tbl_pack()
+ * @see tbl_unpack()
  *
  * @author Lars Hoffmann
  */
@@ -3579,99 +3922,53 @@ void read_tbl_bin(
   const int ig);
 
 /**
- * @brief Read one frequency block from a per-gas binary table file.
+ * @brief Read one packed emissivity lookup table from an open NetCDF file.
  *
- * Opens the gas-specific table file (e.g., `base_emitter.tbl`) and
- * reads the table block corresponding to frequency `ctl->nu[id]`.
- * The block is appended to the in-memory `tbl_t`.
+ * Loads a previously stored emissivity lookup table for detector/channel
+ * index @p id and emitter (trace gas) index @p ig from an already opened
+ * NetCDF file. The file is expected to have been created by
+ * @c write_tbl_nc().
  *
- * @param ctl  Pointer to control structure containing table metadata.
- * @param tbl  Pointer to table structure to populate.
- * @param id   Frequency index.
- * @param ig   Gas index.
+ * The NetCDF variable name is derived from the detector/channel frequency:
  *
- * @note Missing tables or missing frequency blocks only produce warnings.
+ *     tbl_XXXX
+ *
+ * where @c XXXX is @c ctl->nu[id] formatted to four decimal places.
+ *
+ * Each variable is stored as a one-dimensional @c NC_UBYTE array containing
+ * a packed lookup-table byte stream. The data are unpacked into @p tbl
+ * using @c tbl_unpack().
+ *
+ * Missing variables are not fatal: a warning is issued and the corresponding
+ * table is left empty (i.e., @c tbl->np[id][ig] remains zero).
+ *
+ * The NetCDF file handle @p ncid must refer to an open file and is not
+ * opened or closed by this function.
+ *
+ * @param[in]     ctl   Control structure defining emitters, detectors, and
+ *                      detector/channel frequencies.
+ * @param[in,out] tbl   Table structure that receives the unpacked data.
+ * @param[in]     id    Detector/channel index selecting @c ctl->nu[id].
+ * @param[in]     ig    Emitter (trace gas) index selecting @c ctl->emitter[ig].
+ * @param[in]     ncid  NetCDF file identifier of an already opened file.
+ *
+ * @note A temporary buffer is allocated to hold the packed lookup-table data
+ *       prior to unpacking.
+ *
+ * @warning Aborts via @c ERRMSG() if the NetCDF variable exists but cannot be
+ *          read or unpacked (e.g., corrupted contents).
+ *
+ * @see write_tbl_nc()
+ * @see tbl_unpack()
  *
  * @author Lars Hoffmann
  */
-void read_tbl_gas(
+void read_tbl_nc_channel(
   const ctl_t * ctl,
   tbl_t * tbl,
-  const int id,
-  const int ig);
-
-/**
- * @brief Close a per-gas binary table file and optionally rewrite metadata.
- *
- * If the table was modified (`g->dirty != 0`), the header and index are
- * rewritten before closing the file. After closing, memory associated
- * with the table index is freed.
- *
- * @param g  Pointer to an open gas-table handle.
- *
- * @return 0 on success, -1 on invalid handle.
- *
- * @author Lars Hoffmann
- */
-int read_tbl_gas_close(
-  tbl_gas_t * g);
-
-/**
- * @brief Open a per-gas binary table file for reading and writing.
- *
- * Reads and validates the file header, then loads the entire index
- * of table blocks. The resulting `tbl_gas_t` structure tracks the
- * file pointer, index, and table count.
- *
- * @param path  Path to the `.tbl` file.
- * @param g     Output parameter: populated table-file handle.
- *
- * @return 0 on success, -1 if the file cannot be opened.
- *
- * @warning Aborts via `ERRMSG()` on invalid magic or format.
- *
- * @author Lars Hoffmann
- */
-int read_tbl_gas_open(
-  const char *path,
-  tbl_gas_t * g);
-
-/**
- * @brief Read one emissivity table block from a per-gas table file.
- *
- * Locates the index entry corresponding to the requested frequency @p freq.
- * If found, seeks to the stored offset and reads:
- *
- *   - number of pressure levels
- *   - pressure grid
- *   - for each pressure:
- *       - number of temperatures
- *       - temperature grid
- *       - for each temperature:
- *           - number of column densities
- *           - u array
- *           - emissivity array
- *
- * The data are stored into `tbl[id][ig]`.
- *
- * @param g     Pointer to an open gas-table handle.
- * @param freq  Frequency to be read.
- * @param tbl   Pointer to output table structure.
- * @param id    Frequency index.
- * @param ig    Gas index.
- *
- * @return 0 on success, -1 if the frequency is not found.
- *
- * @warning Aborts on dimension overflow or seek errors.
- *
- * @author Lars Hoffmann
- */
-int read_tbl_gas_single(
-  const tbl_gas_t * g,
-  const double freq,
-  tbl_t * tbl,
-  const int id,
-  const int ig);
+  int id,
+  int ig,
+  int ncid);
 
 /**
  * @brief Scan control file or command-line arguments for a configuration variable.
@@ -3943,6 +4240,137 @@ void tangent_point(
   double *tplat);
 
 /**
+ * @brief Free lookup table and all internally allocated memory.
+ *
+ * Frees all dynamically allocated memory owned by a ::tbl_t object,
+ * including the spectral lookup arrays (`logu` and `logeps`) for all
+ * detector/emitter/pressure/temperature combinations. The ::tbl_t
+ * structure itself is freed at the end.
+ *
+ * The function is safe to call with a NULL pointer and will return
+ * immediately in that case. Partially initialized tables are handled
+ * safely.
+ *
+ * @param[in,out] tbl  Pointer to the lookup table to be freed.
+ * @param[in]     ctl  Control structure providing the number of
+ *                     detectors and emitters used for looping.
+ *
+ * @note This function must be used instead of `free(tbl)` since ::tbl_t
+ *       contains nested dynamically allocated members.
+ *
+ * @author Lars Hoffmann
+ */
+void tbl_free(
+  const ctl_t * ctl,
+  tbl_t * tbl);
+
+/**
+ * @brief Pack a lookup table into a contiguous binary buffer.
+ *
+ * This function serializes the lookup table data for a given detector
+ * (`id`) and emitter (`ig`) into a compact, platform-native binary
+ * representation. The packed data can be written to disk (e.g., in a
+ * NetCDF variable) and later reconstructed using `tbl_unpack()`.
+ *
+ * The packed layout in `buf` is, in order:
+ *  - `int np`                          : number of pressure grid points
+ *  - `double p[np]`                   : pressure grid
+ *  - for each pressure index `ip`:
+ *      - `int nt`                     : number of temperature grid points
+ *      - `double t[nt]`               : temperature grid
+ *      - for each temperature index `it`:
+ *          - `int nu`                 : number of spectral grid points
+ *          - `float  u[nu]`           : spectral values
+ *          - `float  eps[nu]`         : associated epsilon values
+ *
+ * No byte-order conversion or padding is applied; the data are written
+ * exactly as laid out in memory.
+ *
+ * @param[in]  tbl         Table structure containing the lookup data.
+ * @param[in]  id          Detector index.
+ * @param[in]  ig          Emitter index.
+ * @param[out] buf         Destination buffer that will receive the packed
+ *                         binary data.
+ * @param[out] bytes_used  Number of bytes written to `buf`.
+ *
+ * @warning The caller must ensure that `buf` is large enough to hold the
+ *          packed data for the selected detector/emitter pair. The packed
+ *          representation includes the detector filter function (mandatory for
+ *          binary/netCDF formats). No bounds checking is performed inside this
+ *          function.
+ *
+ * @see tbl_unpack()
+ *
+ * @author Lars Hoffmann
+ */
+void tbl_pack(
+  const tbl_t * tbl,
+  int id,
+  int ig,
+  uint8_t * buf,
+  size_t *bytes_used);
+
+/**
+ * @brief Compute required buffer size (in bytes) for tbl_pack().
+ *
+ * Returns the exact number of bytes that tbl_pack() will write for the
+ * given detector/emitter pair (including the mandatory filter function).
+ *
+ * @see tbl_pack()
+ *
+ * @author Lars Hoffmann
+ */
+size_t tbl_packed_size(
+  const tbl_t * tbl,
+  int id,
+  int ig);
+
+/**
+ * @brief Unpack a lookup table from a contiguous binary buffer.
+ *
+ * This function reconstructs the lookup table data for a given detector
+ * (`id`) and emitter (`ig`) from a binary buffer previously produced by
+ * `tbl_pack()`. The packed data are read sequentially and copied into
+ * the corresponding fields of the `tbl` structure.
+ *
+ * The expected layout of `buf` is:
+ *  - `int np`
+ *  - `double p[np]`
+ *  - for each pressure index `ip`:
+ *      - `int nt`
+ *      - `double t[nt]`
+ *      - for each temperature index `it`:
+ *          - `int nu`
+ *          - `float u[nu]`
+ *          - `float eps[nu]`
+ *
+ * Range checks are applied to `np`, `nt`, and `nu` against the compile-time
+ * limits `TBLNP`, `TBLNT`, and `TBLNU` to prevent buffer overruns and
+ * invalid table sizes.
+ *
+ * @param[in,out] tbl  Table structure that will receive the unpacked data.
+ * @param[in]     id   Detector index.
+ * @param[in]     ig   Emitter index.
+ * @param[in]     buf  Source buffer containing the packed binary table.
+ *
+ * @return The number of bytes consumed from `buf`.
+ *
+ * @warning The buffer must contain a valid packed table created by
+ *          `tbl_pack()`. Supplying malformed or truncated data will
+ *          result in undefined behavior or an error.
+ *
+ * @see tbl_pack()
+ *
+ * @author Lars Hoffmann
+ */
+size_t tbl_unpack(
+  tbl_t * tbl,
+  int id,
+  int ig,
+  const uint8_t * buf);
+
+
+/**
  * @brief Converts time components to seconds since January 1, 2000, 12:00:00 UTC.
  *
  * This function calculates the number of seconds elapsed since
@@ -4077,12 +4505,12 @@ void write_atm(
 /**
  * @brief Write atmospheric data to an ASCII file.
  *
- * This function writes the contents of an atmospheric structure `atm` to an
- * ASCII-formatted output stream `out`. A descriptive column header is generated
+ * This function writes the contents of an atmospheric structure \c atm to an
+ * ASCII file specified by its filename. A descriptive column header is written
  * first, documenting the meaning, units, and ordering of each data field.
  * Atmospheric data points are then written line by line, with optional cloud
  * and surface layer parameters appended if they are enabled in the control
- * structure `ctl`.
+ * structure \c ctl.
  *
  * The output columns include, in order:
  *   1. Time (seconds since 2000-01-01T00:00Z)
@@ -4091,22 +4519,22 @@ void write_atm(
  *   4. Latitude [deg]
  *   5. Pressure [hPa]
  *   6. Temperature [K]
- *   + Gas/emitter mixing ratios for each species (`ctl->ng`) [ppv]
- *   + Extinction values for each spectral window (`ctl->nw`) [km^-1]
+ *   + Gas/emitter mixing ratios for each species (\c ctl->ng) [ppv]
+ *   + Extinction values for each spectral window (\c ctl->nw) [km^-1]
  *
- * If cloud layer properties are enabled (`ctl->ncl > 0`), the following are added:
+ * If cloud layer properties are enabled (\c ctl->ncl > 0), the following are added:
  *   - Cloud layer height [km]
  *   - Cloud layer depth [km]
- *   - Cloud extinction values for each frequency (`ctl->ncl`) [km^-1]
+ *   - Cloud extinction values for each frequency (\c ctl->ncl) [km^-1]
  *
- * If surface layer properties are enabled (`ctl->nsf > 0`), the following are added:
+ * If surface layer properties are enabled (\c ctl->nsf > 0), the following are added:
  *   - Surface layer height [km]
  *   - Surface layer pressure [hPa]
  *   - Surface layer temperature [K]
- *   - Surface emissivity values (`ctl->nsf`)
+ *   - Surface emissivity values (\c ctl->nsf)
  *
- * @param out
- *        Pointer to an open output file stream where the ASCII data is written.
+ * @param filename
+ *        Path to the ASCII output file.
  *
  * @param ctl
  *        Pointer to a control structure defining the number of gases,
@@ -4115,55 +4543,54 @@ void write_atm(
  *
  * @param atm
  *        Pointer to the atmospheric structure containing the data to be written.
- *        The function writes all `atm->np` data points.
+ *        The function writes all \c atm->np data points.
  *
  * @note A blank line is inserted each time the time coordinate changes, grouping
  *       data points belonging to different timestamps.
  *
- * @warning The function assumes that all arrays in `atm` are properly allocated
+ * @warning The function assumes that all arrays in \c atm are properly allocated
  *          and populated. No validation of data ranges is performed here.
  *
  * @author Lars Hoffmann
  */
 void write_atm_asc(
-  FILE * out,
+  const char *filename,
   const ctl_t * ctl,
   const atm_t * atm);
 
 /**
  * @brief Write atmospheric data to a binary file.
  *
- * This function writes the atmospheric dataset contained in `atm` to a binary
- * file stream `out`. The output format is compact and includes a file header
- * followed by the serialized atmospheric fields. The format is compatible with
- * `read_atm_bin()`, ensuring that files written by this function can be read
- * back without loss of information.
+ * This function writes the atmospheric dataset contained in \c atm to a binary
+ * file specified by its filename. The output format is compact and includes a
+ * file header followed by the serialized atmospheric fields. The format is
+ * compatible with \c read_atm_bin(), ensuring that files written by this
+ * function can be read back without loss of information.
  *
  * The binary file structure written is as follows:
- *   1. **Magic identifier** `"ATM1"` (4 bytes)
+ *   1. **Magic identifier** \c "ATM1" (4 bytes)
  *   2. **Header integers** describing dataset layout:
- *        - Number of gas/emitter species (`ctl->ng`)
- *        - Number of spectral windows (`ctl->nw`)
- *        - Number of cloud extinction values (`ctl->ncl`)
- *        - Number of surface emissivity values (`ctl->nsf`)
+ *        - Number of gas/emitter species (\c ctl->ng)
+ *        - Number of spectral windows (\c ctl->nw)
+ *        - Number of cloud extinction values (\c ctl->ncl)
+ *        - Number of surface emissivity values (\c ctl->nsf)
  *   3. **Data payload**:
- *        - Number of atmospheric points `np`
- *        - Arrays of length `np` containing:
+ *        - Number of atmospheric points \c np
+ *        - Arrays of length \c np containing:
  *            * Time
  *            * Altitude
  *            * Longitude
  *            * Latitude
  *            * Pressure
  *            * Temperature
- *        - Gas mixing ratios for all emitters (`ctl->ng × np`)
- *        - Extinction coefficients for all spectral windows (`ctl->nw × np`)
- *   4. **Optional parameters** written only if enabled in `ctl`:
- *        - Cloud layer height, depth, and extinction values (`ctl->ncl`)
- *        - Surface temperature and emissivity values (`ctl->nsf`)
+ *        - Gas mixing ratios for all emitters (\c ctl->ng × \c np)
+ *        - Extinction coefficients for all spectral windows (\c ctl->nw × \c np)
+ *   4. **Optional parameters** written only if enabled in \c ctl:
+ *        - Cloud layer height, depth, and extinction values (\c ctl->ncl)
+ *        - Surface temperature and emissivity values (\c ctl->nsf)
  *
- * @param out
- *        Pointer to an already opened binary output file stream where the
- *        atmospheric data will be written.
+ * @param filename
+ *        Path to the binary output file.
  *
  * @param ctl
  *        Pointer to a control structure specifying the number of gases,
@@ -4172,22 +4599,71 @@ void write_atm_asc(
  *
  * @param atm
  *        Pointer to the atmospheric data structure containing values to be
- *        written. All arrays must be populated and `atm->np` must contain the
+ *        written. All arrays must be populated and \c atm->np must contain the
  *        number of valid atmospheric records.
  *
- * @note This function performs no range checking or validation of the `atm`
+ * @note This function performs no range checking or validation of the \c atm
  *       contents. It assumes that the memory layout matches expectations.
  *
  * @warning The binary structure must remain consistent with
- *          `read_atm_bin()`; modifying either implementation requires
+ *          \c read_atm_bin(); modifying either implementation requires
  *          updating the other accordingly.
  *
  * @author Lars Hoffmann
  */
 void write_atm_bin(
-  FILE * out,
+  const char *filename,
   const ctl_t * ctl,
   const atm_t * atm);
+
+/**
+ * @brief Write one atmospheric profile to a netCDF file.
+ *
+ * This routine writes a single profile from an @ref atm_t structure into a
+ * netCDF file using an unlimited record dimension. Multiple profiles can be
+ * stored in the same file by calling this function repeatedly with increasing
+ * @p profile indices.
+ *
+ * The function creates the file if it does not exist (netCDF-4/HDF5) and
+ * defines missing dimensions/variables on the fly. Existing definitions are
+ * reused.
+ *
+ * ## File layout
+ * Dimensions:
+ * - @c profile : unlimited (record dimension)
+ * - @c level   : fixed (maximum number of vertical levels stored in the file)
+ *
+ * Variables:
+ * - @c nlev(profile) : number of valid levels for each profile (written as
+ *   @c atm->np)
+ * - Core state (2-D): @c time,z,lon,lat,p,t(profile,level)
+ * - Trace gases (2-D): one variable per species named @c ctl->emitter[ig]
+ *   with dimensions @c (profile,level)
+ * - Extinction windows (2-D): @c ext_win_%d(profile,level)
+ * - Clouds (1-D, optional if @c ctl->ncl>0): @c cld_z, cld_dz, cld_k_%d(profile)
+ * - Surface (1-D, optional if @c ctl->nsf>0): @c sf_t, sf_eps_%d(profile)
+ *
+ * Only the first @c atm->np elements along @c level are written for 2-D
+ * variables. The effective number of levels is stored in @c nlev(profile).
+ * (If a profile is overwritten with fewer levels than previously written, old
+ * values above @c nlev may remain unless explicitly filled by the caller.)
+ *
+ * @param filename Output netCDF file name.
+ * @param ctl      Control structure (defines numbers/names of optional fields,
+ *                 e.g., @c ng, @c nw, @c ncl, @c nsf, and @c emitter[]).
+ * @param atm      Atmospheric profile data to write (uses @c atm->np levels).
+ * @param profile  Record index along the unlimited @c profile dimension.
+ *
+ * @note This function requires netCDF support (@c HAVE_NETCDF) and uses the
+ *       netCDF C API. Errors are handled via the @c NC(...) macro.
+ *
+ * @author Lars Hoffmann
+ */
+void write_atm_nc(
+  const char *filename,
+  const ctl_t * ctl,
+  const atm_t * atm,
+  int profile);
 
 /**
  * @brief Write atmospheric profile in RFM-compatible format.
@@ -4345,12 +4821,12 @@ void write_obs(
  * @brief Write observation data to an ASCII text file.
  *
  * This C function writes the contents of the ::obs_t observation structure as
- * human-readable ASCII text to the given output stream. It first prints a
- * descriptive header that documents each column of the output format,
+ * human-readable ASCII text to a file specified by its filename. It first
+ * prints a descriptive header that documents each column of the output format,
  * including observation time, observer and view geometry, tangent point
  * information, and spectral values. The number and meaning of spectral fields
- * depend on `ctl->nd` and whether brightness temperature output is enabled
- * via `ctl->write_bbt`.
+ * depend on \c ctl->nd and whether brightness temperature output is enabled
+ * via \c ctl->write_bbt.
  *
  * The function then writes one line of data per ray path, including the base
  * geometric information followed by radiance or brightness temperature values
@@ -4358,35 +4834,39 @@ void write_obs(
  * whenever the time stamp changes, providing visual separation of distinct
  * observation groups.
  *
- * @param[in] out  Output file stream opened in text mode.
- * @param[in] ctl  Control structure specifying the number of spectral
- *                 channels (`nd`), wavenumbers (`nu`), and output mode
- *                 (`write_bbt`).
- * @param[in] obs  Observation structure containing the data to be written.
+ * @param filename
+ *        Path to the ASCII output file.
  *
- * @note This is a C routine that produces plain-text output intended for
- *       inspection, debugging, and compatibility with external processing
- *       tools.
+ * @param ctl
+ *        Control structure specifying the number of spectral
+ *        channels (\c nd), wavenumbers (\c nu), and output mode
+ *        (\c write_bbt).
  *
- * @warning The caller must ensure that @p out is valid and writable. No
- *          attempt is made to reopen or validate the file stream.
+ * @param obs
+ *        Observation structure containing the data to be written.
+ *
+ * @note This routine produces plain-text output intended for inspection,
+ *       debugging, and compatibility with external processing tools.
+ *
+ * @warning The caller must ensure that the file specified by \c filename is
+ *          writable. Existing files may be overwritten.
  *
  * @see write_obs(), write_obs_bin(), ctl_t, obs_t
  *
  * @author Lars Hoffmann
  */
 void write_obs_asc(
-  FILE * out,
+  const char *filename,
   const ctl_t * ctl,
   const obs_t * obs);
 
 /**
- * @brief Write observation data in binary format to an output file stream.
+ * @brief Write observation data in binary format to a file.
  *
  * This C function serializes the contents of the ::obs_t structure into a
- * compact binary format and writes it to the file stream provided via @p out.
+ * compact binary format and writes it to a file specified by its filename.
  * The binary format begins with a header consisting of a magic identifier
- * ("OBS1") and the number of spectral channels (`ctl->nd`). This header is
+ * (\c "OBS1") and the number of spectral channels (\c ctl->nd). This header is
  * used by ::read_obs_bin() to validate compatibility when reading.
  *
  * Following the header, the function writes the number of ray paths and then
@@ -4395,26 +4875,72 @@ void write_obs_asc(
  * are written in native binary representation using the FWRITE() macro, which
  * performs buffered writes and error checking.
  *
- * @param[out] out  Output file stream opened in binary mode.
- * @param[in]  ctl  Control structure specifying the number of spectral
- *                  channels (`nd`) and corresponding configuration parameters.
- * @param[in]  obs  Observation structure containing the data to be written.
+ * @param filename
+ *        Path to the binary output file.
  *
- * @note This is a C routine that does not perform any formatting or conversion.
- *       The resulting file is portable only to systems with compatible binary
+ * @param ctl
+ *        Control structure specifying the number of spectral
+ *        channels (\c nd) and corresponding configuration parameters.
+ *
+ * @param obs
+ *        Observation structure containing the data to be written.
+ *
+ * @note This routine does not perform any formatting or conversion. The
+ *       resulting file is portable only to systems with compatible binary
  *       layouts (integer size, floating-point format, and endianness).
  *
- * @warning The caller must ensure that @p out is writable and already opened
- *          in binary mode. The function does not validate stream state.
+ * @warning The caller must ensure that the file specified by \c filename is
+ *          writable. Existing files may be overwritten.
  *
  * @see write_obs(), write_obs_asc(), read_obs_bin(), ctl_t, obs_t
  *
  * @author Lars Hoffmann
  */
 void write_obs_bin(
-  FILE * out,
+  const char *filename,
   const ctl_t * ctl,
   const obs_t * obs);
+
+/**
+ * @brief Write one observation profile to a NetCDF file.
+ *
+ * This function writes all geometric and spectral observation data for a
+ * single profile into a NetCDF file using a variable-per-channel layout.
+ * If the file does not exist it is created; if it already exists, the
+ * required dimensions and variables are created if missing and then
+ * extended by writing the specified profile.
+ *
+ * The NetCDF file will contain:
+ *  - A dimension \c profile (unlimited)
+ *  - A dimension \c ray (fixed, number of ray paths)
+ *  - A variable \c nray(profile) giving the number of rays for each profile
+ *  - Geometry variables with dimensions \c (profile, ray):
+ *      - \c time, \c obs_z, \c obs_lon, \c obs_lat
+ *      - \c vp_z,  \c vp_lon,  \c vp_lat
+ *      - \c tp_z,  \c tp_lon,  \c tp_lat
+ *  - Spectral variables with dimensions \c (profile, ray), one per channel:
+ *      - \c rad_%.4f  (radiance or brightness temperature)
+ *      - \c tau_%.4f  (transmittance)
+ *    where the formatted frequency corresponds to \c ctl->nu[id].
+ *
+ * Radiance is written either as physical radiance or as brightness
+ * temperature depending on \c ctl->write_bbt. The ray dimension is fixed
+ * on first creation and all subsequently written profiles must not exceed
+ * this number of rays.
+ *
+ * @param filename  Path to the NetCDF observation file.
+ * @param ctl       Pointer to the control structure defining spectral channels.
+ * @param obs       Pointer to the observation structure containing the data
+ *                  to be written.
+ * @param profile   Zero-based index of the profile to write.
+ *
+ * @author Lars Hoffmann
+ */
+void write_obs_nc(
+  const char *filename,
+  const ctl_t * ctl,
+  const obs_t * obs,
+  const int profile);
 
 /**
  * @brief Write tabulated shape function data to a text file.
@@ -4509,20 +5035,37 @@ void write_stddev(
   const gsl_matrix * s);
 
 /**
- * @brief Write all emissivity lookup tables in the format specified by the control structure.
+ * @brief Write emissivity lookup tables to disk.
  *
- * This function dispatches to one of three table writers depending on
- * `ctl->tblfmt`:
+ * Writes emissivity lookup tables stored in @p tbl using the output format
+ * specified by @c ctl->tblfmt:
+ *  - ASCII (@c ctl->tblfmt == 1)
+ *  - compact binary (@c ctl->tblfmt == 2)
+ *  - netCDF (@c ctl->tblfmt == 3)
  *
- *   - `1`: ASCII tables written by write_tbl_asc()
- *   - `2`: Binary tables written by write_tbl_bin()
- *   - `3`: Per-gas binary tables written by write_tbl_gas()
+ * The function iterates over all emitters (@p ig) and detectors/channels
+ * (@p id) and dispatches the corresponding per-table writer.
  *
- * If an unknown format is given, the function aborts via ERRMSG().
+ * Lookup tables with no pressure levels (i.e. @c tbl->np[id][ig] <= 0) are
+ * skipped intentionally. In this case, a warning is issued and no output
+ * artifact (file or NetCDF variable) is written for the affected table.
+ * This allows trace gases or channels with negligible contribution to be
+ * omitted cleanly from the output.
  *
- * @param ctl  Control structure specifying table format, filenames,
- *             number of gases, number of frequencies, etc.
- * @param tbl  Fully populated lookup-table structure to be written.
+ * After writing the lookup tables, the associated spectral filter functions
+ * are written to separate files (format-dependent).
+ *
+ * @param[in] ctl  Pointer to the control structure defining the lookup table
+ *                 output format, base filenames, emitters, and spectral channels.
+ * @param[in] tbl  Pointer to the lookup-table structure containing the
+ *                 emissivity data and filter functions to be written.
+ *
+ * @warning If an unsupported lookup table format is specified via
+ *          @c ctl->tblfmt, the function aborts with an error message.
+ *
+ * @note Missing output artifacts caused by skipped tables are handled
+ *       gracefully by the corresponding readers, which treat missing
+ *       tables as empty.
  *
  * @author Lars Hoffmann
  */
@@ -4531,150 +5074,103 @@ void write_tbl(
   const tbl_t * tbl);
 
 /**
- * @brief Write all lookup tables in human-readable ASCII format.
+ * @brief Write one emissivity lookup table in human-readable ASCII format.
  *
- * For every gas index (`ig`) and frequency index (`id`), the function
- * generates a file of the form:
+ * Writes the lookup table for detector/channel index @p id and emitter/gas
+ * index @p ig to a file named:
  *
- *     <base>_<nu[id]>_<emitter[ig]>.tab
+ *     <ctl->tblbase>_<ctl->nu[id]>_<ctl->emitter[ig]>.tab
  *
  * The ASCII file contains four columns:
+ *  1. pressure [hPa]
+ *  2. temperature [K]
+ *  3. column density [molecules/cm^2]
+ *  4. emissivity [-]
  *
- *     1. pressure [hPa]
- *     2. temperature [K]
- *     3. column density [molecules/cm²]
- *     4. emissivity [-]
+ * A header describing the columns is always written. If the table is empty
+ * (i.e. @c tbl->np[id][ig] == 0), the file will contain only the header.
  *
- * Table dimensions are taken from the `tbl_t` structure.  
- * Missing files cause the program to abort via ERRMSG().
- *
- * @param ctl  Control structure providing grid metadata and filename base.
- * @param tbl  Table data to be written.
+ * @param[in] ctl  Control structure providing filename base, frequencies, and
+ *                 emitter names.
+ * @param[in] tbl  Lookup table data to be written.
+ * @param[in] id   Detector/channel index.
+ * @param[in] ig   Emitter/gas index.
  *
  * @author Lars Hoffmann
  */
 void write_tbl_asc(
   const ctl_t * ctl,
-  const tbl_t * tbl);
+  const tbl_t * tbl,
+  const int id,
+  const int ig);
 
 /**
- * @brief Write all lookup tables in compact binary format.
+ * @brief Write one emissivity lookup table in compact binary format.
  *
- * For each gas index (`ig`) and frequency index (`id`), a binary file named
+ * Writes the lookup table for detector/channel index @p id and emitter/gas
+ * index @p ig to a file named:
  *
- *     <base>_<nu[id]>_<emitter[ig]>.bin
+ *     <ctl->tblbase>_<ctl->nu[id]>_<ctl->emitter[ig]>.bin
  *
- * is created. The format is:
+ * The file contains a length field followed by a packed byte blob produced by
+ * tbl_pack():
+ *  - @c size_t nbytes   : number of bytes in the packed blob
+ *  - @c uint8_t blob[]  : packed lookup table data (see tbl_pack())
  *
- *   - int     np                      (number of pressure levels)
- *   - double  p[np]
- *   - for each pressure:
- *       - int     nt                  (number of temperature levels)
- *       - double  t[nt]
- *       - for each temperature:
- *           - int     nu              (number of column-density points)
- *           - float   u[nu]
- *           - float   eps[nu]
+ * If the table is empty (@c tbl->np[id][ig] == 0), the packed blob still
+ * encodes this (it includes @c np = 0), so the file remains a valid
+ * representation of an empty table.
  *
- * @param ctl  Control structure containing filename base and spectral grid.
- * @param tbl  Table data to be serialized.
+ * @param[in] ctl  Control structure providing filename base, frequencies, and
+ *                 emitter names.
+ * @param[in] tbl  Lookup table data to be packed and written.
+ * @param[in] id   Detector/channel index.
+ * @param[in] ig   Emitter/gas index.
+ *
+ * @see tbl_pack()
  *
  * @author Lars Hoffmann
  */
 void write_tbl_bin(
   const ctl_t * ctl,
-  const tbl_t * tbl);
+  const tbl_t * tbl,
+  const int id,
+  const int ig);
 
 /**
- * @brief Write lookup tables into per-gas binary table files with indexed blocks.
+ * @brief Write one packed lookup table to a NetCDF file.
  *
- * This function creates (if necessary) and updates gas-specific files of the form:
+ * Writes the lookup table for detector/channel index @p id and emitter/gas
+ * index @p ig to the NetCDF file:
  *
- *     <base>_<emitter>.tbl
+ *     <ctl->tblbase>_<ctl->emitter[ig]>.nc
  *
- * Each file contains:
+ * The table is stored as a packed byte blob (produced by tbl_pack()) in a
+ * variable named @c tbl_XXXX with a corresponding dimension @c len_XXXX,
+ * where @c XXXX is the formatted frequency @c ctl->nu[id]. The variable type
+ * is @c NC_UBYTE.
  *
- *   - A header ("GTL1")
- *   - A table count (ntables)
- *   - A fixed-size index of MAX_TABLES entries
- *   - One or more appended binary table blocks
+ * If the NetCDF file does not exist, it is created and initialized with the
+ * global attributes:
+ *  - @c format_version = "1"
+ *  - @c emitter = ctl->emitter[ig]
  *
- * For each frequency index (`id`), a block is appended (or overwritten) using
- * write_tbl_gas_single(), which stores both the serialized table and its
- * offset/size in the on-disk index.
+ * To prevent accidental overwrites, the function terminates with an error if
+ * the target variable already exists in the file.
  *
- * @param ctl  Control structure containing spectral grid, emitters, and filenames.
- * @param tbl  Table data from which individual frequency blocks are extracted.
+ * @param[in] ctl  Control structure defining emitter names, frequencies, and
+ *                 base filename.
+ * @param[in] tbl  Lookup table data structure containing the lookup table to
+ *                 be packed and written.
+ * @param[in] id   Detector/channel index.
+ * @param[in] ig   Emitter/gas index.
  *
- * @warning The file must have capacity for all required frequency entries
- *          (MAX_TABLES). Exceeding this capacity triggers a fatal error.
+ * @see tbl_pack()
  *
  * @author Lars Hoffmann
  */
-void write_tbl_gas(
+void write_tbl_nc(
   const ctl_t * ctl,
-  const tbl_t * tbl);
-
-/**
- * @brief Create a new per-gas table file with an empty index.
- *
- * Writes the “GTL1” magic header, initializes the table count to zero,
- * and creates a MAX_TABLES-sized index whose entries are zeroed.
- *
- * The resulting file layout is:
- *
- *     magic[4] = "GTL1"
- *     ntables  = 0
- *     index[MAX_TABLES]  (all zero)
- *
- * @param path  Path to the table file to create.
- *
- * @return 0 on success, -1 if the file cannot be opened.
- *
- * @author Lars Hoffmann
- */
-int write_tbl_gas_create(
-  const char *path);
-
-/**
- * @brief Append or overwrite a single frequency-table block in a per-gas file.
- *
- * Searches the in-memory index for an entry matching @p freq. If found, the
- * corresponding block is updated. Otherwise a new entry is created (subject
- * to the MAX_TABLES limit) and the block is appended to the end of the file.
- *
- * The block format written is identical to the binary format used in write_tbl_bin():
- *
- *   - int     np
- *   - double  p[np]
- *   - for each pressure:
- *       - int     nt
- *       - double  t[nt]
- *       - for each temperature:
- *           - int     nu
- *           - float   u[nu]
- *           - float   eps[nu]
- *
- * The index entry is then updated with:
- *   - freq
- *   - offset (byte offset of the block)
- *   - size   (block size in bytes)
- *
- * @param g     Open gas-table handle obtained from read_tbl_gas_open().
- * @param freq  Frequency associated with the table block.
- * @param tbl   Full lookup table from which one block is extracted.
- * @param id    Frequency index into tbl.
- * @param ig    Gas index into tbl.
- *
- * @return 0 on success, non-zero on write failure.
- *
- * @warning Aborts via ERRMSG() if MAX_TABLES is exceeded or file seek fails.
- *
- * @author Lars Hoffmann
- */
-int write_tbl_gas_single(
-  tbl_gas_t * g,
-  const double freq,
   const tbl_t * tbl,
   const int id,
   const int ig);

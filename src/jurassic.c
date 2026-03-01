@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with JURASSIC. If not, see <http://www.gnu.org/licenses/>.
   
-  Copyright (C) 2003-2025 Forschungszentrum Juelich GmbH
+  Copyright (C) 2003-2026 Forschungszentrum Juelich GmbH
 */
 
 /*! 
@@ -140,7 +140,7 @@ size_t atm2x(
 	  && atm->z[ip] <= ctl->retk_zmax[iw])
 	atm2x_help(atm->k[iw][ip], IDXK(iw), ip, x, iqa, ipa, &n);
 
-  /* Add cloud parameters... */
+  /* Add cloud variables... */
   if (ctl->ret_clz)
     atm2x_help(atm->clz, IDXCLZ, 0, x, iqa, ipa, &n);
   if (ctl->ret_cldz)
@@ -149,7 +149,7 @@ size_t atm2x(
     for (int icl = 0; icl < ctl->ncl; icl++)
       atm2x_help(atm->clk[icl], IDXCLK(icl), 0, x, iqa, ipa, &n);
 
-  /* Add surface parameters... */
+  /* Add surface variables... */
   if (ctl->ret_sft)
     atm2x_help(atm->sft, IDXSFT, 0, x, iqa, ipa, &n);
   if (ctl->ret_sfeps)
@@ -1126,7 +1126,7 @@ void climatology(
     for (int icl = 0; icl < ctl->ncl; icl++)
       atm->clk[icl] = 0;
 
-    /* Set surface layer... */
+    /* Set surface... */
     atm->sft = 0;
     for (int isf = 0; isf < ctl->nsf; isf++)
       atm->sfeps[isf] = 1;
@@ -1190,7 +1190,6 @@ double cost_function(
 
   /* Allocate... */
   gsl_vector *x_aux = gsl_vector_alloc(n);
-  gsl_vector *y_aux = gsl_vector_alloc(m);
 
   /* Determine normalized cost function...
      (chi^2 = 1/m * [dy^T * S_eps^{-1} * dy + dx^T * S_a^{-1} * dx]) */
@@ -1201,7 +1200,6 @@ double cost_function(
 
   /* Free... */
   gsl_vector_free(x_aux);
-  gsl_vector_free(y_aux);
 
   /* Return cost function value... */
   return (chisq_m + chisq_a) / (double) m;
@@ -3433,7 +3431,7 @@ void formod(
 
   /* Call RFM... */
   else if (ctl->formod == 2)
-    formod_rfm(ctl, atm, obs);
+    formod_rfm(ctl, tbl, atm, obs);
 
   /* Apply field-of-view convolution... */
   formod_fov(ctl, obs);
@@ -3694,6 +3692,7 @@ void formod_pencil(
 
 void formod_rfm(
   const ctl_t *ctl,
+  const tbl_t *tbl,
   const atm_t *atm,
   obs_t *obs) {
 
@@ -3701,13 +3700,12 @@ void formod_rfm(
 
   FILE *out;
 
-  char cmd[2 * LEN], filename[2 * LEN],
-    rfmflg[LEN] = { "RAD TRA MIX LIN SFC" };
+  char cmd[2 * LEN], rfmflg[LEN] = { "RAD TRA MIX LIN SFC" };
 
   double f[NSHAPE], nu[NSHAPE], nu0, nu1, obsz = -999, tsurf,
     xd[3], xo[3], xv[3], z[NR], zmin, zmax;
 
-  int n, nadir = 0;
+  int n, nadir = 0, zenith = 0;
 
   /* Allocate... */
   ALLOC(los, los_t, 1);
@@ -3740,29 +3738,47 @@ void formod_rfm(
     /* Raytracing... */
     raytrace(ctl, atm, obs, los, ir);
 
-    /* Nadir? */
+    /* Nadir or zenith? (air mass factor / secant of zenith angle) */
     if (obs->tpz[ir] <= zmin) {
+
+      /* Nadir: path intersects the surface. */
       geo2cart(obs->obsz[ir], obs->obslon[ir], obs->obslat[ir], xo);
       geo2cart(obs->vpz[ir], obs->vplon[ir], obs->vplat[ir], xv);
       for (int i = 0; i < 3; i++)
 	xd[i] = xo[i] - xv[i];
       z[ir] = NORM(xo) * NORM(xd) / DOTP(xo, xd);
       nadir++;
+
+    } else if (obs->tpz[ir] >= zmax - 1e-3 && obs->vpz[ir] > obs->obsz[ir]) {
+
+      /* Zenith: upward-looking path leaves the atmosphere at the top boundary. */
+      geo2cart(obs->obsz[ir], obs->obslon[ir], obs->obslat[ir], xo);
+      geo2cart(obs->vpz[ir], obs->vplon[ir], obs->vplat[ir], xv);
+      for (int i = 0; i < 3; i++)
+	xd[i] = xv[i] - xo[i];
+      z[ir] = NORM(xo) * NORM(xd) / DOTP(xo, xd);
+      zenith++;
+
     } else
+      /* Limb: use tangent altitude. */
       z[ir] = obs->tpz[ir];
   }
-  if (nadir > 0 && nadir < obs->nr)
-    ERRMSG("Limb and nadir not simultaneously possible!");
+  if ((nadir > 0 && nadir < obs->nr)
+      || (zenith > 0 && zenith < obs->nr)
+      || (nadir > 0 && zenith > 0))
+    ERRMSG("Limb, nadir, and zenith not simultaneously possible!");
 
-  /* Nadir? */
+  /* Viewing geometry... */
   if (nadir)
     strcat(rfmflg, " NAD");
+  if (zenith)
+    strcat(rfmflg, " ZEN");
 
   /* Get surface temperature... */
   tsurf = atm->t[gsl_stats_min_index(atm->z, 1, (size_t) atm->np)];
 
   /* Refraction? */
-  if (!nadir && !ctl->refrac)
+  if (!nadir && !zenith && !ctl->refrac)
     strcat(rfmflg, " GEO");
 
   /* Continua? */
@@ -3775,9 +3791,12 @@ void formod_rfm(
   /* Loop over channels... */
   for (int id = 0; id < ctl->nd; id++) {
 
-    /* Read filter function... */
-    sprintf(filename, "%s_%.4f.filt", ctl->tblbase, ctl->nu[id]);
-    read_shape(filename, nu, f, &n);
+    /* Get filter function from lookup table... */
+    n = tbl->filt_n[id];
+    if (n <= 0 || n > NSHAPE)
+      ERRMSG("Missing or invalid filter function in lookup table!");
+    memcpy(nu, tbl->filt_nu[id], (size_t) n * sizeof(double));
+    memcpy(f, tbl->filt_f[id], (size_t) n * sizeof(double));
 
     /* Set spectral range... */
     nu0 = nu[0];
@@ -3973,12 +3992,6 @@ void init_srcfunc(
   const ctl_t *ctl,
   tbl_t *tbl) {
 
-  char filename[2 * LEN];
-
-  double f[NSHAPE], nu[NSHAPE];
-
-  int n;
-
   /* Write info... */
   LOG(1, "Initialize source function table...");
   LOG(2, "Number of data points: %d", TBLNS);
@@ -3986,17 +3999,13 @@ void init_srcfunc(
   /* Loop over channels... */
   for (int id = 0; id < ctl->nd; id++) {
 
-    /* Read filter function... */
-    sprintf(filename, "%s_%.4f.filt", ctl->tblbase, ctl->nu[id]);
-    read_shape(filename, nu, f, &n);
-
     /* Get minimum grid spacing... */
     double dnu = 1.0;
-    for (int i = 1; i < n; i++)
-      dnu = MIN(dnu, nu[i] - nu[i - 1]);
+    for (int i = 1; i < tbl->filt_n[id]; i++)
+      dnu = MIN(dnu, tbl->filt_nu[id][i] - tbl->filt_nu[id][i - 1]);
 
     /* Compute source function table... */
-#pragma omp parallel for default(none) shared(ctl,tbl,id,nu,f,n,dnu)
+#pragma omp parallel for default(none) shared(ctl,tbl,id,dnu)
     for (int it = 0; it < TBLNS; it++) {
 
       /* Set temperature... */
@@ -4004,9 +4013,12 @@ void init_srcfunc(
 
       /* Integrate Planck function... */
       double fsum = tbl->sr[it][id] = 0;
-      for (double fnu = nu[0]; fnu <= nu[n - 1]; fnu += dnu) {
-	const int i = locate_irr(nu, n, fnu);
-	const double ff = LIN(nu[i], f[i], nu[i + 1], f[i + 1], fnu);
+      for (double fnu = tbl->filt_nu[id][0];
+	   fnu <= tbl->filt_nu[id][tbl->filt_n[id] - 1]; fnu += dnu) {
+	const int i = locate_irr(tbl->filt_nu[id], tbl->filt_n[id], fnu);
+	const double ff = LIN(tbl->filt_nu[id][i], tbl->filt_f[id][i],
+			      tbl->filt_nu[id][i + 1], tbl->filt_f[id][i + 1],
+			      fnu);
 	fsum += ff;
 	tbl->sr[it][id] += ff * PLANCK(tbl->st[it], fnu);
       }
@@ -4056,7 +4068,11 @@ void intpol_tbl_cga(
   double tau_path[ND][NG],
   double tau_seg[ND]) {
 
-  double eps;
+  double eps, lnp[NG];
+
+  /* Precompute log-pressure... */
+  for (int ig = 0; ig < ctl->ng; ig++)
+    lnp[ig] = log(los->cgp[ip][ig]);
 
   /* Loop over channels... */
   for (int id = 0; id < ctl->nd; id++) {
@@ -4098,14 +4114,11 @@ void intpol_tbl_cga(
 	else {
 
 	  /* Get emissivities of extended path... */
-	  double eps00
-	    = intpol_tbl_eps(tbl, ig, id, ipr, it0, los->cgu[ip][ig]);
-	  double eps01 =
-	    intpol_tbl_eps(tbl, ig, id, ipr, it0 + 1, los->cgu[ip][ig]);
-	  double eps10 =
-	    intpol_tbl_eps(tbl, ig, id, ipr + 1, it1, los->cgu[ip][ig]);
-	  double eps11 =
-	    intpol_tbl_eps(tbl, ig, id, ipr + 1, it1 + 1, los->cgu[ip][ig]);
+	  const double logu = log(los->cgu[ip][ig]);
+	  double eps00 = intpol_tbl_eps(tbl, ig, id, ipr, it0, logu);
+	  double eps01 = intpol_tbl_eps(tbl, ig, id, ipr, it0 + 1, logu);
+	  double eps10 = intpol_tbl_eps(tbl, ig, id, ipr + 1, it1, logu);
+	  double eps11 = intpol_tbl_eps(tbl, ig, id, ipr + 1, it1 + 1, logu);
 
 	  /* Interpolate with respect to temperature... */
 	  eps00 = LIN(tbl->t[id][ig][ipr][it0], eps00,
@@ -4114,12 +4127,12 @@ void intpol_tbl_cga(
 		      tbl->t[id][ig][ipr + 1][it1 + 1],
 		      eps11, los->cgt[ip][ig]);
 
-	  /* Interpolate with respect to pressure... */
-	  eps00 = LOGX(tbl->p[id][ig][ipr], eps00,
-		       tbl->p[id][ig][ipr + 1], eps11, los->cgp[ip][ig]);
+	  /* Interpolate with respect to log-pressure... */
+	  eps00 = LIN(tbl->lnp[id][ig][ipr], eps00,
+		      tbl->lnp[id][ig][ipr + 1], eps11, lnp[ig]);
 
 	  /* Check emissivity range... */
-	  eps00 = MAX(MIN(eps00, 1), 0);
+	  eps00 = CLAMP(eps00, 0, 1);
 
 	  /* Determine segment emissivity... */
 	  eps = 1 - (1 - eps00) / tau_path[id][ig];
@@ -4144,6 +4157,8 @@ void intpol_tbl_ega(
   const int ip,
   double tau_path[ND][NG],
   double tau_seg[ND]) {
+
+  const double lnp = log(los->p[ip]);
 
   double eps, u;
 
@@ -4187,22 +4202,23 @@ void intpol_tbl_ega(
 	else {
 
 	  /* Get emissivities of extended path... */
-	  u = intpol_tbl_u(tbl, ig, id, ipr, it0, 1 - tau_path[id][ig]);
+	  const double logeps = log(1.0 - tau_path[id][ig]);
+
+	  u = intpol_tbl_u(tbl, ig, id, ipr, it0, logeps);
 	  double eps00
-	    = intpol_tbl_eps(tbl, ig, id, ipr, it0, u + los->u[ip][ig]);
+	    = intpol_tbl_eps(tbl, ig, id, ipr, it0, log(u + los->u[ip][ig]));
 
-	  u = intpol_tbl_u(tbl, ig, id, ipr, it0 + 1, 1 - tau_path[id][ig]);
-	  double eps01 =
-	    intpol_tbl_eps(tbl, ig, id, ipr, it0 + 1, u + los->u[ip][ig]);
+	  u = intpol_tbl_u(tbl, ig, id, ipr, it0 + 1, logeps);
+	  double eps01 = intpol_tbl_eps(tbl, ig, id, ipr, it0 + 1,
+					log(u + los->u[ip][ig]));
 
-	  u = intpol_tbl_u(tbl, ig, id, ipr + 1, it1, 1 - tau_path[id][ig]);
-	  double eps10 =
-	    intpol_tbl_eps(tbl, ig, id, ipr + 1, it1, u + los->u[ip][ig]);
+	  u = intpol_tbl_u(tbl, ig, id, ipr + 1, it1, logeps);
+	  double eps10 = intpol_tbl_eps(tbl, ig, id, ipr + 1, it1,
+					log(u + los->u[ip][ig]));
 
-	  u =
-	    intpol_tbl_u(tbl, ig, id, ipr + 1, it1 + 1, 1 - tau_path[id][ig]);
-	  double eps11 =
-	    intpol_tbl_eps(tbl, ig, id, ipr + 1, it1 + 1, u + los->u[ip][ig]);
+	  u = intpol_tbl_u(tbl, ig, id, ipr + 1, it1 + 1, logeps);
+	  double eps11 = intpol_tbl_eps(tbl, ig, id, ipr + 1, it1 + 1,
+					log(u + los->u[ip][ig]));
 
 	  /* Interpolate with respect to temperature... */
 	  eps00 = LIN(tbl->t[id][ig][ipr][it0], eps00,
@@ -4210,12 +4226,12 @@ void intpol_tbl_ega(
 	  eps11 = LIN(tbl->t[id][ig][ipr + 1][it1], eps10,
 		      tbl->t[id][ig][ipr + 1][it1 + 1], eps11, los->t[ip]);
 
-	  /* Interpolate with respect to pressure... */
-	  eps00 = LIN(tbl->p[id][ig][ipr], eps00,
-		      tbl->p[id][ig][ipr + 1], eps11, los->p[ip]);
+	  /* Interpolate with respect to log-pressure... */
+	  eps00 = LIN(tbl->lnp[id][ig][ipr], eps00,
+		      tbl->lnp[id][ig][ipr + 1], eps11, lnp);
 
 	  /* Check emissivity range... */
-	  eps00 = MAX(MIN(eps00, 1), 0);
+	  eps00 = CLAMP(eps00, 0, 1);
 
 	  /* Determine segment emissivity... */
 	  eps = 1 - (1 - eps00) / tau_path[id][ig];
@@ -4239,28 +4255,41 @@ inline double intpol_tbl_eps(
   const int id,
   const int ip,
   const int it,
-  const double u) {
+  const double logu) {
 
   const int nu = tbl->nu[id][ig][ip][it];
-  const float *u_arr = tbl->u[id][ig][ip][it];
-  const float *eps_arr = tbl->eps[id][ig][ip][it];
+  const float *logu_arr = tbl->logu[id][ig][ip][it];
+  const float *logeps_arr = tbl->logeps[id][ig][ip][it];
 
-  const double u_min = u_arr[0];
-  const double u_max = u_arr[nu - 1];
+  /* Work in log-space and only convert back when needed... */
+  const double logu_min = (double) logu_arr[0];
+  const double logu_max = (double) logu_arr[nu - 1];
 
-  /* Lower boundary extrapolation... */
-  if (u < u_min)
-    return eps_arr[0] * u / u_min;
-
-  /* Upper boundary extrapolation... */
-  if (u > u_max) {
-    const double a = log(1.0 - eps_arr[nu - 1]) / u_max;
-    return 1.0 - exp(a * u);
+  /* Lower boundary extrapolation (u < u_min)...
+     eps ~ eps_min * u/u_min => log(eps) = logeps_min + log(u) - log(u_min) */
+  if (logu < logu_min) {
+    const double logeps_min = (double) logeps_arr[0];
+    return exp(logeps_min + logu - logu_min);
   }
 
-  /* Interpolation... */
-  const int idx = locate_tbl(u_arr, nu, u);
-  return LIN(u_arr[idx], eps_arr[idx], u_arr[idx + 1], eps_arr[idx + 1], u);
+  /* Upper boundary extrapolation (u > u_max)...
+   * Assume eps(u) approaches 1 exponentially:
+   *   eps(u) = 1 - exp(a * u),  a < 0
+   * Continuity at (u_max, eps_max) gives
+   *   a = log(1 - eps_max) / u_max.
+   * Use log1p/expm1 and u/u_max = exp(log(u) - log(u_max)) for stability.
+   */
+  if (logu > logu_max) {
+    const double eps_max = exp((double) logeps_arr[nu - 1]);
+    const double l1m_eps_max = log1p(-eps_max);
+    const double r = exp(logu - logu_max);
+    return -expm1(l1m_eps_max * r);
+  }
+
+  /* Interpolation (log-log using precomputed logs)... */
+  const int idx = locate_tbl(logu_arr, nu, logu);
+  return exp(LIN(logu_arr[idx], logeps_arr[idx],
+		 logu_arr[idx + 1], logeps_arr[idx + 1], logu));
 }
 
 /*****************************************************************************/
@@ -4271,28 +4300,42 @@ inline double intpol_tbl_u(
   const int id,
   const int ip,
   const int it,
-  const double eps) {
+  const double logeps) {
 
   const int nu = tbl->nu[id][ig][ip][it];
-  const float *eps_arr = tbl->eps[id][ig][ip][it];
-  const float *u_arr = tbl->u[id][ig][ip][it];
+  const float *logeps_arr = tbl->logeps[id][ig][ip][it];
+  const float *logu_arr = tbl->logu[id][ig][ip][it];
 
-  const double eps_min = eps_arr[0];
-  const double eps_max = eps_arr[nu - 1];
+  /* Work in log-space and only convert back when needed.... */
+  const double logeps_min = (double) logeps_arr[0];
+  const double logeps_max = (double) logeps_arr[nu - 1];
 
-  /* Lower boundary extrapolation... */
-  if (eps < eps_min)
-    return u_arr[0] * eps / eps_min;
-
-  /* Upper boundary extrapolation... */
-  if (eps > eps_max) {
-    const double a = log(1.0 - eps_max) / u_arr[nu - 1];
-    return log(1.0 - eps) / a;
+  /* Lower boundary extrapolation (eps < eps_min)...
+     u ~ u_min * eps/eps_min => log(u) = log(u_min) + log(eps) - log(eps_min) */
+  if (logeps < logeps_min) {
+    const double logu_min = (double) logu_arr[0];
+    return exp(logu_min + logeps - logeps_min);
   }
 
-  /* Interpolation... */
-  const int idx = locate_tbl(eps_arr, nu, eps);
-  return LIN(eps_arr[idx], u_arr[idx], eps_arr[idx + 1], u_arr[idx + 1], eps);
+  /* Upper boundary extrapolation (eps > eps_max):
+   * Invert the exponential tail used for eps(u):
+   *   u = log(1 - eps) / a,
+   * with a = log(1 - eps_max) / u_max.
+   * Rewritten as
+   *   u = u_max * log(tau) / log(1 - eps_max)
+   * for numerical stability (log1p).
+   */
+  if (logeps > logeps_max) {
+    const double u_max = exp((double) logu_arr[nu - 1]);
+    const double l1m_eps_max = log1p(-exp(logeps_max));
+    const double logtau = log1p(-exp(logeps));
+    return u_max * (logtau / l1m_eps_max);
+  }
+
+  /* Interpolation (log-log using precomputed logs)... */
+  const int idx = locate_tbl(logeps_arr, nu, logeps);
+  return exp(LIN(logeps_arr[idx], logu_arr[idx],
+		 logeps_arr[idx + 1], logu_arr[idx + 1], logeps));
 }
 
 /*****************************************************************************/
@@ -4724,10 +4767,10 @@ void optimal_estimation(
 
       /* Check atmospheric state... */
       for (int ip = 0; ip < atm_i->np; ip++) {
-	atm_i->p[ip] = MIN(MAX(atm_i->p[ip], 5e-7), 5e4);
-	atm_i->t[ip] = MIN(MAX(atm_i->t[ip], 100), 400);
+	atm_i->p[ip] = CLAMP(atm_i->p[ip], 5e-7, 5e4);
+	atm_i->t[ip] = CLAMP(atm_i->t[ip], 100, 400);
 	for (int ig = 0; ig < ctl->ng; ig++)
-	  atm_i->q[ig][ip] = MIN(MAX(atm_i->q[ig][ip], 0), 1);
+	  atm_i->q[ig][ip] = CLAMP(atm_i->q[ig][ip], 0, 1);
 	for (int iw = 0; iw < ctl->nw; iw++)
 	  atm_i->k[iw][ip] = MAX(atm_i->k[iw][ip], 0);
       }
@@ -4735,9 +4778,9 @@ void optimal_estimation(
       atm_i->cldz = MAX(atm_i->cldz, 0.1);
       for (int icl = 0; icl < ctl->ncl; icl++)
 	atm_i->clk[icl] = MAX(atm_i->clk[icl], 0);
-      atm_i->sft = MIN(MAX(atm_i->sft, 100), 400);
+      atm_i->sft = CLAMP(atm_i->sft, 100, 400);
       for (int isf = 0; isf < ctl->nsf; isf++)
-	atm_i->sfeps[isf] = MIN(MAX(atm_i->sfeps[isf], 0), 1);
+	atm_i->sfeps[isf] = CLAMP(atm_i->sfeps[isf], 0, 1);
 
       /* Forward calculation... */
       formod(ctl, tbl, atm_i, obs_i);
@@ -4894,17 +4937,9 @@ void raytrace(
   /* Get altitude range of atmospheric data... */
   gsl_stats_minmax(&zmin, &zmax, atm->z, 1, (size_t) atm->np);
 
-  /* Ensure that altitude grid includes the local geometric surface... */
-  if (zmin > 1e-3 || zmin < -1e-3)
-    ERRMSG("Atmospheric profiles must include surface level (z = 0 km)!");
-
   /* Check observer altitude... */
   if (obs->obsz[ir] < zmin)
     ERRMSG("Observer below surface!");
-
-  /* Check view point altitude... */
-  if (obs->vpz[ir] > zmax)
-    return;
 
   /* Determine Cartesian coordinates for observer and view point... */
   geo2cart(obs->obsz[ir], obs->obslon[ir], obs->obslat[ir], xobs);
@@ -5112,8 +5147,6 @@ void read_atm(
   const ctl_t *ctl,
   atm_t *atm) {
 
-  FILE *in;
-
   char file[LEN];
 
   /* Init... */
@@ -5128,24 +5161,17 @@ void read_atm(
   /* Write info... */
   LOG(1, "Read atmospheric data: %s", file);
 
-  /* Open file... */
-  if (!(in = fopen(file, "r")))
-    ERRMSG("Cannot open file!");
-
   /* Read ASCII data... */
   if (ctl->atmfmt == 1)
-    read_atm_asc(in, ctl, atm);
+    read_atm_asc(file, ctl, atm);
 
   /* Read binary data... */
   else if (ctl->atmfmt == 2)
-    read_atm_bin(in, ctl, atm);
+    read_atm_bin(file, ctl, atm);
 
-  /* Error... */
-  else
-    ERRMSG("Unknown atmospheric data file format, check ATMFMT!");
-
-  /* Close file... */
-  fclose(in);
+  /* Read netCDF data... */
+  else if (ctl->atmfmt == 3)
+    read_atm_nc(file, ctl, atm, 0);
 
   /* Check number of points... */
   if (atm->np < 1)
@@ -5174,23 +5200,23 @@ void read_atm(
     gsl_stats_minmax(&mini, &maxi, atm->k[iw], 1, (size_t) atm->np);
     LOG(2, "Extinction range (window %d): %g ... %g km^-1", iw, mini, maxi);
   }
-  if (ctl->ncl > 0 && atm->np == 0) {
+  if (ctl->ncl > 0) {
     LOG(2, "Cloud layer: z= %g km | dz= %g km | k= %g ... %g km^-1",
 	atm->clz, atm->cldz, atm->clk[0], atm->clk[ctl->ncl - 1]);
   } else
     LOG(2, "Cloud layer: none");
-  if (ctl->nsf > 0 && atm->np == 0) {
+  if (ctl->nsf > 0) {
     LOG(2,
-	"Surface layer: T_s = %g K | eps= %g ... %g",
+	"Surface: T_s = %g K | eps= %g ... %g",
 	atm->sft, atm->sfeps[0], atm->sfeps[ctl->nsf - 1]);
   } else
-    LOG(2, "Surface layer: none");
+    LOG(2, "Surface: none");
 }
 
 /*****************************************************************************/
 
 void read_atm_asc(
-  FILE *in,
+  const char *filename,
   const ctl_t *ctl,
   atm_t *atm) {
 
@@ -5198,6 +5224,11 @@ void read_atm_asc(
 
   /* Init... */
   atm->np = 0;
+
+  /* Open file... */
+  FILE *in;
+  if (!(in = fopen(filename, "r")))
+    ERRMSG("Cannot open file!");
 
   /* Read line... */
   while (fgets(line, LEN, in)) {
@@ -5229,14 +5260,22 @@ void read_atm_asc(
     if ((++atm->np) > NP)
       ERRMSG("Too many data points!");
   }
+
+  /* Close file... */
+  fclose(in);
 }
 
 /*****************************************************************************/
 
 void read_atm_bin(
-  FILE *in,
+  const char *filename,
   const ctl_t *ctl,
   atm_t *atm) {
+
+  /* Open file... */
+  FILE *in;
+  if (!(in = fopen(filename, "r")))
+    ERRMSG("Cannot open file!");
 
   /* Read header... */
   char magic[4];
@@ -5315,6 +5354,113 @@ void read_atm_bin(
 	    (size_t) ctl->nsf,
 	  in);
   }
+
+  /* Close file... */
+  fclose(in);
+}
+
+/*****************************************************************************/
+
+void read_atm_nc(
+  const char *filename,
+  const ctl_t *ctl,
+  atm_t *atm,
+  int profile) {
+
+  int ncid, var_time, var_z, var_lon, var_lat, var_p, var_t, var_q[NG],
+    var_k[NW], var_cz = -1, var_cdz = -1, var_ck[NCL], var_sft =
+    -1, var_sfe[NSF], var_nlev = -1;
+
+  char varname[LEN];
+
+  /* Open file... */
+  NC(nc_open(filename, NC_NOWRITE, &ncid));
+
+  /* Initialize hyperslab... */
+  size_t start[2] = { (size_t) profile, 0 };
+  size_t count[2] = { 1, 0 };
+
+  /* Determine atm->np... */
+  NC(nc_inq_varid(ncid, "nlev", &var_nlev));
+  NC(nc_get_vara_int(ncid, var_nlev, start, count, &atm->np));
+  if (atm->np < 1 || atm->np > NP)
+    ERRMSG("Number of level out of range!");
+
+  /* Update hyperslab... */
+  count[1] = (size_t) atm->np;
+
+  /* Inquire core variables... */
+  NC(nc_inq_varid(ncid, "time", &var_time));
+  NC(nc_inq_varid(ncid, "z", &var_z));
+  NC(nc_inq_varid(ncid, "lon", &var_lon));
+  NC(nc_inq_varid(ncid, "lat", &var_lat));
+  NC(nc_inq_varid(ncid, "p", &var_p));
+  NC(nc_inq_varid(ncid, "t", &var_t));
+
+  /* Inquire emiters... */
+  for (int ig = 0; ig < ctl->ng; ig++)
+    NC(nc_inq_varid(ncid, ctl->emitter[ig], &var_q[ig]));
+
+  /* Inquire extinctions... */
+  for (int iw = 0; iw < ctl->nw; iw++) {
+    sprintf(varname, "ext_win_%d", iw);
+    NC(nc_inq_varid(ncid, varname, &var_k[iw]));
+  }
+
+  /* Inquire cloud variables... */
+  if (ctl->ncl > 0) {
+    NC(nc_inq_varid(ncid, "cld_z", &var_cz));
+    NC(nc_inq_varid(ncid, "cld_dz", &var_cdz));
+    for (int icl = 0; icl < ctl->ncl; icl++) {
+      sprintf(varname, "cld_k_%.4f", ctl->clnu[icl]);
+      NC(nc_inq_varid(ncid, varname, &var_ck[icl]));
+    }
+  }
+
+  /* Inquire surface variables... */
+  if (ctl->nsf > 0) {
+    NC(nc_inq_varid(ncid, "srf_t", &var_sft));
+    for (int isf = 0; isf < ctl->nsf; isf++) {
+      sprintf(varname, "srf_eps_%.4f", ctl->sfnu[isf]);
+      NC(nc_inq_varid(ncid, varname, &var_sfe[isf]));
+    }
+  }
+
+  /* Read core variables... */
+  NC(nc_get_vara_double(ncid, var_time, start, count, atm->time));
+  NC(nc_get_vara_double(ncid, var_z, start, count, atm->z));
+  NC(nc_get_vara_double(ncid, var_lon, start, count, atm->lon));
+  NC(nc_get_vara_double(ncid, var_lat, start, count, atm->lat));
+  NC(nc_get_vara_double(ncid, var_p, start, count, atm->p));
+  NC(nc_get_vara_double(ncid, var_t, start, count, atm->t));
+
+  /* Read emitters... */
+  for (int ig = 0; ig < ctl->ng; ig++)
+    NC(nc_get_vara_double(ncid, var_q[ig], start, count, atm->q[ig]));
+
+  /* Read extinctions... */
+  for (int iw = 0; iw < ctl->nw; iw++)
+    NC(nc_get_vara_double(ncid, var_k[iw], start, count, atm->k[iw]));
+
+  /* Read cloud variables... */
+  if (ctl->ncl > 0) {
+    NC(nc_get_vara_double(ncid, var_cz, start, count, &atm->clz));
+    NC(nc_get_vara_double(ncid, var_cdz, start, count, &atm->cldz));
+    for (int icl = 0; icl < ctl->ncl; icl++)
+      NC(nc_get_vara_double(ncid, var_ck[icl], start, count, &atm->clk[icl]));
+  }
+
+  /* Read surface variables... */
+  if (ctl->nsf > 0) {
+    NC(nc_get_vara_double(ncid, var_sft, start, count, &atm->sft));
+
+    for (int isf = 0; isf < ctl->nsf; isf++)
+      NC(nc_get_vara_double
+	 (ncid, var_sfe[isf], start, count, &atm->sfeps[isf]));
+  }
+
+  /* Close file... */
+  NC(nc_close(ncid));
 }
 
 /*****************************************************************************/
@@ -5379,10 +5525,16 @@ void read_ctl(
   /* Emissivity look-up tables... */
   scan_ctl(argc, argv, "TBLBASE", -1, "-", ctl->tblbase);
   ctl->tblfmt = (int) scan_ctl(argc, argv, "TBLFMT", -1, "1", NULL);
+  if (ctl->tblfmt < 1 || ctl->tblfmt > 3)
+    ERRMSG("Unknown look-up table file format, set TBLFMT to 1, 2, or 3!");
 
   /* File formats... */
   ctl->atmfmt = (int) scan_ctl(argc, argv, "ATMFMT", -1, "1", NULL);
+  if (ctl->atmfmt < 1 || ctl->atmfmt > 3)
+    ERRMSG("Unknown atmospheric file format, set ATMFMT to 1, 2, or 3!");
   ctl->obsfmt = (int) scan_ctl(argc, argv, "OBSFMT", -1, "1", NULL);
+  if (ctl->obsfmt < 1 || ctl->obsfmt > 3)
+    ERRMSG("Unknown observation file format, set OBSFMT to 1, 2, or 3!");
 
   /* Hydrostatic equilibrium... */
   ctl->hydz = scan_ctl(argc, argv, "HYDZ", -1, "-999", NULL);
@@ -5483,8 +5635,6 @@ void read_obs(
   const ctl_t *ctl,
   obs_t *obs) {
 
-  FILE *in;
-
   char file[LEN];
 
   /* Set filename... */
@@ -5496,24 +5646,17 @@ void read_obs(
   /* Write info... */
   LOG(1, "Read observation data: %s", file);
 
-  /* Open file... */
-  if (!(in = fopen(file, "r")))
-    ERRMSG("Cannot open file!");
-
   /* Read ASCII data... */
   if (ctl->obsfmt == 1)
-    read_obs_asc(in, ctl, obs);
+    read_obs_asc(file, ctl, obs);
 
   /* Read binary data... */
   else if (ctl->obsfmt == 2)
-    read_obs_bin(in, ctl, obs);
+    read_obs_bin(file, ctl, obs);
 
-  /* Error... */
-  else
-    ERRMSG("Unknown observation file format!");
-
-  /* Close file... */
-  fclose(in);
+  /* Read netCDF data... */
+  else if (ctl->obsfmt == 3)
+    read_obs_nc(file, ctl, obs, 0);
 
   /* Check number of points... */
   if (obs->nr < 1)
@@ -5564,7 +5707,7 @@ void read_obs(
 /*****************************************************************************/
 
 void read_obs_asc(
-  FILE *in,
+  const char *filename,
   const ctl_t *ctl,
   obs_t *obs) {
 
@@ -5572,6 +5715,11 @@ void read_obs_asc(
 
   /* Init... */
   obs->nr = 0;
+
+  /* Open file... */
+  FILE *in;
+  if (!(in = fopen(filename, "r")))
+    ERRMSG("Cannot open file!");
 
   /* Read line... */
   while (fgets(line, LEN, in)) {
@@ -5596,14 +5744,22 @@ void read_obs_asc(
     if ((++obs->nr) > NR)
       ERRMSG("Too many rays!");
   }
+
+  /* Close file... */
+  fclose(in);
 }
 
 /*****************************************************************************/
 
 void read_obs_bin(
-  FILE *in,
+  const char *filename,
   const ctl_t *ctl,
   obs_t *obs) {
+
+  /* Open file... */
+  FILE *in;
+  if (!(in = fopen(filename, "r")))
+    ERRMSG("Cannot open file!");
 
   /* Read header... */
   char magic[4];
@@ -5666,6 +5822,87 @@ void read_obs_bin(
     FREAD(obs->tau[id], double,
 	  nr,
 	  in);
+
+  /* Close file... */
+  fclose(in);
+}
+
+/*****************************************************************************/
+
+void read_obs_nc(
+  const char *filename,
+  const ctl_t *ctl,
+  obs_t *obs,
+  const int profile) {
+
+  int ncid, var_nray = -1, var_time = -1, var_obsz = -1, var_obslon =
+    -1, var_obslat = -1, var_vpz = -1, var_vplon = -1, var_vplat =
+    -1, var_tpz = -1, var_tplon = -1, var_tplat =
+    -1, var_rad[ND], var_tau[ND];
+
+  char varname[LEN];
+
+  /* Open file... */
+  NC(nc_open(filename, NC_NOWRITE, &ncid));
+
+  /* Initialize hyperslab... */
+  size_t start[2] = { (size_t) profile, 0 };
+  size_t count[2] = { 1, 0 };
+
+  /* Read nray(profile) -> obs->nr */
+  NC(nc_inq_varid(ncid, "nray", &var_nray));
+  NC(nc_get_vara_int(ncid, var_nray, start, count, &obs->nr));
+  if (obs->nr < 1 || obs->nr > NR)
+    ERRMSG("Number of ray paths out of range!");
+
+  /* Update hyperslab... */
+  count[1] = (size_t) obs->nr;
+
+  /* Inquire geometry variables... */
+  NC(nc_inq_varid(ncid, "time", &var_time));
+  NC(nc_inq_varid(ncid, "obs_z", &var_obsz));
+  NC(nc_inq_varid(ncid, "obs_lon", &var_obslon));
+  NC(nc_inq_varid(ncid, "obs_lat", &var_obslat));
+
+  NC(nc_inq_varid(ncid, "vp_z", &var_vpz));
+  NC(nc_inq_varid(ncid, "vp_lon", &var_vplon));
+  NC(nc_inq_varid(ncid, "vp_lat", &var_vplat));
+
+  NC(nc_inq_varid(ncid, "tp_z", &var_tpz));
+  NC(nc_inq_varid(ncid, "tp_lon", &var_tplon));
+  NC(nc_inq_varid(ncid, "tp_lat", &var_tplat));
+
+  /* Inquire spectral variables per channel... */
+  for (int id = 0; id < ctl->nd; id++) {
+    sprintf(varname, "rad_%.4f", ctl->nu[id]);
+    NC(nc_inq_varid(ncid, varname, &var_rad[id]));
+
+    sprintf(varname, "tau_%.4f", ctl->nu[id]);
+    NC(nc_inq_varid(ncid, varname, &var_tau[id]));
+  }
+
+  /* Read geometry... */
+  NC(nc_get_vara_double(ncid, var_time, start, count, obs->time));
+  NC(nc_get_vara_double(ncid, var_obsz, start, count, obs->obsz));
+  NC(nc_get_vara_double(ncid, var_obslon, start, count, obs->obslon));
+  NC(nc_get_vara_double(ncid, var_obslat, start, count, obs->obslat));
+
+  NC(nc_get_vara_double(ncid, var_vpz, start, count, obs->vpz));
+  NC(nc_get_vara_double(ncid, var_vplon, start, count, obs->vplon));
+  NC(nc_get_vara_double(ncid, var_vplat, start, count, obs->vplat));
+
+  NC(nc_get_vara_double(ncid, var_tpz, start, count, obs->tpz));
+  NC(nc_get_vara_double(ncid, var_tplon, start, count, obs->tplon));
+  NC(nc_get_vara_double(ncid, var_tplat, start, count, obs->tplat));
+
+  /* Read radiance and transmittance... */
+  for (int id = 0; id < ctl->nd; id++) {
+    NC(nc_get_vara_double(ncid, var_rad[id], start, count, obs->rad[id]));
+    NC(nc_get_vara_double(ncid, var_tau[id], start, count, obs->tau[id]));
+  }
+
+  /* Close file... */
+  NC(nc_close(ncid));
 }
 
 /*****************************************************************************/
@@ -5891,43 +6128,67 @@ tbl_t *read_tbl(
   tbl_t *tbl;
   ALLOC(tbl, tbl_t, 1);
 
-  /* Loop over trace gases and channels... */
+  /* Initialize filter function sizes... */
   for (int id = 0; id < ctl->nd; id++)
-    for (int ig = 0; ig < ctl->ng; ig++) {
+    tbl->filt_n[id] = 0;
 
-      /* Initialize... */
-      tbl->np[id][ig] = -1;
+  /* Loop over trace gases... */
+  for (int ig = 0; ig < ctl->ng; ig++) {
 
-      /* Read ASCII look-up tables... */
-      if (ctl->tblfmt == 1)
+    /* Read ASCII look-up tables... */
+    if (ctl->tblfmt == 1)
+      for (int id = 0; id < ctl->nd; id++) {
 	read_tbl_asc(ctl, tbl, id, ig);
+	TBL_LOG(tbl, id, ig);
+      }
 
-      /* Read binary look-up tables... */
-      else if (ctl->tblfmt == 2)
+    /* Read binary look-up tables... */
+    else if (ctl->tblfmt == 2)
+      for (int id = 0; id < ctl->nd; id++) {
 	read_tbl_bin(ctl, tbl, id, ig);
+	TBL_LOG(tbl, id, ig);
+      }
 
-      /* Read per-gas look-up tables... */
-      else if (ctl->tblfmt == 3)
-	read_tbl_gas(ctl, tbl, id, ig);
+    /* Read netCDF look-up tables... */
+    else if (ctl->tblfmt == 3) {
 
-      /* Error message... */
-      else
-	ERRMSG("Unknown look-up table format!");
+      /* Open file... */
+      int ncid;
+      char filename[2 * LEN];
+      sprintf(filename, "%s_%s.nc", ctl->tblbase, ctl->emitter[ig]);
+      if (nc_open(filename, NC_NOWRITE, &ncid) != NC_NOERR) {
+	WARN("Missing emissivity table: %s", filename);
+	continue;
+      } else
+	LOG(1, "Read emissivity table: %s", filename);
 
-      /* Write info... */
+      /* Read channels... */
+      for (int id = 0; id < ctl->nd; id++) {
+	read_tbl_nc_channel(ctl, tbl, id, ig, ncid);
+	TBL_LOG(tbl, id, ig);
+      }
+
+      /* Close file... */
+      NC(nc_close(ncid));
+    }
+  }
+
+  /* Calculate log-pressure... */
+  for (int id = 0; id < ctl->nd; id++)
+    for (int ig = 0; ig < ctl->ng; ig++)
       for (int ip = 0; ip < tbl->np[id][ig]; ip++)
-	LOG(2,
-	    "p[%2d]= %.5e hPa | T[0:%2d]= %.2f ... %.2f K | u[0:%3d]= %.5e ... %.5e molec/cm^2 | eps[0:%3d]= %.5e ... %.5e",
-	    ip, tbl->p[id][ig][ip], tbl->nt[id][ig][ip] - 1,
-	    tbl->t[id][ig][ip][0],
-	    tbl->t[id][ig][ip][tbl->nt[id][ig][ip] - 1],
-	    tbl->nu[id][ig][ip][0] - 1, tbl->u[id][ig][ip][0][0],
-	    tbl->u[id][ig][ip][0][tbl->nu[id][ig][ip][0] - 1],
-	    tbl->nu[id][ig][ip][0] - 1, tbl->eps[id][ig][ip][0][0],
-	    tbl->eps[id][ig][ip][0][tbl->nu[id][ig][ip][0] - 1]);
+	tbl->lnp[id][ig][ip] = log(tbl->p[id][ig][ip]);
+
+  /* Read filter functions... */
+  if (ctl->tblfmt == 1)
+    for (int id = 0; id < ctl->nd; id++) {
+      char filename[2 * LEN];
+      sprintf(filename, "%s_%.4f.filt", ctl->tblbase, ctl->nu[id]);
+      read_shape(filename, tbl->filt_nu[id], tbl->filt_f[id],
+		 &tbl->filt_n[id]);
     }
 
-  /* Initialize source function... */
+  /* Initialize source function lookup tables... */
   init_srcfunc(ctl, tbl);
 
   /* Return pointer... */
@@ -5943,8 +6204,8 @@ void read_tbl_asc(
   const int ig) {
 
   /* Initialize... */
-  double eps, eps_old = -999, press, press_old = -999, temp, temp_old =
-    -999, u, u_old = -999;
+  double eps, eps_old = -999, press, press_old = -999, temp,
+    temp_old = -999, u, u_old = -999;
   int nrange = 0;
 
   /* Set filename... */
@@ -5952,15 +6213,16 @@ void read_tbl_asc(
   sprintf(filename, "%s_%.4f_%s.tab", ctl->tblbase,
 	  ctl->nu[id], ctl->emitter[ig]);
 
-  /* Write info... */
-  LOG(1, "Read emissivity table: %s", filename);
-
-  /* Try to open file... */
+  /* Open file... */
   FILE *in;
   if (!(in = fopen(filename, "r"))) {
     WARN("Missing emissivity table: %s", filename);
     return;
-  }
+  } else
+    LOG(1, "Read emissivity table: %s", filename);
+
+  /* Init pressure level counter... */
+  tbl->np[id][ig] = -1;
 
   /* Read data... */
   char line[LEN];
@@ -5991,6 +6253,12 @@ void read_tbl_asc(
 	ERRMSG("Too many temperatures!");
       tbl->nu[id][ig][tbl->np[id][ig]]
 	[tbl->nt[id][ig][tbl->np[id][ig]]] = -1;
+
+      /* Reset dynamic arrays for this (ip,it) node... */
+      tbl->logu[id][ig][tbl->np[id][ig]]
+	[tbl->nt[id][ig][tbl->np[id][ig]]] = NULL;
+      tbl->logeps[id][ig][tbl->np[id][ig]]
+	[tbl->nt[id][ig][tbl->np[id][ig]]] = NULL;
     }
 
     /* Determine column density index... */
@@ -6001,18 +6269,36 @@ void read_tbl_asc(
       if ((++tbl->nu[id][ig][tbl->np[id][ig]]
 	   [tbl->nt[id][ig][tbl->np[id][ig]]]) >= TBLNU)
 	ERRMSG("Too many column densities!");
+
+      /* Grow dynamic arrays (nu is used as an index during reading). */
+      const int ip = tbl->np[id][ig];
+      const int it = tbl->nt[id][ig][ip];
+      const int iu = tbl->nu[id][ig][ip][it];
+      const size_t nnew = (size_t) (iu + 1);
+
+      float *tmp = (float *) realloc(tbl->logu[id][ig][ip][it],
+				     nnew * sizeof(float));
+      if (!tmp)
+	ERRMSG("Out of memory!");
+      tbl->logu[id][ig][ip][it] = tmp;
+
+      tmp =
+	(float *) realloc(tbl->logeps[id][ig][ip][it], nnew * sizeof(float));
+      if (!tmp)
+	ERRMSG("Out of memory!");
+      tbl->logeps[id][ig][ip][it] = tmp;
     }
 
     /* Store data... */
     tbl->p[id][ig][tbl->np[id][ig]] = press;
     tbl->t[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
       = temp;
-    tbl->u[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
+    tbl->logu[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
       [tbl->nu[id][ig][tbl->np[id][ig]]
-       [tbl->nt[id][ig][tbl->np[id][ig]]]] = (float) u;
-    tbl->eps[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
+       [tbl->nt[id][ig][tbl->np[id][ig]]]] = (float) log(u);
+    tbl->logeps[id][ig][tbl->np[id][ig]][tbl->nt[id][ig][tbl->np[id][ig]]]
       [tbl->nu[id][ig][tbl->np[id][ig]]
-       [tbl->nt[id][ig][tbl->np[id][ig]]]] = (float) eps;
+       [tbl->nt[id][ig][tbl->np[id][ig]]]] = (float) log(eps);
   }
 
   /* Increment counters... */
@@ -6042,224 +6328,75 @@ void read_tbl_bin(
 
   /* Set filename... */
   char filename[2 * LEN];
-  sprintf(filename, "%s_%.4f_%s.bin", ctl->tblbase,
-	  ctl->nu[id], ctl->emitter[ig]);
+  sprintf(filename, "%s_%.4f_%s.bin",
+	  ctl->tblbase, ctl->nu[id], ctl->emitter[ig]);
 
-  /* Write info... */
-  LOG(1, "Read emissivity table: %s", filename);
-
-  /* Try to open file... */
-  FILE *in;
-  if (!(in = fopen(filename, "r"))) {
+  /* Open file... */
+  FILE *in = fopen(filename, "rb");
+  if (!in) {
     WARN("Missing emissivity table: %s", filename);
     return;
-  }
+  } else
+    LOG(1, "Read emissivity table: %s", filename);
 
-  /* Read data... */
-  FREAD(&tbl->np[id][ig], int,
+  /* Read length.. */
+  size_t nbytes;
+  FREAD(&nbytes, size_t,
 	1,
 	in);
-  if (tbl->np[id][ig] > TBLNP)
-    ERRMSG("Too many pressure levels!");
-  FREAD(tbl->p[id][ig], double,
-	  (size_t) tbl->np[id][ig],
-	in);
-  for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
-    FREAD(&tbl->nt[id][ig][ip], int,
-	  1,
-	  in);
-    if (tbl->nt[id][ig][ip] > TBLNT)
-      ERRMSG("Too many temperatures!");
-    FREAD(tbl->t[id][ig][ip], double,
-	    (size_t) tbl->nt[id][ig][ip],
-	  in);
-    for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
-      FREAD(&tbl->nu[id][ig][ip][it], int,
-	    1,
-	    in);
-      if (tbl->nu[id][ig][ip][it] > TBLNU)
-	ERRMSG("Too many column densities!");
-      FREAD(tbl->u[id][ig][ip][it], float,
-	      (size_t) tbl->nu[id][ig][ip][it],
-	    in);
-      FREAD(tbl->eps[id][ig][ip][it], float,
-	      (size_t) tbl->nu[id][ig][ip][it],
-	    in);
-    }
-  }
+  if (nbytes <= 0)
+    ERRMSG("Invalid packed table size!");
+
+  /* Read packed blob... */
+  uint8_t *work = NULL;
+  ALLOC(work, uint8_t, nbytes);
+  FREAD(work, uint8_t, nbytes, in);
+
+  /* Unpack... */
+  tbl_unpack(tbl, id, ig, work);
 
   /* Close file... */
   fclose(in);
+
+  /* Free... */
+  free(work);
 }
 
 /*****************************************************************************/
 
-void read_tbl_gas(
+void read_tbl_nc_channel(
   const ctl_t *ctl,
   tbl_t *tbl,
-  const int id,
-  const int ig) {
+  int id,
+  int ig,
+  int ncid) {
 
-  /* Set filename... */
-  char filename[2 * LEN];
-  sprintf(filename, "%s_%s.tbl", ctl->tblbase, ctl->emitter[ig]);
+  char varname[LEN];
 
-  /* Write info... */
-  LOG(1, "Read emissivity table: %s", filename);
+  int varid, dimid;
 
-  /* Open file... */
-  tbl_gas_t gas;
-  if (read_tbl_gas_open(filename, &gas) != 0) {
-    WARN("Missing emissivity table: %s", filename);
+  size_t nbytes;
+
+  /* Inquire variable... */
+  sprintf(varname, "tbl_%.4f", ctl->nu[id]);
+  if (nc_inq_varid(ncid, varname, &varid) != NC_NOERR) {
+    WARN("Missing emissivity table: %s", varname);
     return;
-  }
+  } else
+    LOG(1, "Read emissivity table: %s", varname);
+  NC(nc_inq_vardimid(ncid, varid, &dimid));
+  NC(nc_inq_dimlen(ncid, dimid, &nbytes));
 
-  /* Read table... */
-  if (read_tbl_gas_single(&gas, ctl->nu[id], tbl, id, ig) != 0)
-    WARN("Frequency %.6f missing in %s", ctl->nu[id], filename);
+  /* Read variable... */
+  uint8_t *work = NULL;
+  ALLOC(work, uint8_t, nbytes);
+  NC(nc_get_var_uchar(ncid, varid, (unsigned char *) work));
 
-  /* Close file... */
-  read_tbl_gas_close(&gas);
-}
+  /* Unpack... */
+  tbl_unpack(tbl, id, ig, work);
 
-/*****************************************************************************/
-
-int read_tbl_gas_close(
-  tbl_gas_t *g) {
-
-  if (!g || !g->fp)
-    return -1;
-
-  if (g->dirty) {
-
-    /* Rewind to header... */
-    fseek(g->fp, 0, SEEK_SET);
-
-    /* Write header... */
-    const char magic[4] = { 'G', 'T', 'L', '1' };
-    FWRITE(magic, char,
-	   4,
-	   g->fp);
-    FWRITE(&g->ntables, int32_t, 1, g->fp);
-
-    /* Write updated index... */
-    FWRITE(g->index, tbl_gas_index_t, MAX_TABLES, g->fp);
-    fflush(g->fp);
-  }
-
-  /* Close file... */
-  fclose(g->fp);
-  free(g->index);
-  memset(g, 0, sizeof(*g));
-
-  return 0;
-}
-
-/*****************************************************************************/
-
-int read_tbl_gas_open(
-  const char *path,
-  tbl_gas_t *g) {
-
-  /* Open file... */
-  memset(g, 0, sizeof(*g));
-  g->fp = fopen(path, "rb+");	/* MUST be rb+ for writing later */
-  if (!g->fp)
-    return -1;
-  char magic[4];
-
-  /* Read header... */
-  FREAD(magic, char,
-	4,
-	g->fp);
-  if (memcmp(magic, "GTL1", 4) != 0)
-    ERRMSG("Invalid gas-table file format!");
-  FREAD(&g->ntables, int32_t, 1, g->fp);
-
-  /* Read index... */
-  ALLOC(g->index, tbl_gas_index_t, MAX_TABLES);
-  FREAD(g->index, tbl_gas_index_t, MAX_TABLES, g->fp);
-  g->dirty = 0;
-
-  return 0;
-}
-
-/*****************************************************************************/
-
-int read_tbl_gas_single(
-  const tbl_gas_t *g,
-  const double freq,
-  tbl_t *tbl,
-  const int id,
-  const int ig) {
-
-  /* Find freq in index */
-  int idx = -1;
-  for (int i = 0; i < g->ntables; i++) {
-    if (g->index[i].freq == freq) {
-      idx = i;
-      break;
-    }
-  }
-  if (idx < 0) {
-    WARN("Frequency %.4f not found in gas table", freq);
-    return -1;
-  }
-
-  /* Seek to table block... */
-  if (fseek(g->fp, (long) g->index[idx].offset, SEEK_SET) != 0)
-    ERRMSG("Seek error in read_tbl_gas_single!");
-
-  /* Read number of pressures... */
-  FREAD(&tbl->np[id][ig], int,
-	1,
-	g->fp);
-  if (tbl->np[id][ig] > TBLNP)
-    ERRMSG("Too many pressure levels!");
-
-  /* Read pressure grid... */
-  FREAD(tbl->p[id][ig], double,
-	  (size_t) tbl->np[id][ig],
-	g->fp);
-
-  /* Loop over pressure levels... */
-  for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
-
-    /* Read number of temperatures... */
-    FREAD(&tbl->nt[id][ig][ip], int,
-	  1,
-	  g->fp);
-    if (tbl->nt[id][ig][ip] > TBLNT)
-      ERRMSG("Too many temperatures!");
-
-    /* Read temperature grid... */
-    FREAD(tbl->t[id][ig][ip], double,
-	    (size_t) tbl->nt[id][ig][ip],
-	  g->fp);
-
-    /* Loop over temperature levels... */
-    for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
-
-      /* Read number of u points... */
-      FREAD(&tbl->nu[id][ig][ip][it], int,
-	    1,
-	    g->fp);
-      if (tbl->nu[id][ig][ip][it] > TBLNU)
-	ERRMSG("Too many column densities!");
-
-      /* Read u grid... */
-      FREAD(tbl->u[id][ig][ip][it], float,
-	      (size_t) tbl->nu[id][ig][ip][it],
-	    g->fp);
-
-      /* Read emissivity grid... */
-      FREAD(tbl->eps[id][ig][ip][it], float,
-	      (size_t) tbl->nu[id][ig][ip][it],
-	    g->fp);
-    }
-  }
-
-  return 0;
+  /* Free... */
+  free(work);
 }
 
 /*****************************************************************************/
@@ -6532,6 +6669,209 @@ void tangent_point(
 
 /*****************************************************************************/
 
+void tbl_free(
+  const ctl_t *ctl,
+  tbl_t *tbl) {
+
+  /* Check pointer... */
+  if (!tbl)
+    return;
+
+  /* Loop over channels and emitters... */
+  for (int id = 0; id < ctl->nd; id++)
+    for (int ig = 0; ig < ctl->ng; ig++) {
+
+      /* Check number of pressure levels... */
+      const int np = tbl->np[id][ig];
+      if (np < 0)
+	continue;
+
+      /* Loop over pressure levels... */
+      for (int ip = 0; ip < np; ip++) {
+
+	/* Loop over temperature levels... */
+	const int nt = tbl->nt[id][ig][ip];
+	for (int it = 0; it < nt; it++) {
+
+	  /* Free... */
+	  free(tbl->logu[id][ig][ip][it]);
+	  free(tbl->logeps[id][ig][ip][it]);
+	  tbl->logu[id][ig][ip][it] = NULL;
+	  tbl->logeps[id][ig][ip][it] = NULL;
+	}
+      }
+    }
+
+  /* Free... */
+  free(tbl);
+}
+
+/*****************************************************************************/
+
+void tbl_pack(
+  const tbl_t *tbl,
+  int id,
+  int ig,
+  uint8_t *buf,
+  size_t *bytes_used) {
+
+  uint8_t *cur = buf;
+
+  /* Pack lookup table... */
+  int np = tbl->np[id][ig];
+  memcpy(cur, &np, sizeof(np));
+  cur += sizeof(np);
+
+  memcpy(cur, tbl->p[id][ig], (size_t) np * sizeof(double));
+  cur += ((size_t) np * sizeof(double));
+
+  for (int ip = 0; ip < np; ip++) {
+    int nt = tbl->nt[id][ig][ip];
+    memcpy(cur, &nt, sizeof(nt));
+    cur += sizeof(nt);
+
+    memcpy(cur, tbl->t[id][ig][ip], (size_t) nt * sizeof(double));
+    cur += ((size_t) nt * sizeof(double));
+
+    for (int it = 0; it < nt; it++) {
+      int nu = tbl->nu[id][ig][ip][it];
+      memcpy(cur, &nu, sizeof(nu));
+      cur += sizeof(nu);
+
+      memcpy(cur, tbl->logu[id][ig][ip][it], (size_t) nu * sizeof(float));
+      cur += ((size_t) nu * sizeof(float));
+
+      memcpy(cur, tbl->logeps[id][ig][ip][it], (size_t) nu * sizeof(float));
+      cur += ((size_t) nu * sizeof(float));
+    }
+  }
+
+  /* Pack filter function... */
+  const int n = tbl->filt_n[id];
+  memcpy(cur, &n, sizeof(n));
+  cur += sizeof(n);
+
+  memcpy(cur, tbl->filt_nu[id], (size_t) n * sizeof(double));
+  cur += ((size_t) n * sizeof(double));
+
+  memcpy(cur, tbl->filt_f[id], (size_t) n * sizeof(double));
+  cur += ((size_t) n * sizeof(double));
+
+  *bytes_used = (size_t) (cur - buf);
+}
+
+/*****************************************************************************/
+
+size_t tbl_packed_size(
+  const tbl_t *tbl,
+  int id,
+  int ig) {
+
+  size_t bytes = 0;
+
+  /* Size of lookup table... */
+  const int np = tbl->np[id][ig];
+  bytes += sizeof(int);
+  bytes += ((size_t) np * sizeof(double));
+
+  for (int ip = 0; ip < np; ip++) {
+    const int nt = tbl->nt[id][ig][ip];
+    bytes += sizeof(int);
+    bytes += ((size_t) nt * sizeof(double));
+
+    for (int it = 0; it < nt; it++) {
+      const int nu = tbl->nu[id][ig][ip][it];
+      bytes += sizeof(int);
+      bytes += (2 * (size_t) nu * sizeof(float));
+    }
+  }
+
+  /* Size of filter function... */
+  const int n = tbl->filt_n[id];
+  bytes += sizeof(int);
+  bytes += (2 * (size_t) n * sizeof(double));
+
+  return bytes;
+}
+
+/*****************************************************************************/
+
+size_t tbl_unpack(
+  tbl_t *tbl,
+  int id,
+  int ig,
+  const uint8_t *buf) {
+
+  const uint8_t *cur = buf;
+
+  /* Unpack lookup table... */
+  int np;
+  memcpy(&np, cur, sizeof(np));
+  cur += sizeof(np);
+
+  if (np < 0 || np > TBLNP)
+    ERRMSG("np out of range!");
+  tbl->np[id][ig] = np;
+
+  memcpy(tbl->p[id][ig], cur, (size_t) np * sizeof(double));
+  cur += ((size_t) np * sizeof(double));
+
+  for (int ip = 0; ip < np; ip++) {
+
+    int nt;
+    memcpy(&nt, cur, sizeof(nt));
+    cur += sizeof(nt);
+
+    if (nt < 0 || nt > TBLNT)
+      ERRMSG("nt out of range!");
+    tbl->nt[id][ig][ip] = nt;
+
+    memcpy(tbl->t[id][ig][ip], cur, (size_t) nt * sizeof(double));
+    cur += ((size_t) nt * sizeof(double));
+
+    for (int it = 0; it < nt; it++) {
+
+      int nu;
+      memcpy(&nu, cur, sizeof(nu));
+      cur += sizeof(nu);
+
+      if (nu < 0 || nu > TBLNU)
+	ERRMSG("nu out of range!");
+      tbl->nu[id][ig][ip][it] = nu;
+
+      ALLOC(tbl->logu[id][ig][ip][it], float,
+	    nu);
+      ALLOC(tbl->logeps[id][ig][ip][it], float,
+	    nu);
+
+      memcpy(tbl->logu[id][ig][ip][it], cur, (size_t) nu * sizeof(float));
+      cur += ((size_t) nu * sizeof(float));
+
+      memcpy(tbl->logeps[id][ig][ip][it], cur, (size_t) nu * sizeof(float));
+      cur += ((size_t) nu * sizeof(float));
+    }
+  }
+
+  /* Unpack filter function... */
+  int n;
+  memcpy(&n, cur, sizeof(n));
+  cur += sizeof(n);
+
+  if (n < 2 || n > NSHAPE)
+    ERRMSG("Missing or invalid filter function (filt_n) in packed table!");
+  tbl->filt_n[id] = n;
+
+  memcpy(tbl->filt_nu[id], cur, (size_t) n * sizeof(double));
+  cur += ((size_t) n * sizeof(double));
+
+  memcpy(tbl->filt_f[id], cur, (size_t) n * sizeof(double));
+  cur += ((size_t) n * sizeof(double));
+
+  return (size_t) (cur - buf);
+}
+
+/*****************************************************************************/
+
 void time2jsec(
   const int year,
   const int mon,
@@ -6607,8 +6947,6 @@ void write_atm(
   const ctl_t *ctl,
   const atm_t *atm) {
 
-  FILE *out;
-
   char file[LEN];
 
   /* Set filename... */
@@ -6620,24 +6958,21 @@ void write_atm(
   /* Write info... */
   LOG(1, "Write atmospheric data: %s", file);
 
-  /* Create file... */
-  if (!(out = fopen(file, "w")))
-    ERRMSG("Cannot create file!");
-
-  /* Write ASCII file... */
+  /* Write ASCII data... */
   if (ctl->atmfmt == 1)
-    write_atm_asc(out, ctl, atm);
+    write_atm_asc(file, ctl, atm);
 
-  /* Write binary file... */
+  /* Write binary data... */
   else if (ctl->atmfmt == 2)
-    write_atm_bin(out, ctl, atm);
+    write_atm_bin(file, ctl, atm);
+
+  /* Write netCDF data... */
+  else if (ctl->atmfmt == 3)
+    write_atm_nc(file, ctl, atm, 0);
 
   /* Error... */
   else
     ERRMSG("Unknown file format, check ATMFMT!");
-
-  /* Close file... */
-  fclose(out);
 
   /* Write info... */
   double mini, maxi;
@@ -6662,27 +6997,32 @@ void write_atm(
     gsl_stats_minmax(&mini, &maxi, atm->k[iw], 1, (size_t) atm->np);
     LOG(2, "Extinction range (window %d): %g ... %g km^-1", iw, mini, maxi);
   }
-  if (ctl->ncl > 0 && atm->np == 0) {
+  if (ctl->ncl > 0) {
     LOG(2, "Cloud layer: z= %g km | dz= %g km | k= %g ... %g km^-1",
 	atm->clz, atm->cldz, atm->clk[0], atm->clk[ctl->ncl - 1]);
   } else
     LOG(2, "Cloud layer: none");
-  if (ctl->nsf > 0 && atm->np == 0) {
+  if (ctl->nsf > 0) {
     LOG(2,
-	"Surface layer: T_s = %g K | eps= %g ... %g",
+	"Surface: T_s = %g K | eps= %g ... %g",
 	atm->sft, atm->sfeps[0], atm->sfeps[ctl->nsf - 1]);
   } else
-    LOG(2, "Surface layer: none");
+    LOG(2, "Surface: none");
 }
 
 /*****************************************************************************/
 
 void write_atm_asc(
-  FILE *out,
+  const char *filename,
   const ctl_t *ctl,
   const atm_t *atm) {
 
   int n = 6;
+
+  /* Create file... */
+  FILE *out;
+  if (!(out = fopen(filename, "w")))
+    ERRMSG("Cannot create file!");
 
   /* Write header... */
   fprintf(out,
@@ -6704,11 +7044,9 @@ void write_atm_asc(
 	      ++n, ctl->clnu[icl]);
   }
   if (ctl->nsf > 0) {
-    fprintf(out, "# $%d = surface layer height [km]\n", ++n);
-    fprintf(out, "# $%d = surface layer pressure [hPa]\n", ++n);
-    fprintf(out, "# $%d = surface layer temperature [K]\n", ++n);
+    fprintf(out, "# $%d = surface temperature [K]\n", ++n);
     for (int isf = 0; isf < ctl->nsf; isf++)
-      fprintf(out, "# $%d = surface layer emissivity (%.4f cm^-1)\n",
+      fprintf(out, "# $%d = surface emissivity (%.4f cm^-1)\n",
 	      ++n, ctl->sfnu[isf]);
   }
 
@@ -6734,14 +7072,22 @@ void write_atm_asc(
     }
     fprintf(out, "\n");
   }
+
+  /* Close file... */
+  fclose(out);
 }
 
 /*****************************************************************************/
 
 void write_atm_bin(
-  FILE *out,
+  const char *filename,
   const ctl_t *ctl,
   const atm_t *atm) {
+
+  /* Create file... */
+  FILE *out;
+  if (!(out = fopen(filename, "w")))
+    ERRMSG("Cannot create file!");
 
   /* Write header... */
   FWRITE("ATM1", char,
@@ -6810,6 +7156,192 @@ void write_atm_bin(
 	     (size_t) ctl->nsf,
 	   out);
   }
+
+  /* Close file... */
+  fclose(out);
+}
+
+/*****************************************************************************/
+
+void write_atm_nc(
+  const char *filename,
+  const ctl_t *ctl,
+  const atm_t *atm,
+  int profile) {
+
+  char longname[LEN], varname[LEN];
+
+  int ncid, varid, dim_profile, dim_level;
+
+  size_t level_max;
+
+  /* Open or create file... */
+  if (nc_open(filename, NC_WRITE, &ncid) != NC_NOERR)
+    NC(nc_create(filename, NC_NETCDF4, &ncid));
+
+  /* Enter define mode... */
+  int r = nc_redef(ncid);
+  if (r != NC_NOERR && r != NC_EINDEFINE)
+    NC(r);
+
+  /* Define profile dimension (unlimited)... */
+  if (nc_inq_dimid(ncid, "profile", &dim_profile) != NC_NOERR)
+    NC(nc_def_dim(ncid, "profile", NC_UNLIMITED, &dim_profile));
+
+  /* Define level dimension (fixed)... */
+  if (nc_inq_dimid(ncid, "level", &dim_level) == NC_NOERR) {
+    NC(nc_inq_dimlen(ncid, dim_level, &level_max));
+    if (level_max < 1 || level_max > (size_t) NP)
+      ERRMSG("netCDF dimension level is out of range!");
+    if ((size_t) atm->np > level_max)
+      ERRMSG("profile has too many levels!");
+  } else {
+    level_max = (size_t) atm->np;
+    NC(nc_def_dim(ncid, "level", level_max, &dim_level));
+  }
+
+  /* Set dimension IDs... */
+  int dimids[2] = { dim_profile, dim_level };
+
+  /* Tunables for compression/quantization... */
+  const int deflate_level = 0;
+  const int quant_digits = 0;
+
+  /* Define nlev (1D)... */
+  if (nc_inq_varid(ncid, "nlev", &varid) != NC_NOERR)
+    NC_DEF_VAR("nlev", NC_INT, 1, dimids,
+	       "number of vertical levels", "1", 0, 0);
+
+  /* Define core variables (2D)... */
+  if (nc_inq_varid(ncid, "time", &varid) != NC_NOERR)
+    NC_DEF_VAR("time", NC_DOUBLE, 2, dimids,
+	       "time in seconds since 2000-01-01, 00:00 UTC", "s",
+	       deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "z", &varid) != NC_NOERR)
+    NC_DEF_VAR("z", NC_DOUBLE, 2, dimids, "altitude", "km", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "lon", &varid) != NC_NOERR)
+    NC_DEF_VAR("lon", NC_DOUBLE, 2, dimids,
+	       "longitude", "degrees_east", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "lat", &varid) != NC_NOERR)
+    NC_DEF_VAR("lat", NC_DOUBLE, 2, dimids,
+	       "latitude", "degrees_north", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "p", &varid) != NC_NOERR)
+    NC_DEF_VAR("p", NC_DOUBLE, 2, dimids,
+	       "pressure", "hPa", deflate_level, quant_digits);
+
+  if (nc_inq_varid(ncid, "t", &varid) != NC_NOERR)
+    NC_DEF_VAR("t", NC_DOUBLE, 2, dimids,
+	       "temperature", "K", deflate_level, quant_digits);
+
+  /* Write emitters (2D)... */
+  for (int ig = 0; ig < ctl->ng; ig++)
+    if (nc_inq_varid(ncid, ctl->emitter[ig], &varid) != NC_NOERR) {
+      sprintf(longname, "%s volume mixing ratio", ctl->emitter[ig]);
+      NC_DEF_VAR(ctl->emitter[ig], NC_DOUBLE, 2, dimids,
+		 longname, "ppv", deflate_level, quant_digits);
+    }
+
+  /* Write extinction (2D)... */
+  for (int iw = 0; iw < ctl->nw; iw++) {
+    sprintf(varname, "ext_win_%d", iw);
+    if (nc_inq_varid(ncid, varname, &varid) != NC_NOERR) {
+      sprintf(longname, "extinction (window %d)", iw);
+      NC_DEF_VAR(varname, NC_DOUBLE, 2, dimids,
+		 longname, "km**-1", deflate_level, quant_digits);
+    }
+  }
+
+  /* Write cloud variables (1D)... */
+  if (ctl->ncl > 0) {
+    if (nc_inq_varid(ncid, "cld_z", &varid) != NC_NOERR)
+      NC_DEF_VAR("cld_z", NC_DOUBLE, 1, dimids,
+		 "cloud layer height", "km", deflate_level, quant_digits);
+
+    if (nc_inq_varid(ncid, "cld_dz", &varid) != NC_NOERR)
+      NC_DEF_VAR("cld_dz", NC_DOUBLE, 1, dimids,
+		 "cloud layer depth", "km", deflate_level, quant_digits);
+
+    for (int icl = 0; icl < ctl->ncl; icl++) {
+      sprintf(varname, "cld_k_%.4f", ctl->clnu[icl]);
+      if (nc_inq_varid(ncid, varname, &varid) != NC_NOERR) {
+	sprintf(longname, "cloud layer extinction (%.4f cm^-1)",
+		ctl->clnu[icl]);
+	NC_DEF_VAR(varname, NC_DOUBLE, 1, dimids, longname, "km**-1",
+		   deflate_level, quant_digits);
+      }
+    }
+  }
+
+  /* Write surface variables (1D)... */
+  if (ctl->nsf > 0) {
+    if (nc_inq_varid(ncid, "srf_t", &varid) != NC_NOERR)
+      NC_DEF_VAR("srf_t", NC_DOUBLE, 1, dimids,
+		 "surface temperature", "K", deflate_level, quant_digits);
+
+    for (int isf = 0; isf < ctl->nsf; isf++) {
+      sprintf(varname, "srf_eps_%.4f", ctl->sfnu[isf]);
+      if (nc_inq_varid(ncid, varname, &varid) != NC_NOERR) {
+	sprintf(longname, "surface emissivity (%.4f cm^-1)", ctl->sfnu[isf]);
+	NC_DEF_VAR(varname, NC_DOUBLE, 1, dimids, longname, "1",
+		   deflate_level, quant_digits);
+      }
+    }
+  }
+
+  /* Leave define mode... */
+  NC(nc_enddef(ncid));
+
+  /* Define hyperslabs... */
+  size_t start[2] = { (size_t) profile, 0 };
+  size_t count[2] = { 1, (size_t) atm->np };
+
+  /* Write nlev... */
+  NC_PUT_INT("nlev", &atm->np, 1);
+
+  /* Write core variables... */
+  NC_PUT_DOUBLE("time", atm->time, 1);
+  NC_PUT_DOUBLE("z", atm->z, 1);
+  NC_PUT_DOUBLE("lon", atm->lon, 1);
+  NC_PUT_DOUBLE("lat", atm->lat, 1);
+  NC_PUT_DOUBLE("p", atm->p, 1);
+  NC_PUT_DOUBLE("t", atm->t, 1);
+
+  /* Write emitters... */
+  for (int ig = 0; ig < ctl->ng; ig++)
+    NC_PUT_DOUBLE(ctl->emitter[ig], atm->q[ig], 1);
+
+  /* Write extinction... */
+  for (int iw = 0; iw < ctl->nw; iw++) {
+    sprintf(varname, "ext_win_%d", iw);
+    NC_PUT_DOUBLE(varname, atm->k[iw], 1);
+  }
+
+  /* Write cloud variables... */
+  if (ctl->ncl > 0) {
+    NC_PUT_DOUBLE("cld_z", &atm->clz, 1);
+    NC_PUT_DOUBLE("cld_dz", &atm->cldz, 1);
+    for (int icl = 0; icl < ctl->ncl; icl++) {
+      sprintf(varname, "cld_k_%.4f", ctl->clnu[icl]);
+      NC_PUT_DOUBLE(varname, &atm->clk[icl], 1);
+    }
+  }
+
+  /* Write surface variables... */
+  if (ctl->nsf > 0) {
+    NC_PUT_DOUBLE("srf_t", &atm->sft, 1);
+    for (int isf = 0; isf < ctl->nsf; isf++) {
+      sprintf(varname, "srf_eps_%.4f", ctl->sfnu[isf]);
+      NC_PUT_DOUBLE(varname, &atm->sfeps[isf], 1);
+    }
+  }
+
+  /* Close file... */
+  NC(nc_sync(ncid));
+  NC(nc_close(ncid));
 }
 
 /*****************************************************************************/
@@ -7036,8 +7568,6 @@ void write_obs(
   const ctl_t *ctl,
   const obs_t *obs) {
 
-  FILE *out;
-
   char file[LEN];
 
   /* Set filename... */
@@ -7049,24 +7579,17 @@ void write_obs(
   /* Write info... */
   LOG(1, "Write observation data: %s", file);
 
-  /* Create file... */
-  if (!(out = fopen(file, "w")))
-    ERRMSG("Cannot create file!");
-
   /* Write ASCII data... */
   if (ctl->obsfmt == 1)
-    write_obs_asc(out, ctl, obs);
+    write_obs_asc(file, ctl, obs);
 
   /* Write binary data... */
   else if (ctl->obsfmt == 2)
-    write_obs_bin(out, ctl, obs);
+    write_obs_bin(file, ctl, obs);
 
-  /* Error... */
-  else
-    ERRMSG("Unknown observation file format, check OBSFMT!");
-
-  /* Close file... */
-  fclose(out);
+  /* Write netCDF data... */
+  else if (ctl->obsfmt == 3)
+    write_obs_nc(file, ctl, obs, 0);
 
   /* Write info... */
   double mini, maxi;
@@ -7113,11 +7636,16 @@ void write_obs(
 /*****************************************************************************/
 
 void write_obs_asc(
-  FILE *out,
+  const char *filename,
   const ctl_t *ctl,
   const obs_t *obs) {
 
   int n = 10;
+
+  /* Create file... */
+  FILE *out;
+  if (!(out = fopen(filename, "w")))
+    ERRMSG("Cannot create file!");
 
   /* Write header... */
   fprintf(out,
@@ -7156,14 +7684,22 @@ void write_obs_asc(
       fprintf(out, " %g", obs->tau[id][ir]);
     fprintf(out, "\n");
   }
+
+  /* Close file... */
+  fclose(out);
 }
 
 /*****************************************************************************/
 
 void write_obs_bin(
-  FILE *out,
+  const char *filename,
   const ctl_t *ctl,
   const obs_t *obs) {
+
+  /* Create file... */
+  FILE *out;
+  if (!(out = fopen(filename, "w")))
+    ERRMSG("Cannot create file!");
 
   /* Write header... */
   FWRITE("OBS1", char,
@@ -7216,6 +7752,184 @@ void write_obs_bin(
     FWRITE(obs->tau[id], double,
 	   nr,
 	   out);
+
+  /* Close file... */
+  fclose(out);
+}
+
+/*****************************************************************************/
+
+void write_obs_nc(
+  const char *filename,
+  const ctl_t *ctl,
+  const obs_t *obs,
+  const int profile) {
+
+  char longname[LEN], varname[LEN];
+
+  int ncid, varid, dim_profile, dim_ray;
+
+  size_t ray_max;
+
+  /* Open or create file... */
+  if (nc_open(filename, NC_WRITE, &ncid) != NC_NOERR)
+    NC(nc_create(filename, NC_NETCDF4, &ncid));
+
+  /* Enter define mode... */
+  int r = nc_redef(ncid);
+  if (r != NC_NOERR && r != NC_EINDEFINE)
+    NC(r);
+
+  /* Define profile dimension (unlimited)... */
+  if (nc_inq_dimid(ncid, "profile", &dim_profile) != NC_NOERR)
+    NC(nc_def_dim(ncid, "profile", NC_UNLIMITED, &dim_profile));
+
+  /* Define ray dimension (fixed)... */
+  if (nc_inq_dimid(ncid, "ray", &dim_ray) == NC_NOERR) {
+    NC(nc_inq_dimlen(ncid, dim_ray, &ray_max));
+    if (ray_max < 1 || ray_max > (size_t) NR)
+      ERRMSG("netCDF dimension ray is out of range!");
+    if ((size_t) obs->nr > ray_max)
+      ERRMSG("profile has too many rays!");
+  } else {
+    ray_max = (size_t) obs->nr;
+    NC(nc_def_dim(ncid, "ray", ray_max, &dim_ray));
+  }
+
+  /* Dimension ID array... */
+  int dimids[2] = { dim_profile, dim_ray };
+
+  /* Tunables for compression/quantization... */
+  const int deflate_level = 0;
+  const int quant_digits = 0;
+
+  /* Define nray (1D over profile)... */
+  if (nc_inq_varid(ncid, "nray", &varid) != NC_NOERR)
+    NC_DEF_VAR("nray", NC_INT, 1, dimids, "number of ray paths", "1", 0, 0);
+
+  /* Define geometry variables (2D over profile, ray)... */
+  if (nc_inq_varid(ncid, "time", &varid) != NC_NOERR)
+    NC_DEF_VAR("time", NC_DOUBLE, 2, dimids,
+	       "time in seconds since 2000-01-01, 00:00 UTC", "s",
+	       deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "obs_z", &varid) != NC_NOERR)
+    NC_DEF_VAR("obs_z", NC_DOUBLE, 2, dimids,
+	       "observer altitude", "km", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "obs_lon", &varid) != NC_NOERR)
+    NC_DEF_VAR("obs_lon", NC_DOUBLE, 2, dimids,
+	       "observer longitude", "degrees_east", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "obs_lat", &varid) != NC_NOERR)
+    NC_DEF_VAR("obs_lat", NC_DOUBLE, 2, dimids,
+	       "observer latitude", "degrees_north", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "vp_z", &varid) != NC_NOERR)
+    NC_DEF_VAR("vp_z", NC_DOUBLE, 2, dimids,
+	       "view point altitude", "km", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "vp_lon", &varid) != NC_NOERR)
+    NC_DEF_VAR("vp_lon", NC_DOUBLE, 2, dimids,
+	       "view point longitude", "degrees_east", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "vp_lat", &varid) != NC_NOERR)
+    NC_DEF_VAR("vp_lat", NC_DOUBLE, 2, dimids,
+	       "view point latitude", "degrees_north", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "tp_z", &varid) != NC_NOERR)
+    NC_DEF_VAR("tp_z", NC_DOUBLE, 2, dimids,
+	       "tangent point altitude", "km", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "tp_lon", &varid) != NC_NOERR)
+    NC_DEF_VAR("tp_lon", NC_DOUBLE, 2, dimids,
+	       "tangent point longitude", "degrees_east", deflate_level, 0);
+
+  if (nc_inq_varid(ncid, "tp_lat", &varid) != NC_NOERR)
+    NC_DEF_VAR("tp_lat", NC_DOUBLE, 2, dimids,
+	       "tangent point latitude", "degrees_north", deflate_level, 0);
+
+  /* Define radiance/transmittance per channel (2D profile,ray)... */
+  for (int id = 0; id < ctl->nd; id++) {
+
+    sprintf(varname, "rad_%.4f", ctl->nu[id]);
+    if (nc_inq_varid(ncid, varname, &varid) != NC_NOERR) {
+      if (ctl->write_bbt) {
+	sprintf(longname, "brightness temperature (%.4f cm^-1)", ctl->nu[id]);
+	NC_DEF_VAR(varname, NC_DOUBLE, 2, dimids, longname, "K",
+		   deflate_level, quant_digits);
+      } else {
+	sprintf(longname, "radiance (%.4f cm^-1)", ctl->nu[id]);
+	NC_DEF_VAR(varname, NC_DOUBLE, 2, dimids, longname,
+		   "W/(m^2 sr cm^-1)", deflate_level, quant_digits);
+      }
+    }
+
+    sprintf(varname, "tau_%.4f", ctl->nu[id]);
+    if (nc_inq_varid(ncid, varname, &varid) != NC_NOERR) {
+      sprintf(longname, "transmittance (%.4f cm^-1)", ctl->nu[id]);
+      NC_DEF_VAR(varname, NC_DOUBLE, 2, dimids, longname, "1",
+		 deflate_level, quant_digits);
+    }
+  }
+
+  /* Leave define mode... */
+  NC(nc_enddef(ncid));
+
+  /* Hyperslabs... */
+  size_t start[2] = { (size_t) profile, 0 };
+  size_t count[2] = { 1, (size_t) obs->nr };
+
+  /* Write nray(profile)... */
+  int nr = obs->nr;
+  NC(nc_inq_varid(ncid, "nray", &varid));
+  NC(nc_put_vara_int(ncid, varid, start, count, &nr));
+
+  /* Write geometry... */
+  NC(nc_inq_varid(ncid, "time", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->time));
+
+  NC(nc_inq_varid(ncid, "obs_z", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->obsz));
+
+  NC(nc_inq_varid(ncid, "obs_lon", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->obslon));
+
+  NC(nc_inq_varid(ncid, "obs_lat", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->obslat));
+
+  NC(nc_inq_varid(ncid, "vp_z", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->vpz));
+
+  NC(nc_inq_varid(ncid, "vp_lon", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->vplon));
+
+  NC(nc_inq_varid(ncid, "vp_lat", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->vplat));
+
+  NC(nc_inq_varid(ncid, "tp_z", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->tpz));
+
+  NC(nc_inq_varid(ncid, "tp_lon", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->tplon));
+
+  NC(nc_inq_varid(ncid, "tp_lat", &varid));
+  NC(nc_put_vara_double(ncid, varid, start, count, obs->tplat));
+
+  /* Write spectral variables per channel... */
+  for (int id = 0; id < ctl->nd; id++) {
+    sprintf(varname, "rad_%.4f", ctl->nu[id]);
+    NC(nc_inq_varid(ncid, varname, &varid));
+    NC(nc_put_vara_double(ncid, varid, start, count, obs->rad[id]));
+
+    sprintf(varname, "tau_%.4f", ctl->nu[id]);
+    NC(nc_inq_varid(ncid, varname, &varid));
+    NC(nc_put_vara_double(ncid, varid, start, count, obs->tau[id]));
+  }
+
+  /* Close file... */
+  NC(nc_sync(ncid));
+  NC(nc_close(ncid));
 }
 
 /*****************************************************************************/
@@ -7287,289 +8001,190 @@ void write_tbl(
   const ctl_t *ctl,
   const tbl_t *tbl) {
 
-  /* Write ASCII look-up tables... */
+  /* Loop over emitters and detectors... */
+  for (int ig = 0; ig < ctl->ng; ig++)
+    for (int id = 0; id < ctl->nd; id++) {
+
+      /* Skip empty tables... */
+      if (tbl->np[id][ig] <= 0) {
+	WARN("Skip writing empty emissivity table: emitter=%s, nu=%.4f",
+	     ctl->emitter[ig], ctl->nu[id]);
+	continue;
+      }
+
+      /* Write ASCII look-up tables... */
+      if (ctl->tblfmt == 1)
+	write_tbl_asc(ctl, tbl, id, ig);
+
+      /* Write binary look-up tables... */
+      else if (ctl->tblfmt == 2)
+	write_tbl_bin(ctl, tbl, id, ig);
+
+      /* Write netCDF look-up tables... */
+      else if (ctl->tblfmt == 3)
+	write_tbl_nc(ctl, tbl, id, ig);
+
+      /* Write info... */
+      TBL_LOG(tbl, id, ig);
+    }
+
+  /* Write filter functions... */
   if (ctl->tblfmt == 1)
-    write_tbl_asc(ctl, tbl);
-
-  /* Write binary look-up tables... */
-  else if (ctl->tblfmt == 2)
-    write_tbl_bin(ctl, tbl);
-
-  /* Write per-gas look-up tables... */
-  else if (ctl->tblfmt == 3)
-    write_tbl_gas(ctl, tbl);
-
-  /* Error message... */
-  else
-    ERRMSG("Unknown look-up table format!");
+    for (int id = 0; id < ctl->nd; id++) {
+      char filename[2 * LEN];
+      sprintf(filename, "%s_%.4f.filt", ctl->tblbase, ctl->nu[id]);
+      write_shape(filename, tbl->filt_nu[id], tbl->filt_f[id],
+		  tbl->filt_n[id]);
+    }
 }
 
 /*****************************************************************************/
 
 void write_tbl_asc(
   const ctl_t *ctl,
-  const tbl_t *tbl) {
+  const tbl_t *tbl,
+  const int id,
+  const int ig) {
 
-  /* Loop over emitters and detectors... */
-  for (int ig = 0; ig < ctl->ng; ig++)
-    for (int id = 0; id < ctl->nd; id++) {
+  /* Set filename... */
+  char filename[2 * LEN];
+  sprintf(filename, "%s_%.4f_%s.tab", ctl->tblbase,
+	  ctl->nu[id], ctl->emitter[ig]);
 
-      /* Set filename... */
-      char filename[2 * LEN];
-      sprintf(filename, "%s_%.4f_%s.tab", ctl->tblbase,
-	      ctl->nu[id], ctl->emitter[ig]);
+  /* Create file... */
+  FILE *out;
+  if (!(out = fopen(filename, "w"))) {
+    ERRMSG("Cannot create emissivity table: %s", filename);
+  } else
+    LOG(1, "Write emissivity table: %s", filename);
 
-      /* Write info... */
-      LOG(1, "Write emissivity table: %s", filename);
+  /* Write header... */
+  fprintf(out,
+	  "# $1 = pressure [hPa]\n"
+	  "# $2 = temperature [K]\n"
+	  "# $3 = column density [molecules/cm^2]\n"
+	  "# $4 = emissivity [-]\n");
 
-      /* Create file... */
-      FILE *out;
-      if (!(out = fopen(filename, "w")))
-	ERRMSG("Cannot create file!");
-
-      /* Write header... */
-      fprintf(out,
-	      "# $1 = pressure [hPa]\n"
-	      "# $2 = temperature [K]\n"
-	      "# $3 = column density [molecules/cm^2]\n"
-	      "# $4 = emissivity [-]\n");
-
-      /* Save table file... */
-      for (int ip = 0; ip < tbl->np[id][ig]; ip++)
-	for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
-	  fprintf(out, "\n");
-	  for (int iu = 0; iu < tbl->nu[id][ig][ip][it]; iu++)
-	    fprintf(out, "%g %g %e %e\n",
-		    tbl->p[id][ig][ip], tbl->t[id][ig][ip][it],
-		    tbl->u[id][ig][ip][it][iu], tbl->eps[id][ig][ip][it][iu]);
-	}
-
-      /* Close file... */
-      fclose(out);
+  /* Save table file... */
+  for (int ip = 0; ip < tbl->np[id][ig]; ip++)
+    for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
+      fprintf(out, "\n");
+      for (int iu = 0; iu < tbl->nu[id][ig][ip][it]; iu++)
+	fprintf(out, "%g %g %e %e\n",
+		tbl->p[id][ig][ip], tbl->t[id][ig][ip][it],
+		exp(tbl->logu[id][ig][ip][it][iu]),
+		exp(tbl->logeps[id][ig][ip][it][iu]));
     }
+
+  /* Close file... */
+  fclose(out);
 }
 
 /*****************************************************************************/
 
 void write_tbl_bin(
   const ctl_t *ctl,
-  const tbl_t *tbl) {
-
-  /* Loop over emitters and detectors... */
-  for (int ig = 0; ig < ctl->ng; ig++)
-    for (int id = 0; id < ctl->nd; id++) {
-
-      /* Set filename... */
-      char filename[2 * LEN];
-      sprintf(filename, "%s_%.4f_%s.bin", ctl->tblbase,
-	      ctl->nu[id], ctl->emitter[ig]);
-
-      /* Write info... */
-      LOG(1, "Write emissivity table: %s", filename);
-
-      /* Create file... */
-      FILE *out;
-      if (!(out = fopen(filename, "w")))
-	ERRMSG("Cannot create file!");
-
-      /* Write binary data... */
-      FWRITE(&tbl->np[id][ig], int,
-	     1,
-	     out);
-      FWRITE(tbl->p[id][ig], double,
-	       (size_t) tbl->np[id][ig],
-	     out);
-      for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
-	FWRITE(&tbl->nt[id][ig][ip], int,
-	       1,
-	       out);
-	FWRITE(tbl->t[id][ig][ip], double,
-	         (size_t) tbl->nt[id][ig][ip],
-	       out);
-	for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
-	  FWRITE(&tbl->nu[id][ig][ip][it], int,
-		 1,
-		 out);
-	  FWRITE(tbl->u[id][ig][ip][it], float,
-		   (size_t) tbl->nu[id][ig][ip][it],
-		 out);
-	  FWRITE(tbl->eps[id][ig][ip][it], float,
-		   (size_t) tbl->nu[id][ig][ip][it],
-		 out);
-	}
-      }
-
-      /* Close file... */
-      fclose(out);
-    }
-}
-
-/*****************************************************************************/
-
-void write_tbl_gas(
-  const ctl_t *ctl,
-  const tbl_t *tbl) {
-
-  /* Loop over emitters... */
-  for (int ig = 0; ig < ctl->ng; ig++) {
-
-    /* Construct filename... */
-    char filename[2 * LEN];
-    sprintf(filename, "%s_%s.tbl", ctl->tblbase, ctl->emitter[ig]);
-
-    /* Try to open existing file first... */
-    tbl_gas_t gas;
-    if (read_tbl_gas_open(filename, &gas) != 0) {
-      LOG(1, "Gas file does not exist, creating: %s", filename);
-
-      /* Create with capacity for all frequencies... */
-      if (write_tbl_gas_create(filename) != 0)
-	ERRMSG("Cannot create gas table file!");
-
-      /* Now open it... */
-      if (read_tbl_gas_open(filename, &gas) != 0)
-	ERRMSG("Cannot open newly created gas table file!");
-    }
-
-    /* Loop over frequencies... */
-    for (int id = 0; id < ctl->nd; id++) {
-
-      /* Write one frequency table block into the gas file... */
-      if (write_tbl_gas_single(&gas, ctl->nu[id], tbl, id, ig) != 0)
-	ERRMSG("Error writing table block!");
-    }
-
-    /* Close gas-table file (flushes index)... */
-    read_tbl_gas_close(&gas);
-  }
-}
-
-/*****************************************************************************/
-
-int write_tbl_gas_create(
-  const char *path) {
-
-  /* Open file... */
-  FILE *fp = fopen(path, "wb+");
-  if (!fp)
-    return -1;
-
-  const char magic[4] = { 'G', 'T', 'L', '1' };
-  int32_t ntables = 0;
-
-  /* Write header... */
-  FWRITE(magic, char,
-	 4,
-	 fp);
-  FWRITE(&ntables, int32_t, 1, fp);
-
-  /* Zeroed index... */
-  tbl_gas_index_t zero = { 0 };
-  for (int i = 0; i < MAX_TABLES; i++)
-    FWRITE(&zero, tbl_gas_index_t, 1, fp);
-
-  /* Close file... */
-  fflush(fp);
-  fclose(fp);
-
-  return 0;
-}
-
-/*****************************************************************************/
-
-int write_tbl_gas_single(
-  tbl_gas_t *g,
-  const double freq,
   const tbl_t *tbl,
   const int id,
   const int ig) {
 
-  int idx = -1;
+  /* Set filename... */
+  char filename[2 * LEN];
+  sprintf(filename, "%s_%.4f_%s.bin",
+	  ctl->tblbase, ctl->nu[id], ctl->emitter[ig]);
 
-  /* Check if a table for this frequency already exists... */
-  for (int i = 0; i < g->ntables; i++) {
-    if (g->index[i].freq == freq) {
-      idx = i;
-      break;
-    }
-  }
+  /* Create file... */
+  FILE *out;
+  if (!(out = fopen(filename, "w"))) {
+    ERRMSG("Cannot create emissivity table: %s", filename);
+  } else
+    LOG(1, "Write emissivity table: %s", filename);
 
-  /* New entry if not found... */
-  if (idx < 0) {
-    idx = g->ntables++;
-    if (g->ntables > MAX_TABLES)
-      ERRMSG("Gas table index overflow!");
-  }
+  /* Pack... */
+  size_t used = 0;
+  const size_t need = tbl_packed_size(tbl, id, ig);
+  uint8_t *work = NULL;
+  ALLOC(work, uint8_t, need);
+  tbl_pack(tbl, id, ig, work, &used);
+  if (used != need)
+    ERRMSG("Internal error: packed size mismatch!");
 
-  /* Append payload block at end of file... */
-  if (fseek(g->fp, 0, SEEK_END) != 0)
-    ERRMSG("Seek error in write_tbl_gas_single_flat!");
-
-  int64_t offset = (int64_t) ftell(g->fp);
-  if (offset < 0)
-    ERRMSG("ftell failed in write_tbl_gas_single_flat!");
-
-  long start = ftell(g->fp);
-  if (start < 0)
-    ERRMSG("ftell failed at payload start!");
-
-  /* Write number of pressures... */
-  FWRITE(&tbl->np[id][ig], int,
+  /* Write length and packed blob... */
+  FWRITE(&used, size_t,
 	 1,
-	 g->fp);
+	 out);
+  FWRITE(work, uint8_t, used, out);
 
-  /* Write pressure grid... */
-  FWRITE(tbl->p[id][ig], double,
-	   (size_t) tbl->np[id][ig],
-	 g->fp);
+  /* Close file... */
+  fclose(out);
 
-  /* Loop over pressure levels... */
-  for (int ip = 0; ip < tbl->np[id][ig]; ip++) {
+  /* Free... */
+  free(work);
+}
 
-    /* Write number of temperatures... */
-    FWRITE(&tbl->nt[id][ig][ip], int,
-	   1,
-	   g->fp);
+/*****************************************************************************/
 
-    /* Write temperature grid... */
-    FWRITE(tbl->t[id][ig][ip], double,
-	     (size_t) tbl->nt[id][ig][ip],
-	   g->fp);
+void write_tbl_nc(
+  const ctl_t *ctl,
+  const tbl_t *tbl,
+  const int id,
+  const int ig) {
 
-    /* Loop over temperature levels... */
-    for (int it = 0; it < tbl->nt[id][ig][ip]; it++) {
+  /* Set filename... */
+  char filename[2 * LEN];
+  sprintf(filename, "%s_%s.nc", ctl->tblbase, ctl->emitter[ig]);
 
-      /* Write number of u points... */
-      FWRITE(&tbl->nu[id][ig][ip][it], int,
-	     1,
-	     g->fp);
-
-      /* Write u array... */
-      FWRITE(tbl->u[id][ig][ip][it], float,
-	       (size_t) tbl->nu[id][ig][ip][it],
-	     g->fp);
-
-      /* Write emissivity array... */
-      FWRITE(tbl->eps[id][ig][ip][it], float,
-	       (size_t) tbl->nu[id][ig][ip][it],
-	     g->fp);
-    }
+  /* Open or create file... */
+  int ncid;
+  if (nc_open(filename, NC_WRITE, &ncid) != NC_NOERR) {
+    if (nc_create(filename, NC_NETCDF4 | NC_CLOBBER, &ncid) != NC_NOERR)
+      ERRMSG("Cannot open or create emissivity table: %s", filename);
+    NC_PUT_ATT_GLOBAL("format_version", "1");
+    NC_PUT_ATT_GLOBAL("emitter", ctl->emitter[ig]);
+    NC(nc_enddef(ncid));
   }
 
-  /* Update index entry... */
-  long end = ftell(g->fp);
-  if (end < 0)
-    ERRMSG("ftell failed at payload end!");
+  /* Set variable and dimension name... */
+  char varname[LEN], dimname[LEN];
+  sprintf(varname, "tbl_%.4f", ctl->nu[id]);
+  sprintf(dimname, "len_%.4f", ctl->nu[id]);
 
-  int64_t size = (int64_t) (end - start);
+  /* Write info... */
+  LOG(1, "Write emissivity table: %s in %s", varname, filename);
 
-  g->index[idx].freq = freq;
-  g->index[idx].offset = offset;
-  g->index[idx].size = size;
+  /* Allocate work space... */
+  size_t used = 0;
+  const size_t need = tbl_packed_size(tbl, id, ig);
+  uint8_t *work = NULL;
+  ALLOC(work, uint8_t, need);
 
-  g->dirty = 1;
+  /* Pack table... */
+  tbl_pack(tbl, id, ig, work, &used);
+  if (used != need)
+    ERRMSG("Internal error: packed size mismatch!");
 
-  return 0;
+  /* Prevent overwrite... */
+  int tmp;
+  if (nc_inq_varid(ncid, varname, &tmp) == NC_NOERR)
+    ERRMSG("Table already present!");
+
+  /* Add dimension and variable... */
+  int dimid, varid;
+  NC(nc_redef(ncid));
+  NC(nc_def_dim(ncid, dimname, used, &dimid));
+  int dimids[1] = { dimid };
+  NC_DEF_VAR(varname, NC_UBYTE, 1, dimids,
+	     "Packed lookup table blob", "1", 0, 0);
+  NC(nc_enddef(ncid));
+
+  /* Write data... */
+  NC(nc_put_var_uchar(ncid, varid, (const unsigned char *) work));
+
+  /* Free... */
+  free(work);
+
+  /* Close file... */
+  NC(nc_close(ncid));
 }
 
 /*****************************************************************************/
