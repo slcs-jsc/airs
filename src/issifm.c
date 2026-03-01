@@ -741,8 +741,8 @@ void intpol(
 void smooth(
   model_t *model) {
 
-#define DLAT 17
-#define DLON 17
+#define DLAT 14
+#define DLON 14
 
   static float hp[NLON][NLAT], ht[NLON][NLAT], hz[NLON][NLAT];
 
