@@ -741,16 +741,19 @@ void intpol(
 void smooth(
   model_t *model) {
 
+#define DLAT 17
+#define DLON 17
+
   static float hp[NLON][NLAT], ht[NLON][NLAT], hz[NLON][NLAT];
 
-  static double wx[10], wy[10];
+  const double fwhm = 20.0;
 
-  const int dlon = 3, dlat = 3;
+  static double wy[DLAT + 1];
 
   /* Set weights... */
   const double dy = RE * M_PI / 180. * fabs(model->lat[1] - model->lat[0]);
-  for (int ilat = 0; ilat <= dlat; ilat++)
-    wy[ilat] = exp(-0.5 * POW2(ilat * dy * 2.35482 / 20.));
+  for (int ilat = 0; ilat <= DLAT; ilat++)
+    wy[ilat] = exp(-0.5 * POW2(ilat * dy * 2.35482 / fwhm));
 
   /* Loop over height levels... */
   for (int iz = 0; iz < model->nz; iz++) {
@@ -759,6 +762,7 @@ void smooth(
     printf("Smoothing level %d / %d ...\n", iz + 1, model->nz);
 
     /* Copy data... */
+#pragma omp parallel for collapse(2)
     for (int ilon = 0; ilon < model->nlon; ilon++)
       for (int ilat = 0; ilat < model->nlat; ilat++) {
 	hp[ilon][ilat] = model->p[ilon][ilat][iz];
@@ -767,34 +771,51 @@ void smooth(
       }
 
     /* Loop over latitudes... */
-    for (int ilat = 0; ilat < model->nlat; ilat++) {
+#pragma omp parallel
+    {
+      /* Thread-private wx */
+      double wx[DLON + 1];
 
-      /* Set weights... */
-      const double dx =
-	RE * M_PI / 180. * cos(model->lat[ilat] * M_PI / 180.) *
-	fabs(model->lon[1] - model->lon[0]);
-      for (int ilon = 0; ilon <= dlon; ilon++)
-	wx[ilon] = exp(-0.5 * POW2(ilon * dx * 2.35482 / 20.));
+#pragma omp for
+      for (int ilat = 0; ilat < model->nlat; ilat++) {
 
-      /* Loop over longitudes... */
-      for (int ilon = 0; ilon < model->nlon; ilon++) {
-	float wsum = 0;
-	model->p[ilon][ilat][iz] = 0;
-	model->t[ilon][ilat][iz] = 0;
-	model->z[ilon][ilat][iz] = 0;
-	for (int ilon2 = GSL_MAX(ilon - dlon, 0);
-	     ilon2 <= GSL_MIN(ilon + dlon, model->nlon - 1); ilon2++)
-	  for (int ilat2 = GSL_MAX(ilat - dlat, 0);
-	       ilat2 <= GSL_MIN(ilat + dlat, model->nlat - 1); ilat2++) {
-	    float w = (float) (wx[abs(ilon2 - ilon)] * wy[abs(ilat2 - ilat)]);
-	    model->p[ilon][ilat][iz] += w * hp[ilon2][ilat2];
-	    model->t[ilon][ilat][iz] += w * ht[ilon2][ilat2];
-	    model->z[ilon][ilat][iz] += w * hz[ilon2][ilat2];
-	    wsum += w;
+	/* Set weights... */
+	const double dx =
+	  RE * M_PI / 180. * cos(model->lat[ilat] * M_PI / 180.) *
+	  fabs(model->lon[1] - model->lon[0]);
+
+	for (int ilon = 0; ilon <= DLON; ilon++)
+	  wx[ilon] = exp(-0.5 * POW2(ilon * dx * 2.35482 / fwhm));
+
+	/* Loop over longitudes... */
+	for (int ilon = 0; ilon < model->nlon; ilon++) {
+	  float wsum = 0;
+	  model->p[ilon][ilat][iz] = 0;
+	  model->t[ilon][ilat][iz] = 0;
+	  model->z[ilon][ilat][iz] = 0;
+
+	  const int ilo0 = (ilon - DLON > 0) ? ilon - DLON : 0;
+	  const int ilo1 =
+	    (ilon + DLON < model->nlon - 1) ? ilon + DLON : model->nlon - 1;
+	  const int ila0 = (ilat - DLAT > 0) ? ilat - DLAT : 0;
+	  const int ila1 =
+	    (ilat + DLAT < model->nlat - 1) ? ilat + DLAT : model->nlat - 1;
+
+	  for (int ilon2 = ilo0; ilon2 <= ilo1; ++ilon2) {
+	    const double wxh = wx[abs(ilon2 - ilon)];
+	    for (int ilat2 = ila0; ilat2 <= ila1; ++ilat2) {
+	      const float w = (float) (wxh * wy[abs(ilat2 - ilat)]);
+	      model->p[ilon][ilat][iz] += w * hp[ilon2][ilat2];
+	      model->t[ilon][ilat][iz] += w * ht[ilon2][ilat2];
+	      model->z[ilon][ilat][iz] += w * hz[ilon2][ilat2];
+	      wsum += w;
+	    }
 	  }
-	model->p[ilon][ilat][iz] /= wsum;
-	model->t[ilon][ilat][iz] /= wsum;
-	model->z[ilon][ilat][iz] /= wsum;
+
+	  model->p[ilon][ilat][iz] /= wsum;
+	  model->t[ilon][ilat][iz] /= wsum;
+	  model->z[ilon][ilat][iz] /= wsum;
+	}
       }
     }
   }
