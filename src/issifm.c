@@ -110,8 +110,7 @@ int main(
 
   const double var_dh = 100.;
 
-  static double xo[3], xs[3], xm[3], hyam[NZ], hybm[NZ], kz[NSHAPE],
-    kw[NSHAPE], wsum;
+  static double hyam[NZ], hybm[NZ], kz[NSHAPE], kw[NSHAPE];
 
   static float *help;
 
@@ -411,16 +410,6 @@ int main(
   LOG(2, "Smoothing...");
   smooth(model);
 
-  /* Calcuate height above the surface... */
-  for (int ilon = 0; ilon < model->nlon; ilon++)
-    for (int ilat = 0; ilat < model->nlat; ilat++) {
-      float z0 = model->z[ilon][ilat][0];
-      for (int iz = 1; iz < model->nz; iz++)
-	z0 = GSL_MIN(z0, model->z[ilon][ilat][iz]);
-      for (int iz = 0; iz < model->nz; iz++)
-	model->z[ilon][ilat][iz] -= z0;
-    }
-
   /* Write info... */
   for (int iz = 0; iz < model->nz; iz++)
     printf("section_height: %d %g %g %g %g %g\n", iz,
@@ -499,6 +488,7 @@ int main(
       obs->vplat[0] = pert->lat[itrack][ixtrack];
 
       /* Get Cartesian coordinates... */
+      double xm[3], xo[3], xs[3];
       geo2cart(obs->obsz[0], obs->obslon[0], obs->obslat[0], xo);
       geo2cart(obs->vpz[0], obs->vplon[0], obs->vplat[0], xs);
 
@@ -560,7 +550,8 @@ int main(
 	  }
 
 	  /* Calculate mean temperature... */
-	  pert->bt[itrack][ixtrack] = wsum = 0;
+	  double wsum = 0;
+	  pert->bt[itrack][ixtrack] = 0;
 	  for (int ip = 0; ip < atm->np; ip++)
 	    if (atm->z[ip] >= kz[0] && atm->z[ip] <= kz[nk - 1]) {
 	      const int iz = locate_irr(kz, nk, atm->z[ip]);
