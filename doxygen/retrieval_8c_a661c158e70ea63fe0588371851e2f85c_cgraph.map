@@ -1,0 +1,4 @@
+<map id="write_nc" name="write_nc">
+<area shape="rect" id="node1" title="Write to netCDF file..." alt="" coords="5,5,76,32"/>
+<area shape="rect" id="node2" href="$retrieval_8c.html#a832132b5251582419a6ca58fe3615f1c" title="Create variable in netCDF file." alt="" coords="124,5,192,32"/>
+</map>
