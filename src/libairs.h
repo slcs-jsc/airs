@@ -1,7 +1,7 @@
 /*
   This file is part of the AIRS Code Collection.
   
-  the AIRS Code Collections is free software: you can redistribute it
+  The AIRS Code Collection is free software: you can redistribute it
   and/or modify it under the terms of the GNU General Public License
   as published by the Free Software Foundation, either version 3 of
   the License, or (at your option) any later version.
@@ -26,38 +26,48 @@
 /*! 
   \mainpage
 
-  The AIRS Code Collection enables data processing and analysis
-  for remote sensing observations captured by NASA's
-  Atmospheric InfraRed Sounder.
+  The AIRS Code Collection provides command-line tools and supporting
+  libraries for processing, analysis, and retrieval workflows based on
+  observations from NASA's Atmospheric InfraRed Sounder (AIRS).
 
   \section Introduction
 
-  The source code of the AIRS Code Collection is available from the
-  [git repository](https://github.com/slcs-jsc/airs). Please see the
+  The source code of the AIRS Code Collection is available in the
+  [GitHub repository](https://github.com/slcs-jsc/airs). The
   [README.md](https://github.com/slcs-jsc/airs/blob/master/README.md)
-  in the git repository for introductory information. More information
-  can be found in the [user manual](https://slcs-jsc.github.io/airs).
+  provides installation notes and a short project overview, while the
+  [user manual](https://slcs-jsc.github.io/airs) contains workflow-oriented
+  documentation for building and running the software.
   
-  This doxygen manual contains information about the algorithms and
-  data structures used in the code. Please refer to the `libairs.h'
-  documentation for a first overview.
+  This Doxygen manual focuses on the internal data structures,
+  algorithms, and file-level interfaces implemented in the code base.
+  Start with the documentation of `libairs.h` for the AIRS-specific
+  types and helper routines used throughout the project.
+
+  The AIRS Code Collection uses JURASSIC as an upstream radiative
+  transfer model and retrieval framework. The copy of JURASSIC sources
+  in this repository is included for implementation purposes, while the
+  upstream project is maintained separately at
+  [slcs-jsc/jurassic](https://github.com/slcs-jsc/jurassic).
   
   \section References
   
-  For citing the model in scientific publications, please see
+  For software citation metadata, please see
   [CITATION.cff](https://github.com/slcs-jsc/airs/blob/master/CITATION.cff).
+  The repository also references the main scientific publications that
+  describe the AIRS processing and analysis methods used here.
   
   \section License
   
-  The AIRS Code Collection is being develop at the Jülich Supercomputing Centre,
-  Forschungszentrum Jülich, Germany.
+  The AIRS Code Collection is developed at the Jülich Supercomputing
+  Centre, Forschungszentrum Jülich, Germany.
   
-  the AIRS Code Collection is distributed under the terms of the
+  The AIRS Code Collection is distributed under the terms of the
   [GNU General Public License v3.0](https://github.com/slcs-jsc/airs/blob/master/COPYING).
   
   \section Contributing
   
-  We are interested in supporting operational and research
+  We are interested in supporting research and operational
   applications with the AIRS Code Collection.
   
   You can submit bug reports or feature requests on the
@@ -66,8 +76,8 @@
   Proposed code changes and fixes can be submitted as
   [pull requests](https://github.com/slcs-jsc/airs/pulls).
   
-  Please do not hesitate to contact us if you have any questions or
-  need assistance.
+  Please get in touch if you have questions about the software or need
+  support for a research use case.
   
   \section Contact
   
