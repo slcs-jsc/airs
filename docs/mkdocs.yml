@@ -6,4 +6,9 @@ theme: material
 
 nav:
     - Home: index.md
+    - Getting Started: getting-started.md
+    - Workflow: workflow.md
+    - Control Files: control-files.md
+    - Command Reference: command-reference.md
+    - Testing: testing.md
     - Links: links.md
