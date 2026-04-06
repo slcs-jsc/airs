@@ -12,7 +12,7 @@
       
       
       
-        <link rel="next" href="links/">
+        <link rel="next" href="getting-started/">
       
       
         
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#welcome-to-the-airs-code-collection" class="md-skip">
+        <a href="#airs-code-collection" class="md-skip">
           Skip to content
         </a>
       
@@ -280,10 +280,32 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#features" class="md-nav__link">
+  <a href="#repository-overview" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Features
+        Repository Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#main-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation Map
       
     </span>
   </a>
@@ -305,6 +327,141 @@
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="control-files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Control Files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="command-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -363,10 +520,32 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#features" class="md-nav__link">
+  <a href="#repository-overview" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Features
+        Repository Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#main-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation Map
       
     </span>
   </a>
@@ -404,16 +583,34 @@
   
 
 
-<h1 id="welcome-to-the-airs-code-collection">Welcome to the AIRS Code Collection!</h1>
-<p>The AIRS Code Collection enables data processing and analysis
-for remote sensing observations captured by NASA's
-Atmospheric InfraRed Sounder.</p>
-<h2 id="features">Features</h2>
-<p>tbd</p>
+<h1 id="airs-code-collection">AIRS Code Collection</h1>
+<p>The AIRS Code Collection provides command-line tools and supporting libraries for processing, analyzing, and retrieving information from NASA Atmospheric InfraRed Sounder observations.</p>
+<p>This manual is the user-facing entry point for the repository. It complements the generated Doxygen reference with practical guidance on building the code, understanding the executable layout, and running the main AIRS workflows.</p>
+<h2 id="repository-overview">Repository Overview</h2>
+<ul>
+<li><code>src/</code>: C source files, shared libraries, and executable targets.</li>
+<li><code>libs/</code>: bundled dependency archives and the helper script to build local libraries.</li>
+<li><code>tests/</code>: regression workflows with sample AIRS data and reference outputs.</li>
+<li><code>docs/</code>: MkDocs and Doxygen configuration.</li>
+</ul>
+<h2 id="main-capabilities">Main Capabilities</h2>
+<ul>
+<li>Read AIRS Level-1B radiance granules and derive spectra, quality flags, maps, and orbit information.</li>
+<li>Create perturbation products for gravity-wave analysis.</li>
+<li>Estimate noise, variances, wave events, and spectral characteristics.</li>
+<li>Run AIRS retrieval and non-LTE processing through the shared JURASSIC infrastructure.</li>
+<li>Provide small utility programs for time conversion, geometry, and diagnostics.</li>
+</ul>
+<h2 id="documentation-map">Documentation Map</h2>
+<ul>
+<li><a href="getting-started/">Getting Started</a>: prerequisites, dependency build, and compilation.</li>
+<li><a href="workflow/">Workflow</a>: practical end-to-end usage patterns derived from the repository tests.</li>
+<li><a href="control-files/">Control Files</a>: how AIRS tools read <code>ctl</code> settings.</li>
+<li><a href="command-reference/">Command Reference</a>: grouped summary of the executables built from <code>src/</code>.</li>
+<li><a href="testing/">Testing</a>: available regression checks and expected inputs.</li>
+<li><a href="links/">Links</a>: repository, citation, Doxygen, and related references.</li>
+</ul>
 <h2 id="contact">Contact</h2>
-<p>We are interested in sharing the AIRS Code Collection for research
-applications. Please do not hesitate to contact us, if you have any
-questions or need support.</p>
 <p>Dr. Lars Hoffmann, <a href="&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#108;&#46;&#104;&#111;&#102;&#102;&#109;&#97;&#110;&#110;&#64;&#102;&#122;&#45;&#106;&#117;&#101;&#108;&#105;&#99;&#104;&#46;&#100;&#101;">&#108;&#46;&#104;&#111;&#102;&#102;&#109;&#97;&#110;&#110;&#64;&#102;&#122;&#45;&#106;&#117;&#101;&#108;&#105;&#99;&#104;&#46;&#100;&#101;</a></p>
 <p>Jülich Supercomputing Centre, Forschungszentrum Jülich</p>
 
