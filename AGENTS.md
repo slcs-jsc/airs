@@ -57,6 +57,7 @@ make doxygen
 ## Important Build Notes
 
 - The default `Makefile` uses strict warnings and `-Werror`. Small warning regressions will fail the build.
+- Run `make clean` before rebuilding with changed compiler options; Make does not track command-line flag changes. Run `make check` without `-j`.
 - Default include and library search paths assume locally built libraries under `libs/build/` plus standard Debian or Ubuntu library locations.
 - `nlte` and `retrieval` are built with `mpicc.openmpi`.
 - Test scripts expect:
@@ -69,6 +70,7 @@ export OMP_NUM_THREADS=4
 
 - Keep the project name as `AIRS Code Collection`.
 - Use the existing MkDocs content under `docs/manual/`; do not create a separate docs tree unless explicitly requested.
+- Keep MkDocs and Doxygen documentation current with relevant code, build, and workflow changes. For new or revised API Doxygen comments, use a substantive description beyond `@brief`, document parameters and behavior where relevant, and include `@author` with the responsible author's name. Follow the detailed `/** ... */` examples in `src/jurassic.h` without editing that copied dependency for style alone; do not invent attribution.
 - The Doxygen mainpage is defined in `src/libairs.h`.
 - `jurassic.h` and `jurassic.c` are copied into this repository for implementation purposes, but Doxygen should treat JURASSIC as an external upstream dependency.
 
@@ -81,7 +83,10 @@ export OMP_NUM_THREADS=4
 ## Editing Guidance
 
 - Prefer targeted edits over broad refactors.
+- Check existing callers, tests, and documented behavior before changing code; question assumptions and explain non-obvious choices. Add abstractions or dependencies only for a concrete need.
+- Reuse existing data structures where possible. Avoid new `static` helper functions; use a macro for a small operation when its arguments can be evaluated safely, or a regular function declared and documented in `src/libairs.h`.
 - Preserve the existing C style and file header structure.
+- Format C sources and headers from `src/` with `make indent` after a successful build. It rewrites all `*.c` and `*.h` files, including copied JURASSIC sources, so review the diff and keep only intended changes.
 - Do not silently rewrite large sets of source files unless the task explicitly calls for normalization.
 - If changing generated docs behavior, verify with the relevant build command rather than assuming the config is correct.
 
@@ -94,7 +99,8 @@ For documentation changes:
 
 For source changes:
 
-- run at least the most relevant target from `make` or `make check` when feasible
+- run the narrowest relevant test first, then `make check` for shared core changes when feasible
+- investigate test failures before updating reference data; change only affected baselines after verifying the new results
 
 ## Generated Output
 
