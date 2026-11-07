@@ -1,11 +1,19 @@
 <map id="main" name="main">
-<area shape="rect" id="node1" title=" " alt="" coords="5,157,56,184"/>
-<area shape="rect" id="node2" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="141,5,206,32"/>
-<area shape="rect" id="node3" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="114,56,233,83"/>
-<area shape="rect" id="node5" href="$libairs_8c.html#a4c4c301958209cf49f0ecc1537206112" title="Smooth background." alt="" coords="104,107,243,133"/>
-<area shape="rect" id="node6" href="$libairs_8c.html#ae19d3fecff331deab50112b7a1a3c0e7" title="Apply Gaussian filter to perturbations..." alt="" coords="145,157,202,184"/>
-<area shape="rect" id="node7" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="132,208,215,235"/>
-<area shape="rect" id="node8" href="$libairs_8c.html#ae152247236688ec44cf9a3bceae691e7" title="Read radiance perturbation data." alt="" coords="135,259,211,285"/>
-<area shape="rect" id="node9" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="138,309,209,336"/>
-<area shape="rect" id="node4" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="291,56,441,83"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,153,55,179"/>
+<area shape="rect" id="Node000002" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="140,5,204,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="33,152,56,98,76,67,101,40,124,27,126,32,104,44,80,70,61,101,38,154"/>
+<area shape="rect" id="Node000003" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="113,55,231,80"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="39,151,65,120,101,89,109,85,112,89,104,94,69,124,43,154"/>
+<area shape="rect" id="Node000005" href="$libairs_8c.html#a4c4c301958209cf49f0ecc1537206112" title="Smooth background." alt="" coords="103,104,241,130"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="54,155,102,138,117,133,119,138,104,143,56,160"/>
+<area shape="rect" id="Node000006" href="$libairs_8c.html#ae19d3fecff331deab50112b7a1a3c0e7" title="Apply Gaussian filter to perturbations..." alt="" coords="144,153,200,179"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="55,164,128,164,128,169,55,169"/>
+<area shape="rect" id="Node000007" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="131,203,212,228"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="56,172,104,189,119,194,117,199,102,194,54,177"/>
+<area shape="rect" id="Node000008" href="$libairs_8c.html#ae152247236688ec44cf9a3bceae691e7" title="Read radiance perturbation data." alt="" coords="134,252,210,278"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="43,178,69,208,104,239,121,248,119,252,101,243,65,212,39,181"/>
+<area shape="rect" id="Node000009" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="137,301,207,327"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="38,178,61,231,80,262,104,288,123,300,121,304,101,292,76,265,56,234,33,180"/>
+<area shape="rect" id="Node000004" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="289,55,438,80"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="231,65,273,65,273,70,231,70"/>
 </map>

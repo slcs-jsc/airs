@@ -1,13 +1,23 @@
 <map id="main" name="main">
-<area shape="rect" id="node1" title=" " alt="" coords="5,183,56,209"/>
-<area shape="rect" id="node2" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="104,5,223,32"/>
-<area shape="rect" id="node4" href="$issifm_8c.html#a20d92fdd52d43b34dd34e073bb389f58" title="Interpolation of model data." alt="" coords="137,56,190,83"/>
-<area shape="rect" id="node5" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="122,107,205,133"/>
-<area shape="rect" id="node6" href="$libairs_8c.html#ae152247236688ec44cf9a3bceae691e7" title="Read radiance perturbation data." alt="" coords="125,157,201,184"/>
-<area shape="rect" id="node7" href="$issifm_8c.html#a8aae1aa8058bf9c28d4035991b7e1046" title="Smoothing of model data." alt="" coords="131,208,196,235"/>
-<area shape="rect" id="node8" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="128,259,199,285"/>
-<area shape="rect" id="node9" href="$issifm_8c.html#a3c08a4e8d75dfefa3ca8e97a71d4e404" title="Write wave struct to netCDF file." alt="" coords="128,309,199,336"/>
-<area shape="rect" id="node11" href="$libairs_8c.html#af7f155ab23aab051c6ea44e72b2923ca" title="Write wave analysis data." alt="" coords="119,360,207,387"/>
-<area shape="rect" id="node3" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="271,5,421,32"/>
-<area shape="rect" id="node10" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="313,309,379,336"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,179,55,204"/>
+<area shape="rect" id="Node000002" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="103,5,221,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="32,177,53,113,73,74,101,40,103,38,107,42,105,44,78,77,58,115,37,179"/>
+<area shape="rect" id="Node000004" href="$issifm_8c.html#a20d92fdd52d43b34dd34e073bb389f58" title="Interpolation of model data." alt="" coords="136,55,188,80"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="36,177,61,135,79,111,101,89,120,78,122,83,104,94,83,114,65,138,40,179"/>
+<area shape="rect" id="Node000005" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="121,104,202,130"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="46,176,101,139,109,134,112,139,104,143,49,181"/>
+<area shape="rect" id="Node000006" href="$libairs_8c.html#ae152247236688ec44cf9a3bceae691e7" title="Read radiance perturbation data." alt="" coords="124,153,200,179"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="55,184,109,174,110,179,56,189"/>
+<area shape="rect" id="Node000007" href="$issifm_8c.html#a8aae1aa8058bf9c28d4035991b7e1046" title="Smoothing of model data." alt="" coords="130,203,194,228"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="56,193,115,204,114,210,55,199"/>
+<area shape="rect" id="Node000008" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="127,252,197,278"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="50,203,104,239,114,243,111,248,101,243,47,207"/>
+<area shape="rect" id="Node000009" href="$issifm_8c.html#a3c08a4e8d75dfefa3ca8e97a71d4e404" title="Write wave struct to netCDF file." alt="" coords="127,301,197,327"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="40,203,65,245,83,268,104,288,114,295,111,299,101,292,79,271,61,248,36,206"/>
+<area shape="rect" id="Node000011" href="$libairs_8c.html#af7f155ab23aab051c6ea44e72b2923ca" title="Write wave analysis data." alt="" coords="118,351,206,376"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="37,204,58,267,78,305,105,338,107,340,103,344,101,341,73,308,53,269,32,206"/>
+<area shape="rect" id="Node000003" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="269,5,418,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="221,16,253,16,253,21,221,21"/>
+<area shape="rect" id="Node000010" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="312,301,376,327"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="197,312,296,312,296,317,197,317"/>
 </map>

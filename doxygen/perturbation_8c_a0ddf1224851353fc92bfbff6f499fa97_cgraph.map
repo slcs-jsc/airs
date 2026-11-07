@@ -1,8 +1,13 @@
 <map id="main" name="main">
-<area shape="rect" id="node1" title=" " alt="" coords="5,81,56,108"/>
-<area shape="rect" id="node2" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="131,5,196,32"/>
-<area shape="rect" id="node3" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="104,56,223,83"/>
-<area shape="rect" id="node5" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="122,107,205,133"/>
-<area shape="rect" id="node6" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="128,157,199,184"/>
-<area shape="rect" id="node4" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="271,56,421,83"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,80,55,106"/>
+<area shape="rect" id="Node000002" href="$libairs_8c.html#a53cff2d41cd32a516867259768bf972b" title="Add variable attributes to netCDF file." alt="" coords="130,5,194,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="46,77,101,40,114,33,117,38,104,44,49,82"/>
+<area shape="rect" id="Node000003" href="$libairs_8c.html#a705566e8401005ab80bcfd81a947b7e0" title="Get background based on polynomial fits." alt="" coords="103,55,221,80"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="55,86,87,79,88,84,56,91"/>
+<area shape="rect" id="Node000005" href="$libairs_8c.html#a8cffb94896ad48afae4f0d01d5b82b48" title="Convert radiance perturbation data to wave analysis struct." alt="" coords="121,104,202,130"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="56,95,107,104,106,109,55,100"/>
+<area shape="rect" id="Node000006" href="$libairs_8c.html#a7bccf3a403805bd24f1bc0658eaa78d0" title="Compute local variance." alt="" coords="127,153,197,179"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="50,104,104,140,114,145,111,150,101,144,47,108"/>
+<area shape="rect" id="Node000004" href="$libairs_8c.html#a449cfea1e26bbb27e9bc019556f50b2d" title="Get background based on polynomial fits." alt="" coords="269,55,418,80"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="221,65,253,65,253,70,221,70"/>
 </map>

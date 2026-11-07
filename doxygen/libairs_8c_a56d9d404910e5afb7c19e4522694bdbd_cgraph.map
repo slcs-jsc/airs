@@ -1,4 +1,5 @@
 <map id="fft" name="fft">
-<area shape="rect" id="node1" title="Calculate 2&#45;D FFT..." alt="" coords="5,5,44,32"/>
-<area shape="rect" id="node2" href="$libairs_8c.html#a48b5c3ccaf39126de8e504baeb032ab8" title="Calculate 1&#45;D FFT..." alt="" coords="92,5,156,32"/>
+<area shape="rect" id="Node000001" title="Calculate 2&#45;D FFT..." alt="" coords="5,5,44,31"/>
+<area shape="rect" id="Node000002" href="$libairs_8c.html#a48b5c3ccaf39126de8e504baeb032ab8" title="Calculate 1&#45;D FFT..." alt="" coords="92,5,155,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="44,16,76,16,76,21,44,21"/>
 </map>
